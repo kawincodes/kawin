@@ -21,3 +21,6 @@ cookies/*
 
 # Logo rebuild scratch output
 brand/logo/work/
+
+# Python bytecode caches
+__pycache__/
