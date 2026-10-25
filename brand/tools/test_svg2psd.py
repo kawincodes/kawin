@@ -599,7 +599,10 @@ def edge_cases():
          {"flattened": ["ringx"]}),
         ("rsvg_obb_bug", f'''<svg xmlns="{SVG}" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><clipPath id="c" clipPathUnits="objectBoundingBox"><rect x=".1" y=".1" width=".8" height=".8"/></clipPath></defs>
 <rect id="bg" width="1024" height="1024" fill="#eee"/><g id="Faded" opacity="0.85"><rect id="clipped" x="680" y="60" width="200" height="120" fill="#FAC311" clip-path="url(#c)"/></g></svg>''',
-         {"warn": "objectBoundingBox clip-path", "renderer_bug": True}),
+         {"warn": "objectBoundingBox clip-path",
+          # ground truth: the same clip in userSpaceOnUse units (rsvg renders that right at any scale)
+          "truth": f'''<svg xmlns="{SVG}" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><clipPath id="c"><rect x="700" y="72" width="160" height="96"/></clipPath></defs>
+<rect id="bg" width="1024" height="1024" fill="#eee"/><g id="Faded" opacity="0.85"><rect id="clipped" x="680" y="60" width="200" height="120" fill="#FAC311" clip-path="url(#c)"/></g></svg>'''}),
     ]
 
 
@@ -613,6 +616,9 @@ def run_edge_cases(out_dir, px):
         out = os.path.join(out_dir, f"edge_{label}.psd")
         rep = svg2psd.convert(svg, out, px=px)
         ref_svg = svg if "xmlns=" in svg else svg.replace("<svg ", f'<svg xmlns="{SVG}" ', 1)
+        if "truth" in exp:                 # the reference renderer is wrong for this input
+            print("      reference = equivalent userSpaceOnUse SVG (librsvg mis-renders the original)")
+            ref_svg = exp["truth"]
         ref = np.asarray(svg_to_png(ref_svg, px))
         psd = PSDImage.open(out)
         r = {"label": label, "counts": rep["counts"], "warnings": rep["warnings"]}
@@ -634,11 +640,6 @@ def run_edge_cases(out_dir, px):
             ok &= any(e["name"] == n and e.get("geometry") == "flattened" for e in rep["layers"])
         if "warn" in exp:
             ok &= any(exp["warn"] in w for w in rep["warnings"]) == (px != 1024)
-        if exp.get("renderer_bug") and px != 1024:
-            # the reference renderer is the faulty party here: only require the warning
-            r["composite"]["pass"] = r.get("composite_force", {}).get("pass", True)
-            r.pop("composite_force", None)
-            print("      (known librsvg bug: reference render is wrong here; warning required instead)")
         r["pass"] = bool(ok and r["composite"]["pass"] and r.get("composite_force", {"pass": True})["pass"])
         results.append(r)
     return results
