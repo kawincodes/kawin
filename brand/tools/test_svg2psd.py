@@ -21,7 +21,6 @@ For every input SVG it writes DIR/<label>.psd and checks, independently of the c
 from __future__ import annotations
 
 import argparse
-import copy
 import io
 import json
 import math
@@ -131,6 +130,8 @@ def build_fixture():
   <path id="glow" d="{sil}" fill="#3B81F1" filter="url(#shadow)" transform="translate(-40 600) scale(0.3)"/>
   <rect id="masked" x="300" y="760" width="220" height="80" fill="#EE3F2A" mask="url(#fade)"/>
   <circle id="radial" cx="150" cy="560" r="90" fill="url(#glowGrad)"/>
+</g>
+<g id="Clips" transform="matrix(0.9 0 0 0.9 40 30)">
   <rect id="bbox-clipped" x="680" y="60" width="200" height="120" fill="#FAC311" clip-path="url(#bboxClip)"/>
   <g id="obbGroup" data-name="OBB clipped" clip-path="url(#bboxClip)">
     <rect id="obb-a" x="560" y="200" width="120" height="60" fill="#2CA53B"/>
@@ -169,8 +170,8 @@ def build_fixture():
             S("oval", 4),
             S("dot", 4, stroke=True),
         ]),
-        G("Tech", [P("glow"), P("masked"), P("radial"), S("bbox-clipped", 8, clip),
-                   G("OBB clipped", [S("obb-a", 8, clip), S("obb-b", 8, clip)])], opacity=0.85),
+        G("Tech", [P("glow"), P("masked"), P("radial")], opacity=0.85),
+        G("Clips", [S("bbox-clipped", 8, clip), G("OBB clipped", [S("obb-a", 8, clip), S("obb-b", 8, clip)])]),
         G("Shadowed group", [S("fx-a", 8, visible=False), S("fx-b", 4, visible=False),
                              P("Shadowed group (rendered filter)")]),
         S("polyline 1", 3),
@@ -428,7 +429,6 @@ def verify(svg_text, label, out_dir, px, expected=None, dpi=300, ag_psd=None):
     psd = PSDImage.open(out)
     print(f"  (1) psd-tools: {psd.width}x{psd.height} depth={psd.depth} mode={psd.color_mode.name} "
           f"channels={psd.channels} layers={len(list(psd.descendants()))}")
-    by_uid = {e["uid"]: e for e in rep["layers"]}
     shapes = []
     for depth, l in walk_psd(psd):
         extra = ""
@@ -474,16 +474,18 @@ def verify(svg_text, label, out_dir, px, expected=None, dpi=300, ag_psd=None):
     Image.fromarray(ref).save(os.path.join(out_dir, f"{label}.ref.png"))
 
     # ---------------------------------------------------------------- (2) psd-tools composite
-    print("  (2) psd.composite() vs rsvg reference")
+    # NB: plain psd.composite() returns the stored merged image when one exists; ignore_preview
+    # makes psd-tools composite the layer stack itself (stored layer pixels, groups, blending).
+    print("  (2) psd-tools layer compositing vs rsvg reference")
     t = time.time()
-    comp = np.asarray(psd.composite().convert("RGBA"))
+    comp = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
     Image.fromarray(comp).save(os.path.join(out_dir, f"{label}.psdtools.png"))
-    res["composite"] = compare(comp, ref, f"composite()          [{time.time() - t:.1f}s]")
+    res["composite"] = compare(comp, ref, f"composite(ignore_preview=True) [{time.time() - t:.1f}s]")
     try:
         import aggdraw  # noqa: F401
         t = time.time()
         psd2 = PSDImage.open(out)
-        compf = np.asarray(psd2.composite(force=True).convert("RGBA"))
+        compf = np.asarray(psd2.composite(force=True, ignore_preview=True).convert("RGBA"))
         Image.fromarray(compf).save(os.path.join(out_dir, f"{label}.psdtools_force.png"))
         res["composite_force"] = compare(compf, ref, f"composite(force=True) [{time.time() - t:.1f}s] (shapes from vectors)")
     except ImportError:
@@ -564,6 +566,84 @@ def verify(svg_text, label, out_dir, px, expected=None, dpi=300, ag_psd=None):
     return res
 
 
+EDGE_PNG = ("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFklEQVR42mP8z8DwnwEIGBkZGRgYGAAkCAP9q2V3UAAAAABJRU5ErkJggg==")
+
+
+def edge_cases():
+    """(label, svg, expectations) for inputs outside the fixture's happy path."""
+    return [
+        ("no_namespace", '<svg viewBox="0 0 100 100"><rect id="a" x="10" y="10" width="50" height="50" fill="#f00"/>'
+         '<circle cx="60" cy="60" r="30" fill="rgba(0,0,255,0.5)"/></svg>', {"shapes": 2}),
+        ("illustrator_css", f'''<svg xmlns="{SVG}" xmlns:xlink="http://www.w3.org/1999/xlink" id="Layer_1" data-name="Layer 1" viewBox="0 0 200 100">
+<defs><style>.cls-1{{fill:#ee3f2a;}}.cls-2{{fill:#3b81f1;opacity:.5}}#x{{fill:#2ca53b}}</style>
+<symbol id="sym"><circle cx="10" cy="10" r="10" fill="#FAC311"/></symbol></defs>
+<g id="Unicode Ünïcødé ✓ 日本"><path class="cls-1" d="M10 10h80v80H10z"/><path class="cls-2" d="M50 10h80v80H50z"/><rect id="x" x="120" y="20" width="30" height="30"/></g>
+<use href="#sym" x="160" y="60"/><use xlink:href="#x" x="0" y="50"/><text x="20" y="95" font-size="12" fill="#000">Hi</text>
+<image x="170" y="5" width="20" height="20" href="data:image/png;base64,{EDGE_PNG}"/>
+<svg x="100" y="50" width="40" height="40" viewBox="0 0 10 10"><rect width="20" height="20" fill="#0f0"/></svg></svg>''', {}),
+        ("misc", f'''<svg xmlns="{SVG}" viewBox="10 20 100 50" width="400" height="200">
+<defs><clipPath id="empty"></clipPath><clipPath id="obb" clipPathUnits="objectBoundingBox"><rect x="0" y="0" width=".5" height="1"/></clipPath>
+<clipPath id="two"><circle cx="30" cy="40" r="10"/><circle cx="50" cy="40" r="10"/></clipPath></defs>
+<g id="hiddenGroup" display="none"><rect id="hg" x="10" y="20" width="20" height="20" fill="#000"/></g>
+<rect id="pct" x="10" y="20" width="10%" height="20%" fill="#123456" opacity="50%"/>
+<path id="broken" d="M10 20 L 30 30 X 40 40" fill="#f0f"/>
+<rect id="emptyclip" x="10" y="20" width="10" height="10" fill="#f00" clip-path="url(#empty)"/>
+<g id="obbGroup" clip-path="url(#obb)"><rect id="o1" x="60" y="25" width="40" height="20" fill="#0aa"/><circle id="o2" cx="90" cy="50" r="10" fill="#a0a"/></g>
+<g id="twoClip" clip-path="url(#two)"><path id="ringx" fill-rule="evenodd" fill="#fa0" d="M20 30h40v20h-40z M35 35h10v10h-10z"/></g>
+<path id="dashed" d="M15 65 h40" stroke="#00f" stroke-width="2" stroke-dasharray="4 2"/>
+<rect id="vis" x="15" y="45" width="10" height="10" fill="#0f0" visibility="hidden"/>
+<g id="blendGrp" style="mix-blend-mode:screen"><rect id="b1" x="80" y="25" width="15" height="15" fill="#808080"/></g>
+<g clip-path="url(#two)"><rect id="mulInHoisted" x="30" y="30" width="30" height="20" fill="#0f0" style="mix-blend-mode:multiply"/></g>
+<g><path id="zeroArea" d="M10 22 L100 22" fill="#000" stroke="#c00" stroke-width="1"/></g>
+<rect id="longname_{"x" * 300}" x="100" y="60" width="5" height="5" fill="#000"/></svg>''',
+         {"flattened": ["ringx"]}),
+        ("rsvg_obb_bug", f'''<svg xmlns="{SVG}" viewBox="0 0 1024 1024" width="1024" height="1024"><defs><clipPath id="c" clipPathUnits="objectBoundingBox"><rect x=".1" y=".1" width=".8" height=".8"/></clipPath></defs>
+<rect id="bg" width="1024" height="1024" fill="#eee"/><g id="Faded" opacity="0.85"><rect id="clipped" x="680" y="60" width="200" height="120" fill="#FAC311" clip-path="url(#c)"/></g></svg>''',
+         {"warn": "objectBoundingBox clip-path", "renderer_bug": True}),
+    ]
+
+
+def run_edge_cases(out_dir, px):
+    """Convert each edge case; layer composite (stored pixels, and vectors if aggdraw) vs rsvg."""
+    from psd_tools import PSDImage
+    os.makedirs(out_dir, exist_ok=True)
+    results = []
+    print(f"\n=== edge cases at {px}px")
+    for label, svg, exp in edge_cases():
+        out = os.path.join(out_dir, f"edge_{label}.psd")
+        rep = svg2psd.convert(svg, out, px=px)
+        ref_svg = svg if "xmlns=" in svg else svg.replace("<svg ", f'<svg xmlns="{SVG}" ', 1)
+        ref = np.asarray(svg_to_png(ref_svg, px))
+        psd = PSDImage.open(out)
+        r = {"label": label, "counts": rep["counts"], "warnings": rep["warnings"]}
+        print(f"  {label}: {rep['counts']}")
+        for w in rep["warnings"]:
+            print(f"      warning: {w[:150]}")
+        lay = np.asarray(psd.composite(ignore_preview=True).convert("RGBA"))
+        r["composite"] = compare(lay, ref, "layers vs rsvg")
+        try:
+            import aggdraw  # noqa: F401
+            r["composite_force"] = compare(np.asarray(psd.composite(force=True, ignore_preview=True).convert("RGBA")),
+                                           ref, "vectors vs rsvg")
+        except ImportError:
+            pass
+        ok = True
+        if "shapes" in exp:
+            ok &= rep["counts"]["shape"] == exp["shapes"]
+        for n in exp.get("flattened", []):
+            ok &= any(e["name"] == n and e.get("geometry") == "flattened" for e in rep["layers"])
+        if "warn" in exp:
+            ok &= any(exp["warn"] in w for w in rep["warnings"]) == (px != 1024)
+        if exp.get("renderer_bug") and px != 1024:
+            # the reference renderer is the faulty party here: only require the warning
+            r["composite"]["pass"] = r.get("composite_force", {}).get("pass", True)
+            r.pop("composite_force", None)
+            print("      (known librsvg bug: reference render is wrong here; warning required instead)")
+        r["pass"] = bool(ok and r["composite"]["pass"] and r.get("composite_force", {"pass": True})["pass"])
+        results.append(r)
+    return results
+
+
 def _flags(layer):
     f = layer._record.flags
     return (f.transparency_protected * 1 | (not f.visible) * 2 | f.photoshop_v5_later * 8 |
@@ -579,6 +659,7 @@ def main():
     ap.add_argument("--ag-psd", default=None, help="dir whose node_modules has ag-psd")
     ap.add_argument("--skip-fixture", action="store_true")
     ap.add_argument("--skip-trace", action="store_true")
+    ap.add_argument("--edge-px", type=int, default=512, help="px for the edge-case suite (0 = skip)")
     a = ap.parse_args()
     if a.pydeps:
         sys.path.append(a.pydeps)
@@ -592,6 +673,9 @@ def main():
     for p in a.svgs:
         results.append(verify(open(p).read(), os.path.splitext(os.path.basename(p))[0], a.out, a.px, None,
                               ag_psd=a.ag_psd))
+    edge = run_edge_cases(a.out, a.edge_px) if a.edge_px else []
+    with open(os.path.join(a.out, "edge_cases.json"), "w") as f:
+        json.dump(edge, f, indent=2, default=lambda o: o.item() if hasattr(o, "item") else str(o))
     with open(os.path.join(a.out, "verification.json"), "w") as f:
         json.dump(results, f, indent=2, default=lambda o: o.item() if hasattr(o, "item") else str(o))
     ok = True
@@ -609,6 +693,11 @@ def main():
         print(f"  {r['label']}: {r['MB']} MB, {r['counts']}, composite mean {r['composite']['mean_abs_x255']:.4f}/255, "
               f"IM mean {r['imagemagick']['mean_abs_x255']:.4f}/255, min IoU {r['iou_min']}, "
               + ", ".join(f"{k}={'ok' if v else 'FAIL'}" for k, v in checks.items()))
+    for r in edge:
+        ok &= r["pass"]
+        print(f"  edge/{r['label']}: layers mean {r['composite']['mean_abs_x255']:.4f}/255"
+              + (f", vectors mean {r['composite_force']['mean_abs_x255']:.4f}/255" if "composite_force" in r else "")
+              + f" -> {'ok' if r['pass'] else 'FAIL'}")
     print("ALL CHECKS PASSED" if ok else "SOME CHECKS FAILED")
     sys.exit(0 if ok else 1)
 

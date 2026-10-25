@@ -1,13 +1,23 @@
 #!/usr/bin/env python3
 """svg2psd — convert a *layered SVG* into a layered Adobe Photoshop document (.psd).
 
-    convert(svg_text, out_path, px=4096, dpi=300, title=None) -> dict   (report of layers written)
-    python3 svg2psd.py in.svg out.psd --px 4096 [--dpi 300] [--title T] [--report out.json]
+    convert(svg_text, out_path, px=4096, dpi=300, title=None, check=False) -> dict  (report)
+    python3 svg2psd.py in.svg out.psd --px 4096 [--dpi 300] [--title T] [--report r.json] [--check]
 
 Output: PSD v1, 8-bit RGB, px x px, sRGB ICC profile embedded (image resource 1039), resolution
 (1005), version info (1057), XMP with dc:title (1060) and a JPEG thumbnail (1036).  Merged
-image = the full rsvg-convert render (the reference renderer, see preview.py), RLE compressed.
-Layer channels are RLE (PackBits) compressed too.
+image = the full rsvg-convert render (the reference renderer, see preview.py), RLE compressed
+and, when it has transparency, stored matted on white with 'Mtrn' + a negative layer count,
+as Photoshop does.  Layer channels are RLE (PackBits) compressed too.  The bytes are produced
+by psd-tools' own low-level structures (psd_tools.psd.*) and its writer.
+
+Rendering: every leaf is rendered by rsvg on its own (see isolated_svg); unstroked shape layers
+are rendered only inside their Bezier hull (rsvg page offset = a pixel-identical window of the
+full render).  check=True re-composites the written layers with psd-tools and compares them with
+the merged image (report['consistency']).  Known reference-renderer bug: librsvg 2.58 mis-renders
+an objectBoundingBox clip-path inside an opacity/filter/mask group at any render scale != 1;
+convert() warns when the artwork contains that pattern (the layers are right, the merged image
+is not; use clipPathUnits=userSpaceOnUse).
 
 How the SVG maps to Photoshop
 -----------------------------
@@ -41,13 +51,18 @@ How the SVG maps to Photoshop
                     unless the SVG group is an isolated group (opacity < 1, mask, filter,
                     mix-blend-mode, isolation:isolate - exactly the cases rsvg isolates): then
                     it is 'norm' (isolated) or its blend mode.
+                    A solid-fill shape with opacity < 1 therefore stays a SHAPE layer with that
+                    layer opacity (identical result, more editable than rasterising it); pixel
+                    layers keep opacity / blend as layer properties too, never baked in.
   fill-opacity   -> shape fill opacity ('iOpa'); baked into pixels for pixel layers.
   mix-blend-mode -> PSD blend mode.     display:none / visibility:hidden -> hidden layer.
+  CSS            -> presentation attributes < <style> rules (simple tag/.class/#id selectors,
+                    by specificity) < style="" ; fill/stroke/... inherit as in SVG.
 
 Rare geometry that cannot be expressed with sequential path operations on the original
 Bezier subpaths (self-intersecting non-zero paths, multi-ring clip of a multi-ring shape) is
-written as an exactly computed polygon outline (flattened at 0.25 px); the report marks such
-layers with geometry='flattened'.
+written as an exactly computed polygon outline (flattened at 0.25 px, simplified within
+0.05 px); the report marks such layers with geometry='flattened'.
 
 Spec references in comments are to "Adobe Photoshop File Formats Specification" (2016+):
   §FH  File Header Section            §IR  Image Resources Section / Image resource IDs
@@ -492,14 +507,12 @@ def arc_to_cubics(p0, rx, ry, phi_deg, large, sweep, p1):
         return (cx + rx * cph * ux - ry * sph * uy, cy + rx * sph * ux + ry * cph * uy)
 
     out = []
-    start = p0
     for i in range(n):
         a1, a2 = th1 + i * d, th1 + (i + 1) * d
         c1 = pt(math.cos(a1) - k * math.sin(a1), math.sin(a1) + k * math.cos(a1))
         c2 = pt(math.cos(a2) + k * math.sin(a2), math.sin(a2) - k * math.cos(a2))
         end = p1 if i == n - 1 else pt(math.cos(a2), math.sin(a2))
         out.append((c1, c2, end))
-        start = end
     return out
 
 
@@ -749,8 +762,7 @@ def region_geom(region, step=FLAT_STEP):
             g = g.difference(p)
         elif op == OP_ISECT:
             g = g.intersection(p)
-    from shapely.geometry import Polygon as _P
-    return g if g is not None else _P()
+    return g if g is not None else Polygon()
 
 
 def region_from_geom(g):
@@ -800,12 +812,13 @@ def fill_region(subs, rule="nonzero", step=FLAT_STEP, keep_open=False):
     target = (total != 0) if rule != "evenodd" else (total % 2 != 0)
     tol = 1e-6 * max(areas.sum(), 1.0)
     if simple:
-        xor = (np.abs(W) % 2).sum(0) % 2 == 1
-        if areas[target != xor].sum() <= tol:
-            return [(OP_UNION if k == 0 else OP_XOR, s) for k, s in enumerate(keep)]
+        # prefer "combine" (disjoint or same-direction rings), then "exclude" (holes)
         uni = (W != 0).any(0)
         if areas[target != uni].sum() <= tol:
             return [(OP_UNION, s) for s in keep]
+        xor = (np.abs(W) % 2).sum(0) % 2 == 1
+        if areas[target != xor].sum() <= tol:
+            return [(OP_UNION if k == 0 else OP_XOR, s) for k, s in enumerate(keep)]
     return region_from_geom(unary_union([f for f, t in zip(faces, target) if t]))
 
 
@@ -840,6 +853,19 @@ def region_intersect(a, b):
 def render_svg(svg: str, px: int) -> np.ndarray:
     """rsvg-convert render, (px, px, 4) uint8 straight (non-premultiplied) RGBA."""
     return np.asarray(_svg_to_png(svg, px).convert("RGBA")).copy()
+
+
+def render_svg_box(svg: str, px: int, box) -> np.ndarray:
+    """The (x0, y0, x1, y1) window of the px x px rsvg render, rendered directly: same scaling
+    flags as the full render, the page offset by the window origin (pixel-identical crop)."""
+    x0, y0, x1, y1 = box
+    out = subprocess.run(["rsvg-convert", "-w", str(px), "-h", str(px), f"--page-width={x1 - x0}",
+                          f"--page-height={y1 - y0}", f"--left={-x0}", f"--top={-y0}", "-f", "png"],
+                         input=svg.encode(), capture_output=True, check=True).stdout
+    a = np.asarray(Image.open(io.BytesIO(out)).convert("RGBA"))
+    if a.shape[:2] != (y1 - y0, x1 - x0):
+        raise RuntimeError(f"rsvg-convert returned {a.shape[:2]} for window {box}")
+    return a
 
 
 def _crop(rgba):
@@ -950,8 +976,7 @@ class _Builder:
             raise ValueError("root element is not <svg>")
         if not self.root_ns:
             self.root.set("xmlns", SVG_NS)
-        self.elements = list(self.root.iter())
-        for k, e in enumerate(self.elements):
+        for k, e in enumerate(self.root.iter()):           # uid = document-order index
             if isinstance(e.tag, str):
                 e.set(UID, str(k))
         self.parent = {c: p for p in self.root.iter() for c in p}
@@ -962,6 +987,7 @@ class _Builder:
         self.styler = Styler(self.root, warn)
         self._style_cache = {}
         self._clip_cache = {}
+        self._obb_warned = set()
         self.px = px
         self.M0, self.vw, self.vh = self._root_matrix(px)
         self.anon = 0
@@ -1064,12 +1090,35 @@ class _Builder:
         if cp is None or lname(cp) != "clipPath":
             self.warn(f"clip-path {v!r} on {self.name_of(el) or lname(el)} is not a <clipPath>; ignored")
             return None
+        if (cp.get("clipPathUnits") or "") == "objectBoundingBox":
+            self._check_rsvg_obb_bug(el)
         key = (id(cp), tuple(round(x, 9) for x in ctm), id(el))
         if key in self._clip_cache:
             return self._clip_cache[key]
         res = self._clip_region(cp, el, ctm)
         self._clip_cache[key] = res
         return res
+
+    def _check_rsvg_obb_bug(self, el):
+        """librsvg 2.58 mis-places an objectBoundingBox clip-path on an element inside a group that
+        needs an offscreen layer (opacity < 1, filter, mask) whenever the render scale is not 1:
+        the element is dropped or clipped wrongly in the *full* render (= the merged image, and a
+        rendered filter/mask group).  Its own layer is unaffected (isolated renders neutralise
+        those ancestors).  Warn so the artwork can use userSpaceOnUse clips instead."""
+        scale = math.sqrt(abs(self.M0[0] * self.M0[3] - self.M0[1] * self.M0[2]))
+        if abs(scale - 1.0) < 1e-6 or id(el) in self._obb_warned:
+            return
+        p = self.parent.get(el)
+        while p is not None:
+            st = self.style(p)
+            if _clamp01(st["opacity"]) < 1 or st["filter"] not in ("none", "") or st["mask"] not in ("none", ""):
+                self._obb_warned.add(id(el))
+                self.warn(f"{self.name_of(el) or lname(el)}: objectBoundingBox clip-path inside an opacity/filter/"
+                          f"mask group at {scale:.3g}x render scale - librsvg mis-renders this in the full render, "
+                          f"so the merged image (and any rendered filter/mask group) shows it wrongly; the layer "
+                          f"itself is correct. Use clipPathUnits=userSpaceOnUse to avoid it.")
+                return
+            p = self.parent.get(p)
 
     def _clip_region(self, cp, el, ctm):
         if self.style(cp)["clip-path"] not in ("none", ""):
@@ -1285,6 +1334,11 @@ class _Builder:
         ts = {}
         if fill and not stroke:
             ts = {"fill": _hex(fill[1]), "fill-opacity": "1"}
+            # every painted pixel lies inside the control-point hull of the region (+AA margin)
+            pts = np.array([p for _, sp in region for p in sp.control_points()])
+            x0, y0 = np.floor(pts.min(axis=0)).astype(int) - 2
+            x1, y1 = np.ceil(pts.max(axis=0)).astype(int) + 2
+            n.info["render_box"] = (max(0, int(x0)), max(0, int(y0)), min(self.px, int(x1)), min(self.px, int(y1)))
         n.target_style = ts
         return n
 
@@ -1455,7 +1509,8 @@ def _xmp(title, dpi, icc_desc, now):
             f'<xmp:ModifyDate>{now}</xmp:ModifyDate><xmp:MetadataDate>{now}</xmp:MetadataDate>'
             f'<photoshop:ColorMode>3</photoshop:ColorMode>'
             f'<photoshop:ICCProfile>{_xml_escape(icc_desc)}</photoshop:ICCProfile>'
-            f'<tiff:XResolution>{dpi}/1</tiff:XResolution><tiff:YResolution>{dpi}/1</tiff:YResolution>'
+            f'<tiff:XResolution>{round(dpi * 1000)}/1000</tiff:XResolution>'
+            f'<tiff:YResolution>{round(dpi * 1000)}/1000</tiff:YResolution>'
             f'<tiff:ResolutionUnit>2</tiff:ResolutionUnit>'
             '</rdf:Description></rdf:RDF></x:xmpmeta>\n<?xpacket end="w"?>').encode("utf-8")
 
@@ -1476,10 +1531,17 @@ def _thumbnail(comp_rgba):
 
 # =========================================================================== convert
 def convert(svg_text: str, out_path: str, px: int = 4096, dpi: int = 300, title: str = None,
-            workers: int = None, icc_path: str = None) -> dict:
-    """Convert layered SVG text to a layered PSD at ``out_path``; returns a report dict."""
+            workers: int = None, icc_path: str = None, check: bool = False) -> dict:
+    """Convert layered SVG text to a layered PSD at ``out_path``; returns a report dict.
+
+    ``check=True`` re-opens the written file with psd-tools, composites the layer stack
+    (stored pixels, folders, opacity, blend modes) and compares it with the merged image;
+    the numbers land in ``report['consistency']`` and a mismatch adds a warning."""
     t0 = time.time()
     px = int(px)
+    dpi = float(dpi)
+    if dpi <= 0 or dpi >= 32768:
+        raise ValueError("dpi must be in (0, 32768)")
     if not 1 <= px <= 30000:
         raise ValueError("px must be 1..30000 (PSD limit; PSB not supported)")
     warnings = []
@@ -1514,6 +1576,23 @@ def convert(svg_text: str, out_path: str, px: int = 4096, dpi: int = 300, title:
         if n is None:
             return render_svg(ref_svg, px)
         svg = isolated_svg(b.root, n.uid, n.target_style, b.root_ns)
+        box = n.info.get("render_box")
+        if box is not None:
+            if box[2] <= box[0] or box[3] <= box[1]:
+                return None, None                       # entirely off the canvas
+            try:
+                win = render_svg_box(svg, px, box)
+            except (RuntimeError, subprocess.CalledProcessError, OSError):
+                win = None
+            if win is not None:
+                a = win[..., 3]
+                cut = ((box[0] > 0 and a[:, 0].any()) or (box[1] > 0 and a[0].any()) or
+                       (box[2] < px and a[:, -1].any()) or (box[3] < px and a[-1].any()))
+                if not cut:                             # else: fall back to the full render
+                    bb, crop = _crop(win)
+                    if bb is None:
+                        return None, None
+                    return (bb[0] + box[0], bb[1] + box[1], bb[2] + box[0], bb[3] + box[1]), crop
         bbox, crop = _crop(render_svg(svg, px))
         return bbox, crop
 
@@ -1622,13 +1701,13 @@ def convert(svg_text: str, out_path: str, px: int = 4096, dpi: int = 300, title:
     now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     res = [
         # 1005 ResolutionInfo: hRes/vRes Fixed 16.16, unit 1 = pixels per inch, display unit 1 = in
-        (Resource.RESOLUTION_INFO, ResoulutionInfo(horizontal=int(dpi) << 16, horizontal_unit=1, width_unit=1,
-                                                   vertical=int(dpi) << 16, vertical_unit=1, height_unit=1)),
+        (Resource.RESOLUTION_INFO, ResoulutionInfo(horizontal=int(round(dpi * 65536)), horizontal_unit=1, width_unit=1,
+                                                   vertical=int(round(dpi * 65536)), vertical_unit=1, height_unit=1)),
         (Resource.THUMBNAIL_RESOURCE, _thumbnail(comp)),                   # 1036 JPEG thumbnail
         (Resource.ICC_PROFILE, icc),                                       # 1039 ICC profile (raw)
         (Resource.VERSION_INFO, VersionInfo(version=1, has_composite=True, writer="svg2psd",
                                             reader="svg2psd", file_version=1)),  # 1057
-        (Resource.XMP_METADATA, _xmp(title, int(dpi), icc_desc, now)),     # 1060 XMP
+        (Resource.XMP_METADATA, _xmp(title, dpi, icc_desc, now)),          # 1060 XMP
     ]
     resources = ImageResources([(k, ImageResource(key=k, data=d)) for k, d in res])
 
@@ -1664,12 +1743,53 @@ def convert(svg_text: str, out_path: str, px: int = 4096, dpi: int = 300, title:
     counts = {"group": 0, "shape": 0, "pixel": 0}
     for e in report_layers:
         counts[e["kind"]] += 1
+    consistency = None
+    if check:
+        from psd_tools import PSDImage
+        lay = np.asarray(PSDImage.open(out_path).composite(ignore_preview=True).convert("RGBA"))
+        consistency = _diff_stats(lay, comp)
+        if not consistency["ok"]:
+            warn(f"layer composite differs from the merged image: {consistency}")
     return {
-        "out": os.path.abspath(out_path), "px": px, "dpi": int(dpi), "title": title,
+        "out": os.path.abspath(out_path), "px": px, "dpi": dpi, "title": title,
         "bytes": os.path.getsize(out_path), "merged_channels": nch, "merged_alpha": has_alpha,
         "icc": icc_desc, "records": n_layers, "counts": counts, "layers": report_layers,
-        "warnings": warnings, "seconds": round(time.time() - t0, 2),
+        "warnings": warnings, "consistency": consistency, "renderer": _rsvg_version(),
+        "seconds": round(time.time() - t0, 2),
     }
+
+
+def _rsvg_version():
+    try:
+        return subprocess.run(["rsvg-convert", "--version"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        return None
+
+
+def _diff_stats(a, b, tol=10 / 255):
+    """Premultiplied RGBA difference; pixels next to a colour/alpha edge of ``b`` are AA edges."""
+    def pm(x):
+        x = x.astype(np.float32) / 255.0
+        x[..., :3] *= x[..., 3:4]
+        return x
+    A, B = pm(a), pm(b)
+    d = np.abs(A - B).max(axis=2)
+    hi = B.copy()
+    lo = B.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            sh = np.roll(np.roll(B, dy, 0), dx, 1)
+            np.maximum(hi, sh, out=hi)
+            np.minimum(lo, sh, out=lo)
+    edge = (hi - lo).max(axis=2) > 8 / 255
+    edge2 = edge.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            edge2 |= np.roll(np.roll(edge, dy, 0), dx, 1)
+    bad = int(((d > tol) & ~edge2).sum())
+    mean = float(np.abs(A - B).mean())
+    return {"mean_abs_x255": round(mean * 255, 4), "max_abs_x255": round(float(d.max()) * 255, 2),
+            "px_gt10_off_edge": bad, "ok": bool(mean < 2 / 255 and bad == 0)}
 
 
 def _byte(v):
@@ -1711,20 +1831,24 @@ def main(argv=None):
     ap.add_argument("svg")
     ap.add_argument("psd")
     ap.add_argument("--px", type=int, default=4096)
-    ap.add_argument("--dpi", type=int, default=300)
+    ap.add_argument("--dpi", type=float, default=300)
     ap.add_argument("--title", default=None)
     ap.add_argument("--report", default=None, help="write the JSON report here")
+    ap.add_argument("--check", action="store_true",
+                    help="composite the written layers with psd-tools and compare with the merged image")
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args(argv)
     with open(a.svg, encoding="utf-8") as f:
-        rep = convert(f.read(), a.psd, px=a.px, dpi=a.dpi, title=a.title)
+        rep = convert(f.read(), a.psd, px=a.px, dpi=a.dpi, title=a.title, check=a.check)
     if a.report:
         with open(a.report, "w") as f:
             json.dump(rep, f, indent=2)
     if not a.quiet:
         print(format_tree(rep))
-        print(f"wrote {rep['out']}  {rep['bytes'] / 1e6:.2f} MB  {rep['px']}px @ {rep['dpi']}dpi  "
+        print(f"wrote {rep['out']}  {rep['bytes'] / 1e6:.2f} MB  {rep["px"]}px @ {rep["dpi"]:g}dpi  "
               f"{rep['counts']}  in {rep['seconds']}s")
+        if rep["consistency"]:
+            print("consistency (layer composite vs merged image):", rep["consistency"])
         for w in rep["warnings"]:
             print("warning:", w)
     return rep

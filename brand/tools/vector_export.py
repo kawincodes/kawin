@@ -1285,22 +1285,29 @@ class SvgDoc:
     # ------------------------------------------------------------------ raster subsets
     def subset_svg(self, node, mode, crop, px, *, strip_target=True, filter_split=None, background=None):
         """Standalone SVG cut from the document and cropped to `crop` (root user units).
-        mode 'alone': only `node` (its ancestors keep their transforms/styles but lose
-        opacity/clip/mask/filter); mode 'upto': everything painted up to and including `node`."""
+        mode 'alone': only `node` (or each node of a list; ancestors keep their transforms/styles
+        but lose opacity/clip/mask/filter); mode 'upto': everything painted up to and including
+        `node` (the last node of a list)."""
+        nodes = node if isinstance(node, (list, tuple)) else [node]
+        node = nodes[-1]
         root2 = copy.deepcopy(self.root)
         o2c = {}
         for o, c in zip(self.root.iter(), root2.iter()):
             o2c[o] = c
         c2i = {c: self.index[o] for o, c in o2c.items()}
-        target = o2c[node.el]
+        targets = [o2c[nd.el] for nd in nodes]
+        target = targets[-1]
+        tset = set(targets)
         parent2 = {c: p for p in root2.iter() for c in p}
         anc = []
-        x = target
-        while x in parent2:
-            x = parent2[x]
-            anc.append(x)
+        for tg in targets:
+            x = tg
+            while x in parent2:
+                x = parent2[x]
+                if x not in anc:
+                    anc.append(x)
         anc_set = set(anc)
-        end = max(c2i[e] for e in target.iter())
+        end = max(c2i[e] for tg in targets for e in tg.iter())
         hoist = ET.Element(f"{{{SVG_NS}}}defs")
 
         def renderable(e):
@@ -1309,7 +1316,7 @@ class SvgDoc:
 
         def walk(parent):
             for ch in list(parent):
-                if ch is target:
+                if ch in tset:
                     continue
                 if ch in anc_set:
                     walk(ch)
@@ -2076,14 +2083,17 @@ KVXdict begin
 /f {fill} bind def /f* {eofill} bind def /W {clip newpath} bind def /W* {eoclip newpath} bind def
 /S {stroke} bind def /w {setlinewidth} bind def /J {setlinecap} bind def /j {setlinejoin} bind def
 /M {setmiterlimit} bind def /d {setdash} bind def /rg {setrgbcolor} bind def /RG {setrgbcolor} bind def
-/k {setcmykcolor} bind def /cm {6 array astore concat} bind def
+/k {setcmykcolor} bind def /K {setcmykcolor} bind def /cm {6 array astore concat} bind def
 end"""
 
 
 def _a85_lines(data):
-    enc = base64.a85encode(data).decode("ascii") + "~>"
-    # leading space: no data line can start with '%' (keeps DSC parsers happy)
-    return "\n".join(" " + enc[i:i + 78] for i in range(0, len(enc), 78))
+    enc = base64.a85encode(data).decode("ascii")
+    # leading space: no data line can start with '%' (keeps DSC parsers happy); the EOD marker
+    # '~>' is appended after wrapping so it can never be split across lines
+    lines = [" " + enc[i:i + 78] for i in range(0, len(enc), 78)] or [" "]
+    lines[-1] += "~>"
+    return "\n".join(lines)
 
 
 def _eps(body, page_w, page_h, title, creator, date, level, process_colors=None):
@@ -2141,6 +2151,7 @@ def _region(path, rule, seg=24):
 
 
 class _PsEmitter(_PdfEmitter):
+    RUN_CLIP_MAX = 4
     """RGB EPS writer. Shares the PDF emitter's paint resolution. PostScript has no transparency:
     every painted object is recorded (region, solid colour or not, exact clip replay), and paint
     with alpha is composited exactly over solid backdrops by painting it once per backdrop piece,
@@ -2158,7 +2169,9 @@ class _PsEmitter(_PdfEmitter):
         self.flattened = []
         self.vec_blended = []
         self.n_res = 0
-        self._comp = {}
+        self.run = None          # pending run of deferred raster units
+        self._geo_cache = {}
+        self.defined = []        # ReusableStreamDecode image names (freed at the end)
 
     # ---------------------------------------------------------------- bookkeeping
     def _clipped(self, g):
@@ -2169,32 +2182,39 @@ class _PsEmitter(_PdfEmitter):
                 g = g.intersection(cg)
         return g
 
-    def _rec(self, geom, kind, color, tail, exact=True):
+    def _rec(self, geom, kind, color, tail, exact=True, g=None):
+        """Record painted coverage: kind 'solid' (colour), 'grad' (opaque gradient g) or 'other'."""
         geom = self._clipped(geom)
         if geom is None or geom.is_empty or geom.area < 1e-6:
             return
-        self.items.append({"geom": geom, "box": geom.bounds, "kind": kind, "color": color,
+        self.items.append({"geom": geom, "box": geom.bounds, "kind": kind, "color": color, "g": g,
                            "clip": list(self.clip_ops) + list(tail), "exact": exact})
 
-    def _backdrop(self, G):
-        """Solid records under region G (paint order) and whether they cover G completely;
-        None when a non-solid paint (gradient, image, raster) shows through."""
+    def _backdrop(self, G, allow_grad=False):
+        """Backdrop records under region G (paint order) and whether they cover G completely;
+        None when a paint that cannot be composited exactly (image/raster; gradients unless
+        allow_grad) shows through."""
         Gb = G.buffer(0.05)
         b = Gb.bounds
+        ok = ("solid", "grad") if allow_grad else ("solid",)
         rel = [it for it in self.items
                if it["box"][0] <= b[2] and b[0] <= it["box"][2] and it["box"][1] <= b[3] and b[1] <= it["box"][3]
                and it["geom"].intersects(Gb)]
         remaining = G
+        visible = []
         for it in reversed(rel):
             if remaining.is_empty or remaining.area < 1e-4:
                 break
-            if it["kind"] != "solid":
-                if remaining.intersection(it["geom"]).area > 1e-3:
+            vis = remaining.intersection(it["geom"]).area
+            if it["kind"] not in ok:
+                if vis > 1e-3:
                     return None
                 continue
+            if vis > 1e-6 or not it["exact"]:
+                visible.append(it)       # items fully hidden by later exact items are skipped
             if it["exact"]:
                 remaining = remaining.difference(it["geom"])
-        return [it for it in rel if it["kind"] == "solid"], (remaining.is_empty or remaining.area < 1e-4)
+        return visible[::-1], (remaining.is_empty or remaining.area < 1e-4)
 
     # ---------------------------------------------------------------- tree
     def node(self, n, ops, res):
@@ -2259,13 +2279,19 @@ class _PsEmitter(_PdfEmitter):
         return alpha >= 1 - 1e-9 and min(s[2] for s in p[1]["stops"]) >= 1 - 1e-9
 
     # ---------------------------------------------------------------- paint operators
-    def _shfill(self, g, box_root, which, backdrop=(1.0, 1.0, 1.0)):
+    def _shfill(self, g, box_root, which="color", backdrop=(1.0, 1.0, 1.0)):
         self.level = 3
         sh = shading_dict(g, which, box_root, backdrop=backdrop)
         return " ".join(_n(v, 6) for v in mmul(self.B, g["matrix"])) + " cm\n" + _ser(sh) + " shfill"
 
     def _geo(self, n, which):
         """(region, exact, clip-operator sequence reproducing the paint's coverage) or None."""
+        key = (id(n), which)
+        if key not in self._geo_cache:
+            self._geo_cache[key] = self._geo_compute(n, which)
+        return self._geo_cache[key]
+
+    def _geo_compute(self, n, which):
         if which == "fill":
             ppage = self.tp(transform_path(n.path, n.ctm))
             rule = "evenodd" if n.style.get("fill-rule") == "evenodd" else "nonzero"
@@ -2298,37 +2324,29 @@ class _PsEmitter(_PdfEmitter):
         clipop = f"{setup}\n{path_ops(n.path, 6)}\nstrokepath W\n" + " ".join(_n(v, 9) for v in inv) + " cm"
         return g, uniform and not info["dashed"], clipop
 
+    def _box_root(self, n, which):
+        box = path_bbox(transform_path(n.path, n.ctm))
+        if box and which == "stroke":
+            sw = self._stroke_setup(n)[1] * math.sqrt(abs(n.ctm[0] * n.ctm[3] - n.ctm[1] * n.ctm[2]))
+            box = (box[0] - sw, box[1] - sw, box[2] + sw, box[3] + sw)
+        return box
+
+    def _region_op(self, n, which, body):
+        """`body` painted inside the coverage of n's fill/stroke (a clip), wrapped in q/Q."""
+        return f"q\n{self._geo(n, which)[2]}\n{body}\nQ"
+
     def _paint_op(self, n, which, p, alpha=1.0, backdrop=None):
-        """PostScript painting `which` of n; with a backdrop colour, alpha is composited onto it."""
-        if which == "fill":
-            ppage = self.tp(transform_path(n.path, n.ctm))
-            evenodd = n.style.get("fill-rule") == "evenodd"
-            pops = path_ops(ppage)
-            if p[0] == "solid":
-                col = p[1] if backdrop is None else _over(p[1], alpha * p[2], backdrop)
-                return " ".join(_n(v) for v in col) + f" rg\n{pops}\n{'f*' if evenodd else 'f'}"
-            g = p[1]
-            box = path_bbox(transform_path(n.path, n.ctm))
-            if backdrop is None:
-                return f"q\n{pops}\n{'W*' if evenodd else 'W'}\n{self._shfill(g, box, 'color')}\nQ"
-            g = dict(g, stops=[(o, col, a * alpha) for o, col, a in g["stops"]])
-            return f"q\n{pops}\n{'W*' if evenodd else 'W'}\n{self._shfill(g, box, 'color_on', backdrop)}\nQ"
-        setup, sw, _ = self._stroke_setup(n)
-        lops = path_ops(n.path, 6)
+        """PostScript painting `which` of n; with a solid backdrop colour, alpha is composited onto it."""
         if p[0] == "solid":
             col = p[1] if backdrop is None else _over(p[1], alpha * p[2], backdrop)
-            return f"q {setup}{' '.join(_n(v) for v in col)} RG\n{lops}\nS Q"
-        g = p[1]
-        box = path_bbox(transform_path(n.path, n.ctm))
-        if box:
-            box = (box[0] - sw, box[1] - sw, box[2] + sw, box[3] + sw)
-        which_sh, bd = "color", (1.0, 1.0, 1.0)
-        if backdrop is not None:
-            g = dict(g, stops=[(o, col, a * alpha) for o, col, a in g["stops"]])
-            which_sh, bd = "color_on", backdrop
-        inv = minv(mmul(self.B, n.ctm))
-        return (f"q {setup}\n{lops}\nstrokepath W\n" + " ".join(_n(v, 9) for v in inv) + " cm\n"
-                + self._shfill(g, box, which_sh, bd) + "\nQ")
+            rgb = " ".join(_n(v) for v in col)
+            if which == "fill":
+                ppage = self.tp(transform_path(n.path, n.ctm))
+                return f"{rgb} rg\n{path_ops(ppage)}\n{'f*' if n.style.get('fill-rule') == 'evenodd' else 'f'}"
+            setup = self._stroke_setup(n)[0]
+            return f"q {setup}{rgb} RG\n{path_ops(n.path, 6)}\nS Q"
+        g = p[1] if backdrop is None else _grad_over(p[1], alpha, backdrop)
+        return self._region_op(n, which, self._shfill(g, self._box_root(n, which)))
 
     # opaque paint (called through _PdfEmitter._shape)
     def _fill(self, n, p, fa, ops, res):
@@ -2339,15 +2357,24 @@ class _PsEmitter(_PdfEmitter):
             self._opaque_paint(n, "stroke", p, ops)
 
     def _opaque_paint(self, n, which, p, ops):
+        self._flush()
         ops.append(self._paint_op(n, which, p))
         geo = self._geo(n, which)
         if geo and geo[0] is not None:
-            self._rec(geo[0], "solid" if p[0] == "solid" else "other", tuple(p[1]) if p[0] == "solid" else None,
-                      [geo[2]], geo[1])
+            if p[0] == "solid":
+                self._rec(geo[0], "solid", tuple(p[1]), [geo[2]], geo[1])
+            else:
+                self._rec(geo[0], "grad", None, [geo[2]], geo[1], g=p[1])
 
     # ---------------------------------------------------------------- transparency
+    MAX_PIECES = 32
+    MAX_CLIP_CHAIN = 24
+
     def _alpha_paint(self, n, which, p, alpha, ops):
-        """Exact vector compositing of a paint with alpha over solid backdrops. False -> rasterise."""
+        """Exact vector compositing of a paint with alpha over the backdrop recorded under it:
+        solid colour over solid  -> blended colour;  gradient with alpha over solid -> gradient
+        pre-blended onto that colour;  solid colour over opaque gradient -> that gradient tinted
+        (a*C + (1-a)*stop). Each piece is clipped by its backdrop's own path. False -> rasterise."""
         geo = self._geo(n, which)
         if geo is None or geo[0] is None:
             return True
@@ -2355,29 +2382,43 @@ class _PsEmitter(_PdfEmitter):
         G = self._clipped(region)
         if G is None or G.is_empty or G.area < 1e-6:
             return True
-        bd = self._backdrop(G)
+        solid = p[0] == "solid"
+        bd = self._backdrop(G, allow_grad=solid)
         if bd is None:
             return False
         backs, covered = bd
-        solid = p[0] == "solid"
         under = [it for it in backs if G.intersection(it["geom"]).area > 1e-4]
-        colours = {tuple(round(v, 6) for v in it["color"]) for it in under}
+        if len(under) > self.MAX_PIECES or any(len(it["clip"]) > self.MAX_CLIP_CHAIN for it in under):
+            return False
+        self._flush()
+        box = self._box_root(n, which)
+
+        def piece(it_color, it_g):
+            """(paint op, record kind, colour, gradient) of n's paint over one backdrop."""
+            if it_g is not None:                       # solid alpha over an opaque gradient
+                gt = _grad_tint(it_g, p[1], alpha * p[2])
+                return self._region_op(n, which, self._shfill(gt, box)), "grad", None, gt
+            if solid:
+                return self._paint_op(n, which, p, alpha, it_color), "solid", _over(p[1], alpha * p[2], it_color), None
+            gb = _grad_over(p[1], alpha, it_color)
+            return self._region_op(n, which, self._shfill(gb, box)), "grad", None, gb
+
+        colours = {tuple(round(v, 6) for v in it["color"]) for it in under if it["kind"] == "solid"}
         if not covered:
             colours.add((1.0, 1.0, 1.0))
-        if len(colours) == 1:                  # uniform backdrop: one unclipped paint
-            bc = next(iter(colours))
-            ops.append(self._paint_op(n, which, p, alpha, bc))
-            self._rec(region, "solid" if solid else "other",
-                      _over(p[1], alpha * p[2], bc) if solid else None, [clipop], exact)
+        if len(colours) == 1 and all(it["kind"] == "solid" for it in under):
+            op, kind, col, g = piece(next(iter(colours)), None)     # uniform backdrop: one unclipped paint
+            ops.append(op)
+            self._rec(region, kind, col, [clipop], exact, g=g)
             return True
         if not covered:                        # paper (white) first, then every backdrop piece
-            ops.append(self._paint_op(n, which, p, alpha, (1.0, 1.0, 1.0)))
-            self._rec(region, "solid" if solid else "other",
-                      _over(p[1], alpha * p[2], (1.0, 1.0, 1.0)) if solid else None, [clipop], exact)
+            op, kind, col, g = piece((1.0, 1.0, 1.0), None)
+            ops.append(op)
+            self._rec(region, kind, col, [clipop], exact, g=g)
         for it in under:
-            ops.append("q\n" + "\n".join(it["clip"]) + "\n" + self._paint_op(n, which, p, alpha, it["color"]) + "\nQ")
-            self._rec(region.intersection(it["geom"]), "solid" if solid else "other",
-                      _over(p[1], alpha * p[2], it["color"]) if solid else None, it["clip"] + [clipop], exact)
+            op, kind, col, g = piece(it["color"], it["g"] if it["kind"] == "grad" else None)
+            ops.append("q\n" + "\n".join(it["clip"]) + "\n" + op + "\nQ")
+            self._rec(region.intersection(it["geom"]), kind, col, it["clip"] + [clipop], exact, g=g)
         return True
 
     def _transparent(self, n, ops, mask, finfo):
@@ -2442,81 +2483,201 @@ class _PsEmitter(_PdfEmitter):
             regs.append(r)
         return True
 
-    def _raster(self, n, ops, finfo, regions, label):
-        """Flatten n by rasterising the composite of everything painted up to and including n
-        (librsvg, white paper), drawn under the vector clip(s) `regions` or a coverage mask."""
-        import numpy as np
+    def _unit_region(self, n, finfo):
+        """Pixel-aligned root-space rect covering everything n can paint (None if off-page)."""
         doc = self.doc
-        key = id(n)
-        if key not in self._comp:
-            if finfo is not None:
-                reg = finfo["region"]
-            else:
-                bb = None
-                for d in _walk(n):
-                    if d.kind == "shape":
-                        b = path_bbox(transform_path(d.path, d.ctm))
-                        if b and d.style.get("stroke", "none") != "none":
-                            su = self._stroke_setup(d)
-                            if su:
-                                e = su[1] * max(1.0, su[2]["ml"] / 2) * math.sqrt(abs(d.ctm[0] * d.ctm[3] - d.ctm[1] * d.ctm[2]))
-                                b = (b[0] - e, b[1] - e, b[2] + e, b[3] + e)
-                        bb = bbox_union(bb, b)
-                if bb is None:
-                    return
-                vx, vy, vw, vh = doc.viewbox
-                bb = (max(bb[0], vx), max(bb[1], vy), min(bb[2], vx + vw), min(bb[3], vy + vh))
-                if bb[2] <= bb[0] or bb[3] <= bb[1]:
-                    return
-                reg = _pixel_align(bb, self.ppu, doc.viewbox)
-            pw = int(round((reg[2] - reg[0]) * self.ppu))
-            ph = int(round((reg[3] - reg[1]) * self.ppu))
-            comp = rsvg_render(doc.subset_svg(n, "upto", reg, (pw, ph), background="#ffffff"), pw, ph)
-            self.n_res += 1
-            iname = f"kvxI{self.n_res}"
-            ops.append(f"/{iname} currentfile /ASCII85Decode filter /ReusableStreamDecode filter\n"
-                       f"{_a85_lines(zlib.compress(np.ascontiguousarray(comp[:, :, :3]).tobytes(), 9))}\ndef")
-            self._comp[key] = (reg, pw, ph, iname)
-        reg, pw, ph, iname = self._comp[key]
-        self.level = 3
-        x0, y0 = mapply(self.B, reg[0], reg[3])
-        x1, y1 = mapply(self.B, reg[2], reg[1])
-        place = f"{_n(x0, 6)} {_n(y0, 6)} translate {_n(x1 - x0, 6)} {_n(y1 - y0, 6)} scale"
-        img = (f"<< /ImageType 1 /Width {pw} /Height {ph} /BitsPerComponent 8 /Decode [0 1 0 1 0 1] "
-               f"/ImageMatrix [{pw} 0 0 -{ph} 0 {ph}] /Interpolate true /DataSource {iname} /FlateDecode filter >>")
+        if finfo is not None:
+            return finfo["region"]
+        bb = None
+        for d in _walk(n):
+            if d.kind == "shape":
+                b = path_bbox(transform_path(d.path, d.ctm))
+                if b and d.style.get("stroke", "none") != "none":
+                    su = self._stroke_setup(d)
+                    if su:
+                        e = su[1] * max(1.0, su[2]["ml"] / 2) * math.sqrt(abs(d.ctm[0] * d.ctm[3] - d.ctm[1] * d.ctm[2]))
+                        b = (b[0] - e, b[1] - e, b[2] + e, b[3] + e)
+                bb = bbox_union(bb, b)
+        if bb is None:
+            return None
+        vx, vy, vw, vh = doc.viewbox
+        bb = (max(bb[0], vx), max(bb[1], vy), min(bb[2], vx + vw), min(bb[3], vy + vh))
+        if bb[2] <= bb[0] or bb[3] <= bb[1]:
+            return None
+        return _pixel_align(bb, self.ppu, doc.viewbox)
+
+    def _raster(self, n, ops, finfo, regions, label):
+        """Flatten n: the composite of everything painted up to and including n (librsvg, white
+        paper) is drawn under the vector clip(s) `regions` (deferred: consecutive units in the same
+        clip context share one composite image) or, for groups/masks/filters, under a 1-bit
+        coverage mask."""
+        reg = self._unit_region(n, finfo)
+        if reg is None:
+            return
         if regions is not None:
+            key = tuple(self.clip_ops)
+            if self.run is not None and self.run["key"] != key:
+                self._flush()
+            if self.run is None:
+                self.run = {"key": key, "entries": [], "reg": reg, "nodes": []}
+            ph = _Placeholder()
+            ops.append(ph)
+            run = self.run
+            run["entries"].append((ph, regions, label))
+            run["reg"] = (min(run["reg"][0], reg[0]), min(run["reg"][1], reg[1]),
+                          max(run["reg"][2], reg[2]), max(run["reg"][3], reg[3]))
+            if n not in run["nodes"]:
+                run["nodes"].append(n)
             for geom, exact, clipop in regions:
-                ops.append(f"q\n{clipop}\n{place}\n/DeviceRGB setcolorspace {iname} 0 setfileposition\n{img} image\nQ")
                 self._rec(geom, "other", None, [clipop], exact)
-            how = "vector outline clip"
-        else:
-            cov = rsvg_render(doc.subset_svg(n, "alone", reg, (pw, ph), strip_target=False), pw, ph)
-            covered = cov[:, :, 3] > 0
-            bits = np.packbits(covered, axis=1).tobytes()
-            mname = f"kvxM{self.n_res}"
+            return
+        self._flush()
+        pw, ph_, tiles = self._masked_draw([n], reg, ops)
+        from shapely.ops import unary_union
+        if tiles:
+            self._rec(unary_union([t["box"] for t in tiles]), "other", None, [], False)
+        self.flattened.append(f"{label}: raster {pw}x{ph_} px @ {self.ppu * 72 / self.scale:.0f} ppi in "
+                              f"{len(tiles)} tiles, 1-bit coverage mask")
+
+    TILE = 256
+
+    def _composite(self, nodes, reg, ops, keep=None, cov=None):
+        """Render the composite up to nodes[-1] (librsvg, white paper) and define it as
+        ReusableStreamDecode tiles of TILE px; only tiles accepted by `keep(page_box)` (or holding
+        coverage, when a coverage array is given) are kept. Returns (tiles, pw, ph)."""
+        import numpy as np
+        from shapely.geometry import box as sbox
+        pw = int(round((reg[2] - reg[0]) * self.ppu))
+        ph = int(round((reg[3] - reg[1]) * self.ppu))
+        comp = rsvg_render(self.doc.subset_svg(nodes, "upto", reg, (pw, ph), background="#ffffff"), pw, ph)
+        self.level = 3
+        tiles = []
+        T = self.TILE
+        for ty in range(0, ph, T):
+            for tx in range(0, pw, T):
+                w, h = min(T, pw - tx), min(T, ph - ty)
+                x0, y0 = mapply(self.B, reg[0] + tx / self.ppu, reg[1] + (ty + h) / self.ppu)
+                x1, y1 = mapply(self.B, reg[0] + (tx + w) / self.ppu, reg[1] + ty / self.ppu)
+                pbox = sbox(min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1))
+                if cov is not None and not cov[ty:ty + h, tx:tx + w].any():
+                    continue
+                if keep is not None and not keep(pbox):
+                    continue
+                self.n_res += 1
+                iname = f"kvxI{self.n_res}"
+                self.defined.append(iname)
+                data = np.ascontiguousarray(comp[ty:ty + h, tx:tx + w, :3]).tobytes()
+                ops.append(f"/{iname} currentfile /ASCII85Decode filter /ReusableStreamDecode filter\n"
+                           f"{_a85_lines(zlib.compress(data, 9))}\ndef")
+                tiles.append({"name": iname, "w": w, "h": h, "box": pbox, "tx": tx, "ty": ty,
+                              "place": f"{_n(x0, 6)} {_n(y0, 6)} translate {_n(x1 - x0, 6)} {_n(y1 - y0, 6)} scale",
+                              "img": (f"<< /ImageType 1 /Width {w} /Height {h} /BitsPerComponent 8 /Decode [0 1 0 1 0 1] "
+                                      f"/ImageMatrix [{w} 0 0 -{h} 0 {h}] /DataSource {iname} /FlateDecode filter >>")})
+        return tiles, pw, ph
+
+    def _tile_draw(self, t):
+        return f"q\n{t['place']}\n/DeviceRGB setcolorspace {t['name']} 0 setfileposition\n{t['img']} image\nQ"
+
+    def _coverage(self, nodes, reg, pw, ph):
+        cov = rsvg_render(self.doc.subset_svg(nodes, "alone", reg, (pw, ph), strip_target=False), pw, ph)
+        return cov[:, :, 3] > 0
+
+    def _masked_draw(self, nodes, reg, ops):
+        """Composite under a 1-bit coverage mask (ImageType 3), tile by tile. Returns (pw, ph, tiles)."""
+        import numpy as np
+        pw = int(round((reg[2] - reg[0]) * self.ppu))
+        ph = int(round((reg[3] - reg[1]) * self.ppu))
+        cov = self._coverage(nodes, reg, pw, ph)
+        tiles, pw, ph = self._composite(nodes, reg, ops, cov=cov)
+        for t in tiles:
+            w, h = t["w"], t["h"]
+            bits = np.packbits(cov[t["ty"]:t["ty"] + h, t["tx"]:t["tx"] + w], axis=1).tobytes()
+            mname = t["name"].replace("kvxI", "kvxM")
             ops.append(f"/{mname} currentfile /ASCII85Decode filter /ReusableStreamDecode filter\n"
                        f"{_a85_lines(zlib.compress(bits, 9))}\ndef")
-            ops.append(f"q\n{place}\n/DeviceRGB setcolorspace {iname} 0 setfileposition {mname} 0 setfileposition\n"
-                       f"<< /ImageType 3 /InterleaveType 3\n/DataDict {img.replace('/Interpolate true ', '')}\n"
-                       f"/MaskDict << /ImageType 1 /Width {pw} /Height {ph} /BitsPerComponent 1 /Decode [1 0] "
-                       f"/ImageMatrix [{pw} 0 0 -{ph} 0 {ph}] /DataSource {mname} /FlateDecode filter >>\n>> image\nQ")
+            ops.append(f"q\n{t['place']}\n/DeviceRGB setcolorspace {t['name']} 0 setfileposition {mname} 0 setfileposition\n"
+                       f"<< /ImageType 3 /InterleaveType 3\n/DataDict {t['img']}\n"
+                       f"/MaskDict << /ImageType 1 /Width {w} /Height {h} /BitsPerComponent 1 /Decode [1 0] "
+                       f"/ImageMatrix [{w} 0 0 -{h} 0 {h}] /DataSource {mname} /FlateDecode filter >>\n>> image\nQ")
             ops.append(f"/{mname} null def")
-            from shapely.geometry import box as sbox
-            self._rec(sbox(min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)), "other", None, [], False)
+        return pw, ph, tiles
+
+    def _flush(self):
+        """Emit the pending run of raster units: one shared (tiled) composite; <= RUN_CLIP_MAX
+        units are drawn under their own vector outlines, longer runs under one coverage mask."""
+        run, self.run = self.run, None
+        if not run:
+            return
+        entries = run["entries"]
+        buf = []
+        if len(entries) <= self.RUN_CLIP_MAX:
+            margin = 1.5 * self.scale / self.ppu + 0.5          # superset test: >= 1 raster px
+            geoms = [g.buffer(margin) for _, regions, _ in entries for g, _, _ in regions if g is not None]
+            from shapely.ops import unary_union
+            uni = unary_union(geoms) if geoms else None
+            tiles, pw, ph = self._composite(run["nodes"], run["reg"], buf,
+                                            keep=(lambda b: uni is not None and uni.intersects(b)))
+            for i, (holder, regions, label) in enumerate(entries):
+                out = buf if i == 0 else []
+                for geom, exact, clipop in regions:
+                    gb = geom.buffer(margin) if geom is not None else None
+                    draws = [self._tile_draw(t) for t in tiles if gb is None or gb.intersects(t["box"])]
+                    if draws:
+                        out.append(f"q\n{clipop}\n" + "\n".join(draws) + "\nQ")
+                holder.text = "\n".join(out)
+            how = "vector outline clip"
+        else:
+            pw, ph, tiles = self._masked_draw(run["nodes"], run["reg"], buf)
+            entries[0][0].text = "\n".join(buf)
             how = "1-bit coverage mask"
-        self.flattened.append(f"{label}: raster {pw}x{ph} px @ {self.ppu * 72 / self.scale:.0f} ppi, {how}")
+        labels = [e[2] for e in entries]
+        lab = labels[0] if len(labels) == 1 else f"{len(labels)} units ({labels[0]} .. {labels[-1]})"
+        self.flattened.append(f"{lab}: raster {pw}x{ph} px @ {self.ppu * 72 / self.scale:.0f} ppi in "
+                              f"{len(tiles)} tiles, {how}")
 
     def build_eps(self, title, creator, date=None):
         ops = []
         self.emit(self.doc.nodes, ops, _Res())
-        for _, _, _, iname in self._comp.values():
+        self._flush()
+        for iname in self.defined:
             ops.append(f"/{iname} null def")
-        return _eps("\n".join(ops), self.page_w, self.page_h, _ps_text(title), _ps_text(creator), date, self.level)
+        body = "\n".join(o.text if isinstance(o, _Placeholder) else o for o in ops if not (isinstance(o, _Placeholder) and not o.text))
+        return _eps(body, self.page_w, self.page_h, _ps_text(title), _ps_text(creator), date, self.level)
+
+
+class _Placeholder:
+    __slots__ = ("text",)
+
+    def __init__(self):
+        self.text = ""
 
 
 def _over(col, a, backdrop):
     a = min(1.0, max(0.0, a))
     return tuple(a * c + (1 - a) * b for c, b in zip(col, backdrop))
+
+
+def _grad_over(g, alpha, backdrop):
+    """Gradient (stop alphas * alpha) composited over a solid backdrop -> opaque gradient. Colour
+    and alpha are both linear between stops, so their product is quadratic: 16 sub-stops per
+    interval whose alpha varies keep the error far below 1/255."""
+    stops = [(o, col, a * alpha) for o, col, a in g["stops"]]
+    out = []
+    for a, b in zip(stops, stops[1:]):
+        k = 16 if (a[2] != b[2] and b[0] > a[0]) else 1
+        for i in range(k):
+            t = i / k
+            al = a[2] + (b[2] - a[2]) * t
+            col = [ca + (cb - ca) * t for ca, cb in zip(a[1], b[1])]
+            out.append((a[0] + (b[0] - a[0]) * t, _over(col, al, backdrop), 1.0))
+    last = stops[-1]
+    out.append((last[0], _over(last[1], last[2], backdrop), 1.0))
+    return dict(g, stops=out)
+
+
+def _grad_tint(g, col, a):
+    """Opaque gradient g under a solid colour with alpha a -> the tinted gradient (exact)."""
+    return dict(g, stops=[(o, _over(col, a, c), 1.0) for o, c, _ in g["stops"]])
 
 
 def _ps_text(s):
@@ -2636,9 +2797,13 @@ def ink_total(cmyk):
 def export_cmyk(shapes, size, out_basename, title, *, scale=1.0, clip_d=None, output_intent=True,
                 creator=DEFAULT_CREATOR, producer=DEFAULT_PRODUCER, date=None, max_tac=3.0):
     """Device-CMYK flat artwork: <base>_CMYK.pdf, <base>_CMYK.ai (identical bytes), <base>_CMYK.eps.
-    shapes: [(name, svg_path_d, (c, m, y, k)) | (..., {"fill_rule": "evenodd", "clip": d|[d..]})]
-    in SVG user units (y down) on a `size` (or (w, h)) artboard; painted in order. clip_d clips
-    everything (e.g. the filleted silhouette of a rounded variant)."""
+    shapes: [(name, svg_path_d, (c, m, y, k)) | (name, d, cmyk, opts)] in SVG user units (y down) on
+    a `size` (or (w, h)) artboard, painted in order with exact paths ('k' / setcmykcolor). opts:
+      fill_rule 'nonzero'|'evenodd';  clip: d | [d | (d, rule), ...] (intersected levels);
+      stroke: width -> the path is stroked ('K') instead of filled, with linecap / linejoin /
+      miterlimit / dash / dashoffset.
+    clip_d clips everything (e.g. the filleted silhouette of a rounded variant). The PDF carries an
+    OutputIntent with the embedded Ghostscript CMYK profile (output_intent=False to omit it)."""
     WARNINGS.clear()
     W, H = (float(size), float(size)) if isinstance(size, (int, float)) else (float(size[0]), float(size[1]))
     pw, ph = W * scale, H * scale
@@ -2680,9 +2845,19 @@ def export_cmyk(shapes, size, out_basename, title, *, scale=1.0, clip_d=None, ou
         path = transform_path(parse_path_d(d), B)
         if not path:
             continue
-        op = "f*" if opt.get("fill_rule") == "evenodd" else "f"
-        ops.append(f"/SVGShape <</Name {_pdf_string(str(name))}>> BDC\n"
-                   + " ".join(_n(v) for v in cmyk) + f" k\n{path_ops(path)}\n{op}\nEMC")
+        col = " ".join(_n(v) for v in cmyk)
+        tag = f"/SVGShape <</Name {_pdf_string(str(name))}>> BDC\n"
+        if opt.get("stroke"):
+            cap = {"butt": 0, "round": 1, "square": 2}[opt.get("linecap", "butt")]
+            join = {"miter": 0, "round": 1, "bevel": 2}[opt.get("linejoin", "miter")]
+            dash = opt.get("dash")
+            dop = (f"[{' '.join(_n(v * scale) for v in dash)}] {_n(opt.get('dashoffset', 0.0) * scale)} d "
+                   if dash else "[] 0 d ")
+            ops.append(tag + f"q {_n(float(opt['stroke']) * scale)} w {cap} J {join} j "
+                       f"{_n(float(opt.get('miterlimit', 4.0)))} M {dop}{col} K\n{path_ops(path)}\nS Q\nEMC")
+        else:
+            op = "f*" if opt.get("fill_rule") == "evenodd" else "f"
+            ops.append(tag + f"{col} k\n{path_ops(path)}\n{op}\nEMC")
     if cur_clip is not None:
         ops.append("Q")
     if clip_d:
@@ -2718,55 +2893,113 @@ def export_cmyk(shapes, size, out_basename, title, *, scale=1.0, clip_d=None, ou
 
 
 def svg_to_cmyk_shapes(svg_text, convert=srgb_to_cmyk):
-    """Flat solid-fill SVG -> (shapes, (W, H)) for export_cmyk. Transforms are baked into the path
-    data; clip-paths become per-shape clips. Raises ValueError for gradients/opacity/masks/filters."""
+    """Flat SVG -> (shapes, (W, H)) for export_cmyk: solid fills and solid strokes, transforms baked
+    into the path data, clip-paths as per-shape clips. A solid paint with alpha (fill-/stroke-
+    opacity, rgba colour, opacity on a single-paint leaf) is pre-blended in sRGB onto the single
+    opaque shape completely beneath it (or white paper when nothing is beneath) before the ICC
+    conversion -- the same appearance as on screen. Raises ValueError for gradients, masks,
+    filters, group opacity and alpha over a non-uniform backdrop."""
     doc = SvgDoc(svg_text)
-    shapes, bad = [], []
+    shapes, bad, painted = [], [], []
     vx, vy = doc.viewbox[0], doc.viewbox[1]
     to_art = mtranslate(-vx, -vy)
 
-    def walk(n, clips):
-        if n.opacity < 1 or n.mask or n.filter:
-            bad.append(n.name or _local(n.el.tag))
+    def backdrop(G):
+        for g, rgb in reversed(painted):
+            if not g.intersects(G) or g.intersection(G).area < 1e-3:
+                continue
+            return rgb if G.difference(g).area < 1e-3 else None
+        return (1.0, 1.0, 1.0)
+
+    def walk(n, clips, cgeoms):
+        if n.opacity < 1 and n.kind == "group" or n.mask or n.filter:
+            bad.append((n.name or _local(n.el.tag)) + " (group opacity/mask/filter)")
             return
-        cl = list(clips)
+        cl, cg = list(clips), list(cgeoms)
+        levels = []
         if n.clip:
             lv = doc.clip_levels(n)
             if lv is None:
                 return
-            for level in lv:
-                p = level[0][0] if len(level) == 1 else union_for_nonzero(level)
-                rule = level[0][1] if len(level) == 1 else "nonzero"
-                cl.append((path_to_d(transform_path(p, to_art)), rule))
+            levels += lv
         if n.vp_clip:
-            cl.append((path_to_d(transform_path(n.vp_clip, to_art)), "nonzero"))
+            levels.append([(n.vp_clip, "nonzero")])
+        for level in levels:
+            pth = level[0][0] if len(level) == 1 else union_for_nonzero(level)
+            rule = level[0][1] if len(level) == 1 else "nonzero"
+            cl.append((path_to_d(transform_path(pth, to_art)), rule))
+            cg.append(_region(pth, rule)[0])
         if n.kind == "group":
             for c in n.children:
-                walk(c, cl)
+                walk(c, cl, cg)
             return
         st = n.style
         if st.get("visibility") in ("hidden", "collapse"):
             return
-        if st.get("stroke", "none") != "none":
-            bad.append((n.name or "path") + " (stroke)")
-        fill = st.get("fill", "black")
-        if fill == "none":
+        paints = [w for w in (["stroke", "fill"] if st.get("paint-order", "").strip().startswith("stroke")
+                              else ["fill", "stroke"]) if st.get(w, "black" if w == "fill" else "none") != "none"]
+        if n.opacity < 1 and len(paints) > 1:
+            bad.append((n.name or "path") + " (opacity on fill+stroke)")
             return
-        c = parse_color(fill, (0, 0, 0))
-        if parse_url(fill)[0] or c is None or c[1] < 1 or parse_opacity(st.get("fill-opacity")) < 1:
-            bad.append(n.name or "path")
-            return
-        hx = "#%02X%02X%02X" % tuple(int(round(v * 255)) for v in c[0])
-        opt = {"fill_rule": st.get("fill-rule", "nonzero")}
-        if cl:
-            opt["clip"] = cl
-        shapes.append((n.name or f"shape{len(shapes) + 1}", path_to_d(transform_path(n.path, mmul(to_art, n.ctm))),
-                       convert(hx), opt))
+        m = mmul(to_art, n.ctm)
+        for which in paints:
+            val = st.get(which)
+            c = parse_color(val, parse_color(st.get("color", "black"))[0]) if not parse_url(val)[0] else None
+            if c is None:
+                bad.append(f"{n.name or 'path'} ({which}: {val})")
+                continue
+            alpha = c[1] * parse_opacity(st.get(which + "-opacity")) * n.opacity
+            if which == "fill":
+                rule = "evenodd" if st.get("fill-rule") == "evenodd" else "nonzero"
+                G = _region(transform_path(n.path, n.ctm), rule)[0]
+                opt = {"fill_rule": rule}
+            else:
+                a_, b_, c_, d_ = n.ctm[:4]
+                s1, s2 = math.hypot(a_, b_), math.hypot(c_, d_)
+                if abs(s1 - s2) > 1e-3 * max(s1, s2) or abs(a_ * c_ + b_ * d_) > 1e-6 * max(s1, s2) ** 2:
+                    bad.append((n.name or "path") + " (stroke under non-uniform transform)")
+                    continue
+                diag = math.sqrt((doc.vw ** 2 + doc.vh ** 2) / 2)
+                sw = parse_length(st.get("stroke-width"), diag, 1.0) * s1
+                if sw <= 0:
+                    continue
+                from shapely.geometry import LineString
+                from shapely.ops import unary_union
+                G = unary_union([LineString(pts).buffer(sw / 2) for pts in
+                                 (flatten_subpath(sp, 24) for sp in subpaths(transform_path(n.path, n.ctm)))
+                                 if len(pts) >= 2] or [LineString([(0, 0), (0, 0)]).buffer(0)])
+                opt = {"stroke": sw, "linecap": st.get("stroke-linecap", "butt"),
+                       "linejoin": {"miter-clip": "miter", "arcs": "miter"}.get(st.get("stroke-linejoin"), st.get("stroke-linejoin", "miter")),
+                       "miterlimit": float(_NUM_RE.match(st.get("stroke-miterlimit", "4")).group())}
+                da = st.get("stroke-dasharray", "none")
+                if da and da != "none":
+                    vals = [parse_length(v, diag) * s1 for v in re.split(r"[\s,]+", da.strip()) if v]
+                    if vals and sum(vals) > 0:
+                        opt["dash"] = vals * (2 if len(vals) % 2 else 1)
+                        opt["dashoffset"] = parse_length(st.get("stroke-dashoffset"), diag) * s1
+            for g in cg:
+                if G is not None and g is not None:
+                    G = G.intersection(g)
+            rgb = c[0]
+            if alpha < 1 - 1e-9:
+                bd = backdrop(G) if G is not None and not G.is_empty else (1.0, 1.0, 1.0)
+                if bd is None:
+                    bad.append(f"{n.name or 'path'} ({which} alpha over a non-uniform backdrop)")
+                    continue
+                rgb = _over(rgb, alpha, bd)
+            if cl:
+                opt["clip"] = cl
+            hx = "#%02X%02X%02X" % tuple(int(round(v * 255)) for v in rgb)
+            name = n.name or f"shape{len(shapes) + 1}"
+            shapes.append((name if len(paints) == 1 else f"{name} ({which})", path_to_d(transform_path(n.path, m)),
+                           convert(hx), opt))
+            if G is not None and not G.is_empty:
+                painted.append((G, tuple(int(round(v * 255)) / 255.0 for v in rgb)))
 
     for n in doc.nodes:
-        walk(n, [])
+        walk(n, [], [])
     if bad:
-        raise ValueError("not flat solid-fill art (gradient/opacity/mask/filter/stroke): " + ", ".join(map(str, bad)))
+        raise ValueError("not flat art: " + ", ".join(map(str, bad)))
     return shapes, (doc.viewbox[2], doc.viewbox[3])
 
 
