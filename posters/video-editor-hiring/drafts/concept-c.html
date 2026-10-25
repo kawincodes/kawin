@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>KRS Hiring Video Editor</title>
+<link rel="stylesheet" href="../assets/fonts.css">
+<style>
+  :root {
+    --navy: #012153;
+    --navy-deep: #061A40;
+    --orange: #FC7403;
+    --slate: #3D4B66;
+    --white: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    width: 1080px; height: 1350px; overflow: hidden;
+    background: var(--navy-deep);
+    font-family: 'Montserrat', sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .poster { position: relative; width: 1080px; height: 1350px; overflow: hidden; }
+  .geo { position: absolute; inset: 0; width: 1080px; height: 1350px; }
+
+  .logo { position: absolute; right: 60px; top: 58px; width: 200px; height: auto; }
+
+  /* kicker tag: right edge cut at the R-leg angle (dx/dy = 0.846) */
+  .tag {
+    position: absolute; left: 60px; top: 62px;
+    height: 56px; padding: 0 70px 0 26px;
+    display: flex; align-items: center;
+    font-weight: 900; font-size: 30px; letter-spacing: 0.16em; line-height: 1;
+    color: var(--navy-deep);
+  }
+  .tag::before {
+    content: ""; position: absolute; inset: 0;
+    background: var(--orange);
+    clip-path: polygon(0 0, calc(100% - 47px) 0, 100% 100%, 0 100%);
+  }
+  .tag span { position: relative; }
+
+  .headline {
+    position: absolute; left: 53px; top: 145px;
+    font-family: 'Anton', sans-serif; font-weight: 400;
+    font-size: 214px; line-height: 0.94; letter-spacing: 0.005em;
+    color: var(--white);
+  }
+  .headline span { display: block; }
+  .headline .l2 { color: var(--orange); }
+
+  .filter { position: absolute; left: 60px; top: 570px; width: 960px; }
+  .filter .note {
+    margin: 0 0 18px 0; display: flex; align-items: center; gap: 14px;
+    font-weight: 600; font-size: 28px; line-height: 1; color: #E1E8F4;
+  }
+  .filter .stamps { display: flex; gap: 24px; }
+  .stamp {
+    position: relative; flex: 1; height: 84px;
+    display: flex; align-items: center; justify-content: center; gap: 16px;
+  }
+  .stamp::before, .stamp::after {
+    content: ""; position: absolute; border: 4px solid var(--orange); border-radius: 8px;
+  }
+  .stamp::before { inset: 0; }
+  .stamp::after { inset: 7px; border-width: 2px; border-radius: 4px; opacity: 0.6; }
+  .stamp svg { flex: none; position: relative; }
+  .stamp b {
+    position: relative;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 42px;
+    letter-spacing: 0.05em; color: var(--white); line-height: 1;
+  }
+
+  .benefits { position: absolute; left: 60px; top: 834px; width: 960px; }
+  .benefits h2 {
+    margin: 0 0 26px 0; display: flex; align-items: center; gap: 18px;
+    font-weight: 900; font-size: 36px; letter-spacing: 0.2em; line-height: 1; color: var(--navy);
+  }
+  .row { display: flex; align-items: center; gap: 26px; margin-bottom: 22px; }
+  .row:last-child { margin-bottom: 0; }
+  .row .ico {
+    flex: none; width: 80px; height: 80px; border-radius: 14px; background: var(--navy);
+    display: grid; place-items: center;
+  }
+  .row h3 { margin: 0; font-weight: 800; font-size: 30px; letter-spacing: 0.02em; color: var(--navy); line-height: 1.1; }
+  .row p { margin: 6px 0 0 0; font-weight: 500; font-size: 28px; color: var(--slate); line-height: 1.15; }
+
+  .cta { position: absolute; left: 60px; top: 1212px; width: 960px; height: 80px; display: flex; align-items: center; gap: 30px; }
+  .btn {
+    position: relative; height: 80px; padding: 0 84px 0 34px;
+    display: flex; align-items: center; gap: 16px;
+    font-weight: 900; font-size: 34px; letter-spacing: 0.1em; color: var(--navy-deep);
+  }
+  .btn::before { content: ""; position: absolute; inset: 0; background: var(--orange); clip-path: polygon(0 0, calc(100% - 68px) 0, 100% 100%, 0 100%); }
+  .btn > * { position: relative; }
+  .dm { display: flex; align-items: center; gap: 14px; font-weight: 700; font-size: 32px; color: var(--navy); }
+</style>
+</head>
+<body>
+<div class="poster">
+  <svg class="geo" viewBox="0 0 1080 1350" aria-hidden="true">
+    <defs>
+      <linearGradient id="navyGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#0B2C6B"/>
+        <stop offset="0.5" stop-color="#061A40"/>
+        <stop offset="1" stop-color="#041330"/>
+      </linearGradient>
+    </defs>
+    <rect width="1080" height="1350" fill="url(#navyGrad)"/>
+    <!-- tonal shard right of main shard -->
+    <polygon points="635,-2 900,-2 1500,708 1235,708" fill="#0D2F70" opacity="0.8"/>
+    <!-- main orange shard: sides at the R-leg angle (dx/dy = 0.846), flat top & foot like the logo's R -->
+    <polygon points="445,-2 635,-2 1075,520 885,520" fill="#FC7403"/>
+    <!-- thin white shard -->
+    <polygon points="391,312 419,312 600,526 572,526" fill="#FFFFFF"/>
+    <!-- diagonal band + white panel -->
+    <polygon points="0,724 1080,834 1080,872 0,762" fill="#FC7403"/>
+    <polygon points="0,762 1080,872 1080,1350 0,1350" fill="#FFFFFF"/>
+  </svg>
+
+  <div class="tag"><span>WE'RE HIRING</span></div>
+  <img class="logo" src="../assets/logo-white.png" alt="KRS Tech Solutions">
+
+  <div class="headline"><span class="l1">VIDEO</span><span class="l2">EDITOR</span></div>
+
+  <div class="filter">
+    <p class="note">
+      <svg width="36" height="32" viewBox="0 0 36 32" fill="none" stroke="#FC7403" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"><rect x="2" y="2" width="32" height="21" rx="3"/><path d="M18 23 V29 M10 30 H26"/></svg>
+      Professional desktop editors only
+    </p>
+    <div class="stamps">
+      <div class="stamp">
+        <svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="23" fill="#FC7403"/><path d="M15 15 L31 31 M31 15 L15 31" stroke="#061A40" stroke-width="5.5" stroke-linecap="round"/></svg>
+        <b>NO MOBILE EDITORS</b>
+      </div>
+      <div class="stamp">
+        <svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="23" fill="#FC7403"/><path d="M15 15 L31 31 M31 15 L15 31" stroke="#061A40" stroke-width="5.5" stroke-linecap="round"/></svg>
+        <b>NO CAPCUT EDITORS</b>
+      </div>
+    </div>
+  </div>
+
+  <div class="benefits">
+    <h2>
+      <svg width="42" height="30" viewBox="0 0 42 30"><polygon points="0,0 11,0 26,30 15,30" fill="#FC7403"/><polygon points="16,0 27,0 42,30 31,30" fill="#FC7403"/></svg>
+      BENEFITS
+    </h2>
+    <div class="row">
+      <div class="ico">
+        <svg width="50" height="50" viewBox="0 0 50 50" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="15" cy="35" r="10"/>
+          <path d="M22 28 L44 6 M36 14 L42 20 M30 20 L35 25"/>
+          <circle cx="15" cy="35" r="3.2" fill="#FC7403" stroke="none"/>
+        </svg>
+      </div>
+      <div><h3>PREMIUM SOFTWARE</h3><p>OEM license provided</p></div>
+    </div>
+    <div class="row">
+      <div class="ico">
+        <svg width="50" height="50" viewBox="0 0 50 50" fill="none" stroke="#fff" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+          <rect x="12" y="5" width="34" height="28" rx="4"/>
+          <path d="M5 14 V41 a4 4 0 0 0 4 4 H37"/>
+          <path d="M25 13 L35 19 L25 25 Z" fill="#FC7403" stroke="#FC7403" stroke-width="2.5"/>
+        </svg>
+      </div>
+      <div><h3>PREMIUM STOCK &amp; MOCKUP SUBSCRIPTION</h3><p>Pro subscription to a site like Envato</p></div>
+    </div>
+    <div class="row">
+      <div class="ico">
+        <svg width="50" height="50" viewBox="0 0 50 50" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="22" width="34" height="23" rx="3"/>
+          <rect x="5" y="14" width="40" height="8" rx="2"/>
+          <path d="M25 14 V45"/>
+          <path d="M25 14 C 20 4, 10 6, 15 14 M25 14 C 30 4, 40 6, 35 14" stroke="#FC7403"/>
+        </svg>
+      </div>
+      <div><h3>AND MUCH MORE</h3><p>...and more perks</p></div>
+    </div>
+  </div>
+
+  <div class="cta">
+    <div class="btn"><span>APPLY NOW</span>
+      <svg width="34" height="34" viewBox="0 0 34 34" fill="none" stroke="#061A40" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17 H28 M18 7 L28 17 L18 27"/></svg>
+    </div>
+    <div class="dm">
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="#012153" stroke-width="3.5" stroke-linejoin="round"><path d="M36 4 L4 17 L17 22 L22 36 Z"/><path d="M17 22 L36 4"/></svg>
+      DM us your portfolio
+    </div>
+  </div>
+</div>
+</body>
+</html>
