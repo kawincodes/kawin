@@ -41,7 +41,9 @@ How the SVG maps to Photoshop
         -> appended to the shape's vector mask as "intersect" components (exact Beziers).
            Pixel layers simply have the clip baked into their pixels.
   gradient / pattern fill, filter, mask, <text>, <image>, <use>, nested <svg>, dashed or
-  gradient stroke, a stroke combined with a clip-path / fill-opacity / anisotropic transform
+  gradient stroke, a stroke combined with a clip-path / fill-opacity / anisotropic transform,
+  a stroke on overlapping or edge-sharing subpaths (Photoshop would stroke only their combined
+  outline), a colour syntax not parsed here (hwb(), lab(), color() ...; hsl()/hsla() are parsed)
         -> PIXEL layer: a copy of the SVG with only that element visible (defs kept, every
            ancestor transform and clip kept) rendered by rsvg and cropped to its bounds.
   <g> with filter or mask
@@ -264,6 +266,25 @@ def parse_color(v):
         if len(parts) > 3:
             a = float(parts[3][:-1]) / 100 if parts[3].endswith("%") else float(parts[3])
         return tuple(max(0, min(255, c)) for c in rgb), max(0.0, min(1.0, a))
+    m = re.fullmatch(r"hsla?\(\s*([^)]*)\)", v, flags=re.I)
+    if m:   # CSS Color 3/4 hsl()/hsla(): comma or space syntax, hue units deg/grad/rad/turn, "/ alpha"
+        parts = [p for p in re.split(r"[\s,/]+", m.group(1).strip()) if p]
+        hm = re.fullmatch(r"([-+]?(?:\d+\.?\d*|\.\d+)(?:e[-+]?\d+)?)(deg|grad|rad|turn)?", parts[0].lower()) \
+            if parts else None
+        if len(parts) < 3 or not hm or not parts[1].endswith("%") or not parts[2].endswith("%"):
+            return None
+        try:
+            hue = float(hm.group(1)) * {None: 1.0, "deg": 1.0, "grad": 0.9, "rad": 180 / math.pi,
+                                        "turn": 360.0}[hm.group(2)]
+            s_, l_ = (max(0.0, min(1.0, float(p[:-1]) / 100)) for p in parts[1:3])
+            a = 1.0
+            if len(parts) > 3:
+                a = float(parts[3][:-1]) / 100 if parts[3].endswith("%") else float(parts[3])
+        except ValueError:
+            return None
+        import colorsys
+        rgb = tuple(int(round(255 * c)) for c in colorsys.hls_to_rgb((hue / 360.0) % 1.0, l_, s_))
+        return rgb, max(0.0, min(1.0, a))
     try:
         c = ImageColor.getrgb(v)
     except ValueError:
@@ -822,6 +843,19 @@ def fill_region(subs, rule="nonzero", step=FLAT_STEP, keep_open=False):
     return region_from_geom(unary_union([f for f, t in zip(faces, target) if t]))
 
 
+def _stroke_outline_hidden(region):
+    """True when the combined outline of the closed components (evaluated with their path
+    operations, as Photoshop strokes a shape layer) is shorter than the sum of their own outlines,
+    i.e. part of some subpath's stroke would disappear in Photoshop."""
+    closed = [(op, s) for op, s in region if s.closed]
+    if len(closed) < 2:
+        return False
+    from shapely.geometry import Polygon
+    per = sum(Polygon(s.flatten()).length for _, s in closed if len(s.flatten()) >= 3)
+    g = region_geom([(OP_UNION if k == 0 else op, s) for k, (op, s) in enumerate(closed)])
+    return g.boundary.length < per - max(0.05, 1e-4 * per)
+
+
 def _shoelace(r):
     x, y = r[:, 0], r[:, 1]
     return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
@@ -1203,6 +1237,10 @@ class _Builder:
         if name is None:
             self.anon += 1
             name = f"Group {self.anon}"
+        if depth >= 10 and not getattr(self, "_deep_warned", False):
+            self._deep_warned = True      # Photoshop's UI nests layer groups at most 10 levels deep
+            self.warn(f"{name}: layer group nested {depth + 1} levels deep; Photoshop supports 10 - "
+                      f"flatten the SVG group hierarchy if Photoshop refuses the file")
         g = LNode("group", name, uid)
         g.svg_id = el.get("id")
         g.children = children
@@ -1253,6 +1291,13 @@ class _Builder:
             return pixel("mask")
         fill = parse_paint(st["fill"], st["color"])
         stroke = parse_paint(st["stroke"], st["color"])
+        for prop, val in (("fill", fill), ("stroke", stroke)):
+            raw = (st[prop] or "").strip()
+            if val is None and raw and raw.lower() != "none":
+                # a colour syntax we do not parse (hwb(), color(), lab() ...): never drop the element -
+                # rasterise it exactly as the reference renderer paints it
+                self.warn(f"{name}: {prop} {raw!r} not understood; rasterised as rsvg renders it")
+                return pixel(f"{prop} {raw!r} not parsed")
         if fill and fill[0] == "url":
             ref = self.ids.get(fill[1])
             if ref is None:
@@ -1306,6 +1351,10 @@ class _Builder:
                 return pixel("stroke on a path needing polygon fallback")
         if not fill:
             region = [(OP_UNION, s) for s in subs if s.segs]
+        if stroke and _stroke_outline_hidden(region):
+            # Photoshop strokes the *combined* outline of a shape layer's path components; SVG strokes
+            # every subpath. Overlapping / edge-sharing combined subpaths would lose stroke segments.
+            return pixel("stroke on overlapping subpaths")
         for c in clips:
             if c is not None:
                 region = region_intersect(region, c)
