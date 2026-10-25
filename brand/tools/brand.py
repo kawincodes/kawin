@@ -333,13 +333,13 @@ def _tech_layers(k: KParams, detail="full", shape="tile"):
             strips.append(LineString([(0, y), (s, y)]).buffer(hw, cap_style=2))
         grid = unary_union(strips).intersection(circle)
         defs.append(_rad("tech-grid", cxy, R, [(0, "#FFFFFF", 0.085), (0.6, "#FFFFFF", 0.04), (1, "#FFFFFF", 0.0)]))
-        groups.append(f'<g {_attrs("grid", "Construction grid")}><path fill="url(#tech-grid)" d="{shape_d(grid)}"/></g>')
+        groups.append(f'<g {_attrs("grid", "Construction grid")}><path {_attrs("grid-lines", "Grid lines")} fill="url(#tech-grid)" d="{shape_d(grid)}"/></g>')
 
         # 3 - ambient light pooled behind the mark
         ctr = ((k.x0 + p["armTR"][0]) / 2, (k.yT + k.yB) / 2)
         glow = tone(pal["blue"], dL=0.04, dC=-0.03)
         defs.append(_rad("tech-ambient", ctr, 0.40 * s, [(0, glow, 0.24), (0.5, glow, 0.08), (1, glow, 0.0)]))
-        groups.append(f'<g {_attrs("ambient", "Ambient light")}><path fill="url(#tech-ambient)" d="{_circle_d(ctr, 0.40 * s)}"/></g>')
+        groups.append(f'<g {_attrs("ambient", "Ambient light")}><path {_attrs("ambient-glow", "Glow")} fill="url(#tech-ambient)" d="{_circle_d(ctr, 0.40 * s)}"/></g>')
 
         # 4 - traces: the fold line and the arm's inner edge run on past the letter to pads
         sig = tone(pal["blue"], dL=0.26, dC=-0.11)
