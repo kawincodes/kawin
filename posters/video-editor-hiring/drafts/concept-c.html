@@ -23,7 +23,7 @@
   .poster { position: relative; width: 1080px; height: 1350px; overflow: hidden; }
   .geo { position: absolute; inset: 0; width: 1080px; height: 1350px; }
 
-  .logo { position: absolute; right: 60px; top: 58px; width: 200px; height: auto; }
+  .logo { position: absolute; right: 60px; top: 58px; width: 228px; height: auto; }
 
   /* kicker tag: right edge cut at the R-leg angle (dx/dy = 0.846) */
   .tag {
@@ -47,23 +47,24 @@
     color: var(--white);
   }
   .headline span { display: block; }
-  .headline .l2 { color: var(--orange); }
+  .headline .l1 { position: relative; left: 4px; }
+  .headline .l2 { position: relative; left: -2px; color: var(--orange); }
 
-  .filter { position: absolute; left: 60px; top: 570px; width: 960px; }
+  .filter { position: absolute; left: 60px; top: 575px; width: 960px; }
   .filter .note {
     margin: 0 0 18px 0; display: flex; align-items: center; gap: 14px;
     font-weight: 600; font-size: 28px; line-height: 1; color: #E1E8F4;
   }
   .filter .stamps { display: flex; gap: 24px; }
   .stamp {
-    position: relative; flex: 1; height: 84px;
+    position: relative; flex: 1; height: 80px;
     display: flex; align-items: center; justify-content: center; gap: 16px;
   }
   .stamp::before, .stamp::after {
     content: ""; position: absolute; border: 4px solid var(--orange); border-radius: 8px;
   }
   .stamp::before { inset: 0; }
-  .stamp::after { inset: 7px; border-width: 2px; border-radius: 4px; opacity: 0.6; }
+  .stamp::after { inset: 8px; border-width: 1.5px; border-radius: 3px; opacity: 0.85; }
   .stamp svg { flex: none; position: relative; }
   .stamp b {
     position: relative;
@@ -71,21 +72,23 @@
     letter-spacing: 0.05em; color: var(--white); line-height: 1;
   }
 
-  .benefits { position: absolute; left: 60px; top: 834px; width: 960px; }
+  .benefits { position: absolute; left: 60px; top: 838px; width: 960px; }
   .benefits h2 {
-    margin: 0 0 26px 0; display: flex; align-items: center; gap: 18px;
+    margin: 0 0 24px 0; display: flex; align-items: center; gap: 26px;
     font-weight: 900; font-size: 36px; letter-spacing: 0.2em; line-height: 1; color: var(--navy);
   }
-  .row { display: flex; align-items: center; gap: 26px; margin-bottom: 22px; }
+  .row { position: relative; display: flex; align-items: center; gap: 26px; margin-bottom: 26px; }
+  .row + .row::before { content: ''; position: absolute; left: 102px; right: 0; top: -14px; height: 2px; background: #E4E9F1; }
+  .row .num { position: absolute; right: 0; top: 50%; transform: translateY(-50%); font-family: 'Anton', sans-serif; font-size: 56px; line-height: 1; color: transparent; -webkit-text-stroke: 1.5px #9AA8C0; }
   .row:last-child { margin-bottom: 0; }
   .row .ico {
-    flex: none; width: 80px; height: 80px; border-radius: 14px; background: var(--navy);
+    flex: none; width: 76px; height: 76px; border-radius: 14px; background: var(--navy);
     display: grid; place-items: center;
   }
   .row h3 { margin: 0; font-weight: 800; font-size: 30px; letter-spacing: 0.02em; color: var(--navy); line-height: 1.1; }
   .row p { margin: 6px 0 0 0; font-weight: 500; font-size: 28px; color: var(--slate); line-height: 1.15; }
 
-  .cta { position: absolute; left: 60px; top: 1212px; width: 960px; height: 80px; display: flex; align-items: center; gap: 30px; }
+  .cta { position: absolute; left: 60px; top: 1214px; width: 960px; height: 80px; display: flex; align-items: center; gap: 30px; }
   .btn {
     position: relative; height: 80px; padding: 0 84px 0 34px;
     display: flex; align-items: center; gap: 16px;
@@ -105,20 +108,36 @@
         <stop offset="0.5" stop-color="#061A40"/>
         <stop offset="1" stop-color="#041330"/>
       </linearGradient>
+      <radialGradient id="glow" cx="0.28" cy="0.3" r="0.45">
+        <stop offset="0" stop-color="#123F8C" stop-opacity="0.22"/>
+        <stop offset="1" stop-color="#1A4AA0" stop-opacity="0"/>
+      </radialGradient>
+      <filter id="grain" x="0" y="0" width="100%" height="100%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="7" stitchTiles="stitch"/>
+        <feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1.4 -0.35"/>
+      </filter>
     </defs>
     <rect width="1080" height="1350" fill="url(#navyGrad)"/>
-    <!-- tonal shard right of main shard -->
-    <polygon points="635,-2 900,-2 1500,708 1235,708" fill="#0D2F70" opacity="0.8"/>
+    <!-- soft glow behind headline -->
+    <rect width="1080" height="1350" fill="url(#glow)"/>
+    <!-- fine grain for a printed, premium finish -->
+    <rect width="1080" height="900" filter="url(#grain)" opacity="0.07"/>
     <!-- main orange shard: sides at the R-leg angle (dx/dy = 0.846), flat top & foot like the logo's R -->
-    <polygon points="445,-2 635,-2 1075,520 885,520" fill="#FC7403"/>
-    <!-- thin white shard -->
-    <polygon points="391,312 419,312 600,526 572,526" fill="#FFFFFF"/>
+    <polygon points="440,-2 610,-2 1020,485 850,485" fill="#FC7403"/>
+    <!-- thin white shard, parallel -->
+    <polygon points="602,260 630,260 820,485 792,485" fill="#FFFFFF"/>
     <!-- diagonal band + white panel -->
-    <polygon points="0,724 1080,834 1080,872 0,762" fill="#FC7403"/>
-    <polygon points="0,762 1080,872 1080,1350 0,1350" fill="#FFFFFF"/>
+    <polygon points="0,729 1080,839 1080,877 0,767" fill="#FC7403"/>
+    <!-- timeline ticks on the band -->
+    <path d="M12 730.2V745.2 M30 732.1V740.1 M48 733.9V741.9 M66 735.7V743.7 M84 737.6V745.6 M102 739.4V754.4 M120 741.2V749.2 M138 743.1V751.1 M156 744.9V752.9 M174 746.7V754.7 M192 748.6V763.6 M210 750.4V758.4 M228 752.2V760.2 M246 754.1V762.1 M264 755.9V763.9 M282 757.7V772.7 M300 759.6V767.6 M318 761.4V769.4 M336 763.2V771.2 M354 765.1V773.1 M372 766.9V781.9 M390 768.7V776.7 M408 770.6V778.6 M426 772.4V780.4 M444 774.2V782.2 M462 776.1V791.1 M480 777.9V785.9 M498 779.7V787.7 M516 781.6V789.6 M534 783.4V791.4 M552 785.2V800.2 M570 787.1V795.1 M588 788.9V796.9 M606 790.7V798.7 M624 792.6V800.6 M642 794.4V809.4 M660 796.2V804.2 M678 798.1V806.1 M696 799.9V807.9 M714 801.7V809.7 M732 803.6V818.6 M750 805.4V813.4 M768 807.2V815.2 M786 809.1V817.1 M804 810.9V818.9 M822 812.7V827.7 M840 814.6V822.6 M858 816.4V824.4 M876 818.2V826.2 M894 820.1V828.1 M912 821.9V836.9 M930 823.7V831.7 M948 825.6V833.6 M966 827.4V835.4 M984 829.2V837.2 M1002 831.1V846.1 M1020 832.9V840.9 M1038 834.7V842.7 M1056 836.6V844.6 M1074 838.4V846.4" stroke="#061A40" stroke-width="2.5" opacity="0.45"/>
+    <polygon points="0,767 1080,877 1080,1350 0,1350" fill="#FFFFFF"/>
+    <!-- playhead on the timeline band -->
+    <path d="M540 760.0 V822.0" stroke="#FFFFFF" stroke-width="4"/>
+    <path d="M529 744.0 H551 V758.0 L540 769.0 L529 758.0 Z" fill="#FFFFFF"/>
+
   </svg>
 
-  <div class="tag"><span>WE'RE HIRING</span></div>
+  <div class="tag"><span>WE&rsquo;RE HIRING</span></div>
   <img class="logo" src="../assets/logo-white.png" alt="KRS Tech Solutions">
 
   <div class="headline"><span class="l1">VIDEO</span><span class="l2">EDITOR</span></div>
@@ -142,7 +161,7 @@
 
   <div class="benefits">
     <h2>
-      <svg width="42" height="30" viewBox="0 0 42 30"><polygon points="0,0 11,0 26,30 15,30" fill="#FC7403"/><polygon points="16,0 27,0 42,30 31,30" fill="#FC7403"/></svg>
+      <svg width="76" height="30" viewBox="0 0 76.4 30"><polygon points="0,0 11,0 36.4,30 25.4,30" fill="#FC7403"/><polygon points="20,0 31,0 56.4,30 45.4,30" fill="#FC7403"/><polygon points="40,0 51,0 76.4,30 65.4,30" fill="#FC7403"/></svg>
       BENEFITS
     </h2>
     <div class="row">
@@ -153,7 +172,7 @@
           <circle cx="15" cy="35" r="3.2" fill="#FC7403" stroke="none"/>
         </svg>
       </div>
-      <div><h3>PREMIUM SOFTWARE</h3><p>OEM license provided</p></div>
+      <span class="num">01</span><div><h3>PREMIUM SOFTWARE</h3><p>OEM license provided</p></div>
     </div>
     <div class="row">
       <div class="ico">
@@ -163,7 +182,7 @@
           <path d="M25 13 L35 19 L25 25 Z" fill="#FC7403" stroke="#FC7403" stroke-width="2.5"/>
         </svg>
       </div>
-      <div><h3>PREMIUM STOCK &amp; MOCKUP SUBSCRIPTION</h3><p>Pro subscription to a site like Envato</p></div>
+      <span class="num">02</span><div><h3>PREMIUM STOCK &amp; MOCKUP SUBSCRIPTION</h3><p>Pro subscription to a site like Envato</p></div>
     </div>
     <div class="row">
       <div class="ico">
@@ -174,7 +193,7 @@
           <path d="M25 14 C 20 4, 10 6, 15 14 M25 14 C 30 4, 40 6, 35 14" stroke="#FC7403"/>
         </svg>
       </div>
-      <div><h3>AND MUCH MORE</h3><p>...and more perks</p></div>
+      <span class="num">03</span><div><h3>AND MUCH MORE</h3><p>&hellip;and more perks</p></div>
     </div>
   </div>
 
