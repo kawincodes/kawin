@@ -8,7 +8,8 @@ inkscape:label / data-name, solid facets, linear + radial gradients with stop-op
 gradientUnits / gradientTransform / href / reflect, arc-rounded paths, rect rx, circle, ellipse,
 polygon, relative path commands incl. s/q/t/a, evenodd, style="" and <style> CSS, group and fill
 opacity, clip-path (userSpace and objectBoundingBox, multi-child), mask, translate/scale/rotate/
-skewX/matrix transforms, <use>, a stroke, and two filters), runs export_rgb / export_cmyk on it and
+skewX/matrix transforms, <use>, strokes incl. dashes and stroke-opacity, a solid alpha overlay on
+gradient facets, and two filters), runs export_rgb / export_cmyk on it and
 on the logo trace, renders every output with Ghostscript and compares against the librsvg
 reference, checks PDF structure (pypdf, qpdf via pikepdf, pdfinfo, gs -dPDFSTOPONWARNING), counts
 image XObjects / shadings, checks EPS DSC + bounding boxes, hairline gaps and the CMYK values.
@@ -84,6 +85,7 @@ def fixture_svg():
 </defs>
 <g id="Flat" inkscape:label="Tile A / flat facets">
   <rect class="panel" x="16" y="16" width="480" height="480" rx="28"/>
+  <circle id="FlatRing" cx="256" cy="256" r="232" fill="none" stroke="#141A29" stroke-opacity="0.08" stroke-width="6"/>
   <g id="FlatMark" data-name="Mark (flat)" transform="{place}">{flat_group(K, trap=False, gid="KA")}</g>
 </g>
 <g id="Gradient" data-name="Tile B / gradients" transform="translate(512 0)">
@@ -94,6 +96,7 @@ def fixture_svg():
       <path id="g-yellow" fill="url(#gYellow)" d="{poly_d(f['yellow'])}"/>
       <path id="g-green" fill="url(#gGreen)" d="{poly_d(f['green'])}"/>
       <path id="g-blue" fill="url(#gBlue)" d="{poly_d(f['blue'])}"/>
+      <path id="g-edge-lit" fill="#FFFFFF" fill-opacity="0.22" d="M267.51 211.435 L299.51 211.435 L299.51 812.589 L267.51 812.589 Z M405.578 443.258 L521.922 514.665 L515 524 L405.578 456 Z"/>
       <path id="g-highlight" fill="url(#gHi)" d="{poly_d(silhouette(K))}"/>
     </g>
     <path id="g-outline" fill="none" stroke="#0B0F19" stroke-width="10" stroke-linejoin="round" d="{sil_round}"/>
@@ -112,6 +115,7 @@ def fixture_svg():
     <rect x="300" y="215" width="180" height="110" fill="#EE3F2A"/>
     <rect x="300" y="215" width="60" height="110" fill="#0B0F19" transform="matrix(1 0 0.3 1 -60 0)"/>
   </g>
+  <path id="Dash" d="M40 362 H460" fill="none" stroke="#0B0F19" stroke-width="3" stroke-dasharray="12 6" stroke-linecap="round"/>
   <g id="Masked" mask="url(#mFade)"><rect x="40" y="380" width="420" height="96" fill="url(#gRep)"/></g>
 </g>
 <g id="Tech" data-name="Tile D / filters" transform="translate(512 512)">
@@ -121,6 +125,42 @@ def fixture_svg():
   <use id="Star" xlink:href="#star" x="90" y="420" fill="#FEFDFB" transform="skewX(-8)"/>
 </g>
 <circle id="Center" cx="512" cy="512" r="9" fill="#EE3F2A" fill-opacity="0.5"/>
+</svg>"""
+
+
+def edge_svg():
+    """Second fixture: the less common paths (nested <svg> + preserveAspectRatio, <use> of a
+    <symbol> with currentColor, CSS class / descendant / child selectors, hsl() and rgba() colours,
+    repeat + reflect gradients, clip-path on a <clipPath>, evenodd clip-rule, alpha mask,
+    visibility:hidden / display:none, dashes with offset, paint-order, gradient stroke with
+    stop-opacity)."""
+    return """<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 400 400" width="400" height="400">
+<style>.warm { fill: hsl(20, 90%, 55%) } #Edge .cool { fill: rgba(59,129,241,0.7) } g > .outline { stroke: #222 }</style>
+<defs>
+  <linearGradient id="rep" x1="0" y1="0" x2="0.15" y2="0.1" spreadMethod="repeat"><stop offset="0" stop-color="#EE3F2A"/><stop offset="1" stop-color="#FAC311"/></linearGradient>
+  <radialGradient id="rrefl" r="0.2" spreadMethod="reflect"><stop offset="0" stop-color="#2CA53B"/><stop offset="1" stop-color="#FEFDFB"/></radialGradient>
+  <linearGradient id="sg"><stop offset="0" stop-color="#3B81F1" stop-opacity="1"/><stop offset="1" stop-color="#EE3F2A" stop-opacity="0.2"/></linearGradient>
+  <clipPath id="inner"><circle cx="300" cy="100" r="70"/></clipPath>
+  <clipPath id="outer" clip-path="url(#inner)"><rect x="250" y="40" width="140" height="70"/></clipPath>
+  <clipPath id="eo"><path clip-rule="evenodd" d="M220 220 h160 v160 h-160z M260 260 h80 v80 h-80z"/></clipPath>
+  <mask id="am" mask-type="alpha" maskUnits="userSpaceOnUse" x="20" y="220" width="180" height="160"><circle cx="110" cy="300" r="70" fill="#000" fill-opacity="0.6"/></mask>
+  <symbol id="sym"><rect width="40" height="40" rx="8" fill="currentColor"/></symbol>
+</defs>
+<g id="Edge" style="color:#2CA53B">
+  <rect x="10" y="10" width="180" height="180" fill="url(#rep)"/>
+  <rect x="20" y="20" width="60" height="60" class="warm"/>
+  <rect x="100" y="20" width="60" height="60" class="cool"/>
+  <rect x="20" y="100" width="60" height="60" fill="#000" visibility="hidden"/>
+  <rect x="20" y="100" width="60" height="60" fill="#000" style="display:none"/>
+  <use xlink:href="#sym" x="110" y="110"/>
+  <g><path class="outline" d="M20 180 L180 180" stroke-width="6" stroke-dasharray="10 4 2 4" stroke-dashoffset="5" fill="none"/></g>
+  <rect x="200" y="10" width="190" height="190" fill="url(#rrefl)" clip-path="url(#outer)"/>
+  <path d="M210 150 C260 120 340 200 390 150" fill="none" stroke="url(#sg)" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="300" cy="170" r="20" fill="#FAC311" stroke="#0B0F19" stroke-width="8" style="paint-order:stroke"/>
+  <rect x="200" y="200" width="200" height="200" fill="#3B81F1" clip-path="url(#eo)"/>
+  <rect x="20" y="220" width="180" height="160" fill="#EE3F2A" mask="url(#am)"/>
+  <svg x="40" y="240" width="120" height="60" viewBox="0 0 10 10" preserveAspectRatio="xMaxYMid meet"><circle cx="5" cy="5" r="6" fill="#0B0F19"/></svg>
+</g>
 </svg>"""
 
 
@@ -171,7 +211,7 @@ def pdf_structure(path, expect_pt):
     meta = r.metadata or {}
     info["Info"] = {k: str(meta.get(k)) for k in ("/Title", "/Creator", "/Producer")}
     counts = {"image_xobjects": 0, "form_xobjects": 0, "shadings": 0, "smasks": 0, "inline_images": 0,
-              "fill_ops": 0, "transparency_groups": 0}
+              "fill_ops": 0, "stroke_ops": 0, "transparency_groups": 0}
     seen = set()
 
     def walk_res(res):
@@ -214,6 +254,7 @@ def pdf_structure(path, expect_pt):
         data = obj.get_data()
         counts["inline_images"] += len(re.findall(rb"(^|\s)BI(\s)", data))
         counts["fill_ops"] += len(re.findall(rb"(?m)(^|\s)(f\*?|B\*?|b\*?)(\s|$)", data))
+        counts["stroke_ops"] += len(re.findall(rb"(?m)(^|\s)S(\s|$)", data))
 
     walk_stream(pg.get_contents())
     walk_res(pg.get("/Resources"))
@@ -305,7 +346,28 @@ def run_rgb(label, svg, base, px_list=(1024, 2048), expect_images=0, expect_fill
                 Image.fromarray(np.abs(img - ref).clip(0, 255).astype(np.uint8) * 4).save(
                     os.path.join(OUT, f"diff_{os.path.basename(base)}_{kind}.png"))
                 Image.fromarray(img.astype(np.uint8)).save(os.path.join(OUT, f"gs_{os.path.basename(base)}_{kind}.png"))
+        # independent PDF engines (pdfium = Chrome's, poppler) on the same file
+        for eng, img in (("pdfium", pdfium_render(rep["pdf"], px, pt)), ("poppler", poppler_render(rep["pdf"], px, pt))):
+            st = diff_stats(img, ref)
+            out["diff"][f"pdf[{eng}]@{px}"] = st
+            check(f"{label} .pdf rendered by {eng} vs rsvg @{px}px: mean |d| < 2/255", st["mean"] < 2.0,
+                  f"mean={st['mean']:.3f}/255 p99={st.get('p99')} >16:{st.get('px_gt16_pct', 0):.3f}%")
     return out
+
+
+def pdfium_render(path, px, page_pt):
+    import pypdfium2 as pdfium
+    doc = pdfium.PdfDocument(path)
+    im = doc[0].render(scale=px / page_pt, fill_color=(255, 255, 255, 255)).to_pil().convert("RGB")
+    doc.close()
+    return np.asarray(im).astype(np.int16)
+
+
+def poppler_render(path, px, page_pt):
+    stem = os.path.join(OUT, "_pp")
+    subprocess.run(["pdftoppm", "-r", f"{72.0 * px / page_pt:.6f}", "-png", "-singlefile", path, stem], check=True,
+                   capture_output=True)
+    return np.asarray(Image.open(stem + ".png").convert("RGB")).astype(np.int16)
 
 
 def gap_check(label, path, page_pt, eps=False, px=4096):
@@ -340,9 +402,41 @@ def vertex_identity(label, pdf_path):
                  f"near-but-different pairs={near_mismatch}")
 
 
-def run_cmyk(label, shapes, size, base, ref_svg_fn, title, clip_d=None):
+def shapes_svg(shapes, size, colors, clip_d=None):
+    """Reference SVG of an export_cmyk shapes list, each shape painted with colors[name]."""
+    defs, body = [], []
+
+    def clip_wrap(el, levels, tag):
+        levels = levels if isinstance(levels, (list, tuple)) else [levels]
+        for i, lv in enumerate(levels):
+            d, rule = (lv, "nonzero") if isinstance(lv, str) else lv
+            cid = f"c{len(defs)}"
+            defs.append(f'<clipPath id="{cid}"><path clip-rule="{rule}" d="{d}"/></clipPath>')
+            el = f'<g clip-path="url(#{cid})">{el}</g>'
+        return el
+    for i, sh in enumerate(shapes):
+        name, d = sh[0], sh[1]
+        opt = sh[3] if len(sh) > 3 else {}
+        col = colors[name]
+        if opt.get("stroke"):
+            dash = f' stroke-dasharray="{" ".join(map(str, opt["dash"]))}" stroke-dashoffset="{opt.get("dashoffset", 0)}"' if opt.get("dash") else ""
+            el = (f'<path fill="none" stroke="{col}" stroke-width="{opt["stroke"]}" stroke-linecap="{opt.get("linecap", "butt")}" '
+                  f'stroke-linejoin="{opt.get("linejoin", "miter")}" stroke-miterlimit="{opt.get("miterlimit", 4)}"{dash} d="{d}"/>')
+        else:
+            el = f'<path fill="{col}" fill-rule="{opt.get("fill_rule", "nonzero")}" d="{d}"/>'
+        if opt.get("clip"):
+            el = clip_wrap(el, opt["clip"], i)
+        body.append(el)
+    b = "".join(body)
+    if clip_d:
+        b = clip_wrap(b, clip_d, "all")
+    return svg_doc(b, "".join(defs), size=size if not isinstance(size, (tuple, list)) else size[0])
+
+
+def run_cmyk(label, shapes, size, base, title, clip_d=None):
+    """shapes: export_cmyk shapes; a 5th tuple item (original sRGB hex) enables the hue-region IoU."""
     print(f"\n== CMYK: {label}")
-    rep = vx.export_cmyk(shapes, size, base, title, clip_d=clip_d)
+    rep = vx.export_cmyk([sh[:4] for sh in shapes], size, base, title, clip_d=clip_d)
     print(f"   ink totals %: {rep['ink_total_pct']}  inks: {rep['process_colors']}  warnings: {rep['warnings']}")
     pt = rep["page_pt"][0]
     out = {"report": rep}
@@ -351,36 +445,39 @@ def run_cmyk(label, shapes, size, base, ref_svg_fn, title, clip_d=None):
         out[kind + "_structure"] = info
         check(f"{label} .{kind} structure", ok, f"counts={info['counts']}")
     c = out["pdf_structure"]["counts"]
-    check(f"{label} .pdf: 0 images, {len(shapes)} fills", c["image_xobjects"] == 0 and c["fill_ops"] == len(shapes),
-          str(c))
-    # device values written verbatim with the 'k' operator
+    n_stroke = sum(1 for sh in shapes if len(sh) > 3 and sh[3].get("stroke"))
+    check(f"{label} .pdf: 0 images, {len(shapes) - n_stroke} fills + {n_stroke} strokes (one per shape)",
+          c["image_xobjects"] == 0 and c["fill_ops"] == len(shapes) - n_stroke and c["stroke_ops"] == n_stroke, str(c))
     import pikepdf
     with pikepdf.open(rep["pdf"]) as pdf:
         data = pdf.pages[0].Contents.read_bytes().decode()
         oi = pdf.Root.get("/OutputIntents")
-    ks = [tuple(float(v) for v in m) for m in re.findall(r"([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) k\n", data)]
-    want = [tuple(round(v, 4) for v in s[2]) for s in shapes]
-    check(f"{label} .pdf 'k' operands == ICC CMYK values", ks == want, f"{ks}")
+    rx = r"([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) [kK]\n"
+    ks = [tuple(float(v) for v in m) for m in re.findall(rx, data)]
+    want = [tuple(round(v, 4) for v in sh[2]) for sh in shapes]
+    check(f"{label} .pdf 'k'/'K' operands == ICC CMYK values", ks == want, f"{ks}")
     check(f"{label} .pdf OutputIntent (embedded {vx.icc_profile_name()})", oi is not None and len(oi) == 1)
     eps_txt = open(rep["eps"]).read()
-    ks_eps = [tuple(float(v) for v in m) for m in re.findall(r"([\d.]+) ([\d.]+) ([\d.]+) ([\d.]+) k\n", eps_txt)]
+    ks_eps = [tuple(float(v) for v in m) for m in re.findall(rx, eps_txt)]
     check(f"{label} .eps setcmykcolor operands == ICC CMYK values", ks_eps == want)
     ok, info = eps_structure(rep["eps"], pt)
     check(f"{label} .eps DSC/BoundingBox/showpage (+%%DocumentProcessColors)", ok and "%%DocumentProcessColors" in eps_txt,
           json.dumps(info))
     # colour: gs renders DeviceCMYK through default_cmyk.icc -> sRGB (relative colorimetric + BPC);
-    # reference = rsvg render of the artwork recoloured with the ICC proof of each CMYK value
-    proof = {s[0]: "#%02X%02X%02X" % vx.cmyk_to_srgb(s[2]) for s in shapes}
-    orig_cols = ref_svg_fn(None)
+    # reference = rsvg render of the same shapes painted with the ICC proof of each CMYK value
+    proof = {sh[0]: "#%02X%02X%02X" % vx.cmyk_to_srgb(sh[2]) for sh in shapes}
     for px in (1024, 2048):
-        ref = ref_render(ref_svg_fn(proof), px)
+        ref = ref_render(shapes_svg(shapes, size, proof, clip_d), px)
         for kind in ("pdf", "eps"):
             img, err = gs_render(rep[kind], px, pt, eps=(kind == "eps"), extra=("-dRenderIntent=1", "-dBlackPtComp=1"))
             st = diff_stats(img, ref)
+            out[f"{kind}@{px}"] = st
             check(f"{label} .{kind} vs ICC-proofed rsvg reference @{px}px: mean |d| < 2/255", st["mean"] < 2.0,
                   f"mean={st['mean']:.3f} p99={st['p99']} max={st['max']}")
-            if px == 1024:
-                iou = facet_iou(img, ref_render(orig_cols, px), shapes, proof)
+            if px == 1024 and all(len(sh) > 4 for sh in shapes):
+                orig = {sh[0]: sh[4] for sh in shapes}
+                iou = facet_iou(img, ref_render(shapes_svg(shapes, size, orig, clip_d), px), shapes, proof)
+                out[f"{kind}_iou"] = iou
                 check(f"{label} .{kind} hue regions IoU per shape > 0.995", min(iou.values()) > 0.995,
                       " ".join(f"{k}={v:.5f}" for k, v in iou.items()))
     return out
@@ -425,7 +522,7 @@ def main():
                     "ink_pct": round(sum(v) * 100, 1), "proof_srgb": vx.cmyk_to_srgb(v), "dE76": round(vx.delta_e76(hx, v), 2)}
         print(f"   {hx}: C {v[0]*100:.0f} M {v[1]*100:.0f} Y {v[2]*100:.0f} K {v[3]*100:.0f}  (raw {conv[hx]['raw_pct']}, "
               f"ink {conv[hx]['ink_pct']}%, proof {conv[hx]['proof_srgb']}, dE76 {conv[hx]['dE76']})")
-    for hx in ("#000000", "#808080"):
+    for hx in ("#000000", "#808080", "#FEFDFB"):
         print(f"   {hx}: neutrals->K {vx.srgb_to_cmyk(hx)}   icc {vx.srgb_to_cmyk(hx, neutrals='icc')}")
     summary["srgb_to_cmyk"] = conv
 
@@ -434,10 +531,30 @@ def main():
     open(os.path.join(OUT, "fixture.svg"), "w").write(fx)
     r = run_rgb("fixture", fx, os.path.join(OUT, "fixture"), expect_images=2)
     summary["fixture"] = r
+    rp = r["report"]
+    check("fixture .eps: alpha paints over solid/gradient backdrops stay vector (FlatRing, g-edge-lit, g-green, Wave, Center)",
+          all(x in rp["eps_vector_blended"] for x in ("FlatRing", "g-edge-lit", "g-green", "Wave", "Center")),
+          f"vector-blended={rp['eps_vector_blended']}")
+    check("fixture .eps: only non-representable transparency rasterised (alpha-gradient over gradients, overlapping "
+          "group opacity, mask, 2 filters)", len(rp["eps_flattened"]) == 5, f"{rp['eps_flattened']}")
     st = r["pdf_structure"]["counts"]
     check("fixture: gradients are shading patterns (>= 7) and stop-opacity uses soft masks",
           st["shadings"] >= 7 and st["smasks"] >= 3, str(st))
     check("fixture: named groups kept as Form XObjects", st["form_xobjects"] >= 10, str(st))
+
+    # ---------------------------------------------------------------- edge-case fixture
+    eg = edge_svg()
+    open(os.path.join(OUT, "edge.svg"), "w").write(eg)
+    re_ = run_rgb("edge fixture", eg, os.path.join(OUT, "edge"), px_list=(800,))
+    summary["edge"] = re_
+    check("edge fixture: clip-path on <clipPath> ignored as librsvg does, with a warning",
+          any("ignored, as librsvg does" in w for w in re_["report"]["warnings"]), str(re_["report"]["warnings"]))
+    sp = vx.export_rgb(eg, os.path.join(OUT, "edge_spec"), compat="spec")
+    g1, _ = gs_render(sp["pdf"], 800, sp["page_pt"][0])
+    p1 = pdfium_render(sp["pdf"], 800, sp["page_pt"][0])
+    st = diff_stats(g1, p1)
+    check("edge fixture compat='spec' (nested clip applied): gs vs pdfium agree, mean |d| < 2/255", st["mean"] < 2.0,
+          f"mean={st['mean']:.3f}/255")
 
     # ---------------------------------------------------------------- trace (as delivered SVG, with disc)
     trace_src = open(os.path.join(os.path.dirname(HERE), "source", "K-Logo_trace.svg")).read()
@@ -451,28 +568,33 @@ def main():
 
     # ---------------------------------------------------------------- CMYK
     shapes = [(n, poly_d(facets(K)[n]), vx.srgb_to_cmyk(PAL[n]), {}, PAL[n]) for n in FACETS]
-
-    def ksvg(cols, clip=None):
-        cols = cols or {n: PAL[n] for n in FACETS}
-        body = "".join(f'<path fill="{cols[n]}" d="{poly_d(facets(K)[n])}"/>' for n in FACETS)
-        if clip:
-            body = f'<clipPath id="c"><path d="{clip}"/></clipPath><g clip-path="url(#c)">{body}</g>'
-        return svg_doc(body, size=K.size)
-
-    summary["cmyk_mark"] = run_cmyk("CMYK mark", [s[:3] + (s[3], s[4]) for s in shapes], K.size,
-                                    os.path.join(OUT, "K-mark"), ksvg, "K mark (CMYK)")
+    summary["cmyk_mark"] = run_cmyk("CMYK mark", shapes, K.size, os.path.join(OUT, "K-mark"), "K mark (CMYK)")
     gap_check("CMYK mark .pdf", os.path.join(OUT, "K-mark_CMYK.pdf"), K.size)
     gap_check("CMYK mark .eps", os.path.join(OUT, "K-mark_CMYK.eps"), K.size, eps=True)
     kr = KParams.from_dict(dict(json.load(open(os.path.join(HERE, "trace_params.json"))), r_convex=30.0, r_concave=12.0))
-    clip = silhouette_d(kr)
     summary["cmyk_rounded"] = run_cmyk("CMYK rounded (clip_d with arcs)", shapes, K.size, os.path.join(OUT, "K-rounded"),
-                                       lambda cols: ksvg(cols, clip), "K mark rounded (CMYK)", clip_d=clip)
+                                       "K mark rounded (CMYK)", clip_d=silhouette_d(kr))
     # flat SVG straight through the CLI path (svg_to_cmyk_shapes incl. disc circle)
     shp, size = vx.svg_to_cmyk_shapes(trace_src)
-    rep = vx.export_cmyk(shp, size, os.path.join(OUT, "K-Logo_trace"), "K logo - trace (CMYK)")
-    ok, info = pdf_structure(rep["pdf"], size[0])
-    check("svg_to_cmyk_shapes(trace SVG) -> export_cmyk: 5 shapes incl. disc, valid PDF", ok and len(shp) == 5,
-          f"{[(s[0], s[2]) for s in shp]}")
+    check("svg_to_cmyk_shapes(trace SVG): 5 shapes incl. disc", len(shp) == 5, f"{[(sh[0], sh[2]) for sh in shp]}")
+    summary["cmyk_trace"] = run_cmyk("CMYK trace via svg_to_cmyk_shapes", shp, size, os.path.join(OUT, "K-Logo_trace"),
+                                     "K logo - trace (CMYK)")
+
+    # ---------------------------------------------------------------- badge: ring stroke at 8 % opacity
+    badge = svg_doc('<circle id="disc" cx="512" cy="512" r="512" fill="#FEFDFB"/>'
+                    '<circle id="ring" cx="512" cy="512" r="510" fill="none" stroke="#141A29" stroke-opacity="0.08" stroke-width="4"/>'
+                    + flat_group(K, trap=False), size=K.size, title="K badge (flat)")
+    open(os.path.join(OUT, "badge.svg"), "w").write(badge)
+    rb = run_rgb("badge", badge, os.path.join(OUT, "badge"), px_list=(1024,), expect_fills=5)
+    check("badge .eps: ring stroke with stroke-opacity stays vector (nothing rasterised)",
+          not rb["report"]["eps_flattened"] and "ring" in rb["report"]["eps_vector_blended"],
+          f"flattened={rb['report']['eps_flattened']} vector-blended={rb['report']['eps_vector_blended']}")
+    shp, size = vx.svg_to_cmyk_shapes(badge)
+    ring = [sh for sh in shp if sh[0] == "ring"]
+    check("svg_to_cmyk_shapes(badge): ring -> K-only stroke pre-blended over the disc",
+          len(ring) == 1 and ring[0][3].get("stroke") == 4.0 and ring[0][2][:3] == (0.0, 0.0, 0.0),
+          f"{[(sh[0], sh[2], sh[3].get('stroke')) for sh in shp]}")
+    summary["cmyk_badge"] = run_cmyk("CMYK badge (stroke)", shp, size, os.path.join(OUT, "badge"), "K badge (CMYK)")
 
     # ---------------------------------------------------------------- cairo/rsvg cross-check (informational)
     print("\n== cairo (rsvg-convert -f pdf/eps) on the fixture, for comparison")

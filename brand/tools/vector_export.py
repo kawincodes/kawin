@@ -3,20 +3,29 @@
 
 API
 ---
-    export_rgb(svg_text, out_basename, **opts)
-        -> <base>.pdf, <base>.ai, <base>.eps            RGB, vector, gradients as smooth shadings
-    export_cmyk(shapes, size, out_basename, title, **opts)
-        -> <base>_CMYK.pdf, <base>_CMYK.ai, <base>_CMYK.eps
-           shapes = [(name, svg_path_d, (c, m, y, k)), ...]  floats 0..1, painted in order;
-           an optional 4th item {"fill_rule": "evenodd", "clip": d | [d, ...]} per shape.
-    srgb_to_cmyk(hex)  -> (c, m, y, k)   ICC: sRGB -> Ghostscript default_cmyk.icc
-                                          ("Artifex CMYK SWOP Profile"), relative colorimetric + BPC
-    svg_to_cmyk_shapes(svg_text) -> (shapes, size) ready for export_cmyk (flat solid-fill art only)
+    export_rgb(svg_text, out_basename, **opts)  -> report dict
+        writes <base>.pdf, <base>.ai, <base>.eps        RGB, vector, gradients as smooth shadings
+        opts: title, scale (pt per SVG unit, default 1), group_mode ('xobject' | 'flat'),
+              raster_ppi / flatten_ppi (default 300), compat ('rsvg' | 'spec'), creator,
+              producer, date (or env SOURCE_DATE_EPOCH, for reproducible files)
+    export_cmyk(shapes, size, out_basename, title, **opts)  -> report dict
+        writes <base>_CMYK.pdf, <base>_CMYK.ai, <base>_CMYK.eps   device CMYK, exact paths
+        shapes = [(name, svg_path_d, (c, m, y, k)) | (name, d, cmyk, opts), ...] floats 0..1,
+        painted in order; opts: fill_rule, clip (d | [d | (d, rule), ...]), stroke (width) with
+        linecap / linejoin / miterlimit / dash. kwargs: scale, clip_d (clips everything, e.g. a
+        filleted silhouette), output_intent (default True: embeds the profile), max_tac (3.0).
+    srgb_to_cmyk(hex) -> (c, m, y, k)  ICC transform with Pillow ImageCms: LittleCMS built-in sRGB
+        -> Ghostscript default_cmyk.icc ("Artifex CMYK SWOP Profile"), relative colorimetric + black
+        point compensation, rounded to whole percent; near-neutrals (Lab C* <= 2) -> K only.
+    svg_to_cmyk_shapes(svg_text) -> (shapes, (W, H))  flat SVG (solid fills/strokes, alpha over a
+        uniform backdrop pre-blended) ready for export_cmyk.
+    cmyk_to_srgb(cmyk), delta_e76(hex, cmyk), icc_profile_name()  soft-proof helpers.
 
 CLI:  python3 vector_export.py rgb   in.svg OUT_BASE [--title T] [--scale S] [--flat-groups] [--ppi N]
       python3 vector_export.py cmyk  in.svg OUT_BASE [--title T] [--scale S]
-      python3 vector_export.py color '#EE3F2A' '#3B81F1' ...
+      python3 vector_export.py color '#EE3F2A' '#3B81F1' ... [--raw]
       python3 vector_export.py trace OUT_DIR          (exports the logo trace, RGB + CMYK)
+Verification: test_vector_export.py (fixture covering the whole input convention + the trace).
 
 Input: "layered SVG"
 --------------------
@@ -24,19 +33,25 @@ Root <svg viewBox="0 0 W H">; <g> groups (nested) are named layers -- the name i
 data-name, else id. Leaves: path (M/L/H/V/C/S/Q/T/A/Z, abs + rel), polygon, polyline, rect (rx/ry),
 circle, ellipse, line. Paint: hex/rgb()/rgba()/hsl()/named colours, currentColor, url(#gradient)
 (linear/radial, stops + stop-opacity, gradientUnits, gradientTransform, spreadMethod, href
-inheritance). opacity, fill-opacity, fill-rule, stroke*, transform (translate/scale/rotate/skew/
-matrix), clip-path (+clipPathUnits, clip-rule), mask (luminance/alpha, maskUnits,
-maskContentUnits), filter, <use>, nested <svg>, presentation attributes, style="" and simple
-<style> CSS (tag/.class/#id compounds, descendant/child combinators).
-Not supported (skipped with a warning): <text> (outline it first), <image>, pattern fills, markers.
+inheritance). opacity, fill-opacity, fill-rule, stroke* (width, opacity, caps, joins, dashes,
+gradient strokes), paint-order, transform (translate/scale/rotate/skew/matrix), clip-path
+(+clipPathUnits, clip-rule, nested), mask (luminance/alpha, maskUnits, maskContentUnits),
+filter, <use>/<symbol>, nested <svg>, presentation attributes, style="" and simple <style> CSS
+(tag/.class/#id compounds, descendant/child combinators).
+Not supported (skipped with a warning): <text> (outline it first), <image>, pattern fills,
+markers, mix-blend-mode. compat='rsvg' (default) reproduces librsvg 2.58, the reference
+renderer, where it departs from the spec: its objectBoundingBox rule for rotated/skewed content
+(SvgDoc.local_bbox) and ignoring clip-path set on a <clipPath> element (warned); compat='spec'
+follows SVG2 instead.
 
 Output conventions
 ------------------
 * Page = artboard: MediaBox = CropBox = BleedBox = TrimBox = ArtBox = [0 0 W*scale H*scale].
   scale defaults to 1 pt per SVG user unit (1024 px -> 1024 pt; Illustrator's own px = pt rule).
-* .ai is a byte-identical copy of the .pdf: a PDF-compatible Illustrator file, i.e. exactly what
-  Inkscape writes for .ai (Illustrator opens it through its PDF importer). It carries no
-  AIPrivateData and no OCG layers (Illustrator ignores OCGs). Info + XMP name this tool, not Adobe.
+* .ai is a byte-identical copy of the .pdf (PDF 1.6): a PDF-compatible Illustrator file, i.e.
+  what Inkscape writes for .ai (Illustrator opens it through its PDF importer). It carries no
+  AIPrivateData and no OCG layers (Illustrator ignores OCGs). Info + XMP name this tool as
+  Creator/Producer, never Adobe software.
 * Every SVG leaf becomes its own path object with its own paint operator. Fills are written in
   absolute page coordinates with 4 decimals, so vertices shared by adjacent facets are
   byte-identical (no geometric hairline gaps).
@@ -55,13 +70,21 @@ Output conventions
   into an RGB image + alpha SMask placed exactly over the filter region. If the filter output is
   "effect underneath SourceGraphic" (an feMerge whose last node is SourceGraphic, or a single
   feDropShadow) only the effect is rasterised and the element itself is drawn on top as vectors.
-* EPS (PostScript has no transparency): opaque art is pure vector (fills, clips, shfill shadings),
-  %%BoundingBox / %%HiResBoundingBox = the artboard. Transparent units (opacity < 1, alpha
-  gradients, masks, filters) are flattened against white paper the way Illustrator's flattener
-  does: a solid/gradient element with alpha that overlaps nothing painted before it stays vector
-  (colours pre-blended with white); anything else is rendered by librsvg at `flatten_ppi` and placed
-  under a vector clip of the element's own outline (single leaves) or a 1-bit coverage mask
-  (groups, masks, filters). Every flattened unit is listed in the returned report.
+* EPS (PostScript LanguageLevel 2, or 3 when shadings/images are needed; %%BoundingBox and
+  %%HiResBoundingBox = the artboard; one save/restore, one showpage). PostScript has no
+  transparency, so it is flattened against white paper like Illustrator's flattener, but exactly
+  in vector wherever the maths allows: every painted object is recorded (region, solid colour /
+  opaque gradient / other) and a paint with alpha is composited onto what lies beneath it by
+  painting it once per backdrop piece, clipped by that backdrop's own path:
+     solid colour with alpha   over solid colour      -> blended solid colour
+     gradient with alpha       over solid colour      -> pre-blended gradient (16 sub-stops)
+     solid colour with alpha   over opaque gradient   -> tinted gradient (a*C + (1-a)*stop)
+  Group opacity over non-overlapping children is distributed to the children. Only the rest
+  (alpha gradient over gradient, overlapping group opacity, masks, filters, alpha over a raster)
+  is rasterised by librsvg at `flatten_ppi` as the composite of everything painted so far,
+  drawn under the element's own vector outline (crisp edges) or a 1-bit coverage mask; consecutive
+  raster units share one composite, stored as 256 px tiles (only tiles that are needed). Every
+  vector-blended and rasterised unit is listed in the returned report.
 """
 from __future__ import annotations
 
@@ -556,7 +579,9 @@ def subpaths(path):
     return subs
 
 
-def flatten_subpath(sub, seg=10):
+def flatten_subpath(sub, seg=10, tol=None):
+    """Polyline of a subpath. With `tol`, each cubic gets enough segments for a chord error below
+    tol (n ~ sqrt(control-polygon length / tol)); otherwise `seg` segments per cubic."""
     pts = []
     cur = None
     for op in sub:
@@ -566,8 +591,13 @@ def flatten_subpath(sub, seg=10):
             pts.append(cur)
         elif k == "C":
             x0, y0 = cur
-            for i in range(1, seg + 1):
-                t = i / seg
+            n = seg
+            if tol:
+                L = (math.hypot(op[1] - x0, op[2] - y0) + math.hypot(op[3] - op[1], op[4] - op[2])
+                     + math.hypot(op[5] - op[3], op[6] - op[4]))
+                n = max(4, min(1024, int(math.ceil(math.sqrt(L / tol) / 2))))
+            for i in range(1, n + 1):
+                t = i / n
                 mt = 1 - t
                 pts.append((mt ** 3 * x0 + 3 * mt * mt * t * op[1] + 3 * mt * t * t * op[3] + t ** 3 * op[5],
                             mt ** 3 * y0 + 3 * mt * mt * t * op[2] + 3 * mt * t * t * op[4] + t ** 3 * op[6]))
@@ -822,12 +852,16 @@ class Node:
 
 
 class SvgDoc:
-    def __init__(self, svg_text, bbox_mode="rsvg"):
+    def __init__(self, svg_text, compat="rsvg"):
+        """compat 'rsvg' (default): reproduce librsvg 2.58, the reference renderer -- objectBoundingBox
+        computed the cairo way (see local_bbox) and clip-path on a <clipPath> element ignored;
+        'spec': SVG2 tight bounding boxes and nested clip-paths applied."""
         if isinstance(svg_text, bytes):
             svg_text = svg_text.decode("utf-8")
-        if bbox_mode not in ("rsvg", "tight"):
-            raise ValueError("bbox_mode must be 'rsvg' or 'tight'")
-        self.bbox_mode = bbox_mode
+        if compat not in ("rsvg", "spec"):
+            raise ValueError("compat must be 'rsvg' or 'spec'")
+        self.compat = compat
+        self.bbox_mode = "rsvg" if compat == "rsvg" else "tight"
         self.root = ET.fromstring(svg_text)
         if _local(self.root.tag) != "svg":
             raise ValueError("root element is not <svg>")
@@ -1120,6 +1154,9 @@ class SvgDoc:
             return None
         levels = [items]
         nested = parse_url(self.spec(el).get("clip-path"))[0]
+        if nested and self.compat == "rsvg":
+            _warn(f"clip-path on <clipPath id={cid}> ignored, as librsvg does (compat='spec' applies it)")
+            nested = None
         if nested:
             sub = self.clip_levels(node, nested, depth + 1)
             if sub is None:
@@ -1528,6 +1565,35 @@ def shading_dict(g, which, box_root=None, colorspace="DeviceRGB", mapper=None, b
     sh["Function"] = func
     sh["Extend"] = [True, True]
     return sh
+
+
+def shading_bands(g, which, box_root=None, backdrop=(1.0, 1.0, 1.0)):
+    """Shadings that together paint the gradient. pad -> one shading. repeat/reflect -> one shading
+    per period (Domain [0 1], Extend [false true], to be painted in list order: each band's forward
+    extension is overpainted by the next, so there are no seams). One function per period keeps
+    full colour resolution in renderers that sample a shading's whole Domain into a fixed table
+    (pdfium: 256 steps)."""
+    if g["spread"] not in ("repeat", "reflect"):
+        return [shading_dict(g, which, box_root, backdrop=backdrop)]
+    n0, n1 = _tile_range(g, box_root)
+    base = dict(g, spread="pad")
+    out = []
+    for k in range(n0, n1):
+        gk = base
+        if g["spread"] == "reflect" and k % 2:
+            gk = dict(base, stops=[(1 - o, c, a) for o, c, a in reversed(base["stops"])])
+        if g["kind"] == "linear":
+            x1, y1, x2, y2 = g["coords"]
+            dx, dy = x2 - x1, y2 - y1
+            gk = dict(gk, coords=(x1 + k * dx, y1 + k * dy, x1 + (k + 1) * dx, y1 + (k + 1) * dy))
+        else:
+            fx, fy, fr, cx, cy, r = g["coords"]
+            gk = dict(gk, coords=(fx + k * (cx - fx), fy + k * (cy - fy), fr + k * (r - fr),
+                                  fx + (k + 1) * (cx - fx), fy + (k + 1) * (cy - fy), fr + (k + 1) * (r - fr)))
+        sh = shading_dict(gk, which, None, backdrop=backdrop)
+        sh["Extend"] = [k == n0, True]
+        out.append(sh)
+    return out
 
 
 # =========================================================================== PDF object writer
@@ -1942,15 +2008,15 @@ class _PdfEmitter:
         g = p[1]
         box = path_bbox(path_root)
         alphas = [s[2] for s in g["stops"]]
-        pname = self._pattern(g, "color", res, box)
+        banded = g["spread"] in ("repeat", "reflect")
+        paint = self._grad_paint(g, "color", res, box, pops, op, banded)
         gsd = {}
         if max(alphas) - min(alphas) < 1e-6:
             fa *= alphas[0]
         else:
             # stop-opacity -> luminosity soft mask: DeviceGray shading of the same geometry
             r2 = _Res()
-            an = self._pattern(g, "alpha", r2, box)
-            form = self._form([f"/Pattern cs /{an} scn\n{pops}\n{op}"], r2, group="DeviceGray")
+            form = self._form([self._grad_paint(g, "alpha", r2, box, pops, op, banded)], r2, group="DeviceGray")
             gsd["SMask"] = {"Type": _Name("Mask"), "S": _Name("Luminosity"), "G": form}
             self.stats["smasks"] += 1
         if fa <= 0:
@@ -1958,9 +2024,22 @@ class _PdfEmitter:
         if fa < 1:
             gsd["ca"] = fa
         if gsd:
-            ops.append(f"q /{self._ext(res, gsd)} gs /Pattern cs /{pname} scn\n{pops}\n{op} Q")
+            ops.append(f"q /{self._ext(res, gsd)} gs\n{paint}\nQ")
         else:
-            ops.append(f"/Pattern cs /{pname} scn\n{pops}\n{op}")
+            ops.append(paint)
+
+    def _grad_paint(self, g, which, res, box, pops, op, banded):
+        """Gradient fill of a path: a shading pattern (editable gradient in Illustrator), or for
+        repeat/reflect one `sh` per period inside the path as clip."""
+        if not banded:
+            return f"/Pattern cs /{self._pattern(g, which, res, box)} scn\n{pops}\n{op}"
+        names = []
+        for sh in shading_bands(g, which, box):
+            names.append(self._name("Sh"))
+            res.add("Shading", names[-1], self.w.add(sh))
+            self.stats["shadings"] += 1
+        m = " ".join(_n(v, 6) for v in mmul(self.B, g["matrix"]))
+        return (f"q\n{pops}\n{'W*' if op == 'f*' else 'W'} n\n{m} cm\n" + "\n".join(f"/{nm} sh" for nm in names) + "\nQ")
 
     def _stroke_setup(self, n):
         st = n.style
@@ -2116,13 +2195,14 @@ def _eps(body, page_w, page_h, title, creator, date, level, process_colors=None)
     return "\n".join(hdr).encode("latin-1")
 
 
-def _region(path, rule, seg=24):
-    """Shapely region of a page-space path under a fill rule -> (geometry | None, exact)."""
+def _region(path, rule, tol=0.005):
+    """Shapely region of a path under a fill rule -> (geometry | None, exact); curves flattened
+    to a chord error below `tol` (path units)."""
     from shapely.geometry import Polygon
     from shapely.ops import unary_union
     polys, signs, exact = [], [], True
     for sub in subpaths(path):
-        pts = flatten_subpath(sub, seg)
+        pts = flatten_subpath(sub, tol=tol)
         if len(pts) < 3:
             continue
         a = poly_area(pts)
@@ -2213,8 +2293,10 @@ class _PsEmitter(_PdfEmitter):
             if vis > 1e-6 or not it["exact"]:
                 visible.append(it)       # items fully hidden by later exact items are skipped
             if it["exact"]:
-                remaining = remaining.difference(it["geom"])
-        return visible[::-1], (remaining.is_empty or remaining.area < 1e-4)
+                if "geomb" not in it:
+                    it["geomb"] = it["geom"].buffer(0.01)    # absorbs polygonisation slivers
+                remaining = remaining.difference(it["geomb"])
+        return visible[::-1], (remaining.is_empty or remaining.area < 1e-3)
 
     # ---------------------------------------------------------------- tree
     def node(self, n, ops, res):
@@ -2281,8 +2363,9 @@ class _PsEmitter(_PdfEmitter):
     # ---------------------------------------------------------------- paint operators
     def _shfill(self, g, box_root, which="color", backdrop=(1.0, 1.0, 1.0)):
         self.level = 3
-        sh = shading_dict(g, which, box_root, backdrop=backdrop)
-        return " ".join(_n(v, 6) for v in mmul(self.B, g["matrix"])) + " cm\n" + _ser(sh) + " shfill"
+        bands = shading_bands(g, which, box_root, backdrop=backdrop)
+        return (" ".join(_n(v, 6) for v in mmul(self.B, g["matrix"])) + " cm\n"
+                + "\n".join(_ser(sh) + " shfill" for sh in bands))
 
     def _geo(self, n, which):
         """(region, exact, clip-operator sequence reproducing the paint's coverage) or None."""
@@ -2312,7 +2395,7 @@ class _PsEmitter(_PdfEmitter):
         uniform = abs(s1 - s2) < 1e-3 * max(s1, s2) and abs(a * c + b * d) < 1e-6 * max(s1, s2) ** 2
         parts = []
         for sub in subpaths(transform_path(n.path, m)):
-            pts = flatten_subpath(sub, 24)
+            pts = flatten_subpath(sub, tol=0.005)
             if len(pts) < 2:
                 continue
             closed = sub[-1][0] == "Z" and len(pts) >= 3
@@ -2457,7 +2540,7 @@ class _PsEmitter(_PdfEmitter):
             self.vec_blended.append(label if not nested else f"{label}/{n.name or _local(n.el.tag)}")
 
     def _leaves(self, n):
-        return [d for d in _walk(n) if d.kind == "shape"]
+        return [d for d in _walk(n) if d.kind == "shape" and self._has_paint(d)]
 
     def _disjoint_fill_leaves(self, g):
         leaves = []
@@ -2687,15 +2770,16 @@ def _ps_text(s):
 
 # =========================================================================== public: RGB
 def export_rgb(svg_text, out_basename, *, title=None, scale=1.0, group_mode="xobject", raster_ppi=300,
-               flatten_ppi=300, bbox_mode="rsvg", creator=DEFAULT_CREATOR, producer=DEFAULT_PRODUCER, date=None):
+               flatten_ppi=300, compat="rsvg", creator=DEFAULT_CREATOR, producer=DEFAULT_PRODUCER, date=None):
     """Write <base>.pdf, <base>.ai (identical bytes, PDF-compatible Illustrator file) and <base>.eps.
     Returns a report dict (paths, object counts, rasterised/flattened units, warnings).
       scale       pt per SVG user unit (page = viewBox * scale)
       group_mode  'xobject' (named groups -> Form XObjects) | 'flat'
       raster_ppi  resolution of <filter> rasters in the PDF; flatten_ppi: EPS transparency rasters
-      bbox_mode   'rsvg' (objectBoundingBox exactly as librsvg/cairo computes it) | 'tight' (SVG2)"""
+      compat      'rsvg' (match librsvg, the reference renderer: its objectBoundingBox rule, clip-path
+                  on <clipPath> ignored) | 'spec' (SVG2: tight bbox, nested clip-paths applied)"""
     WARNINGS.clear()
-    doc = SvgDoc(svg_text, bbox_mode=bbox_mode)
+    doc = SvgDoc(svg_text, compat=compat)
     title = title or doc.title or os.path.basename(out_basename)
     em = _PdfEmitter(doc, scale=scale, group_mode=group_mode, raster_ppi=raster_ppi)
     pdf = em.build(title, creator, producer, date)
@@ -2742,22 +2826,41 @@ def icc_profile_name(profile=CMYK_PROFILE):
     return _icc_transforms(profile)["name"]
 
 
-def srgb_to_cmyk(hex_color, *, profile=CMYK_PROFILE, snap_pct=1.0, neutrals="k"):
+def _lab_px(p):
+    """Pillow LAB pixel -> (L*, a*, b*): L scaled 0..255 -> 0..100, a/b stored with a +128 offset."""
+    return (p[0] * 100.0 / 255.0, p[1] - 128.0, p[2] - 128.0)
+
+
+def srgb_lab(hex_color, profile=CMYK_PROFILE):
+    from PIL import Image, ImageCms
+    t = _icc_transforms(profile)
+    return _lab_px(ImageCms.applyTransform(Image.new("RGB", (1, 1), hex_to_rgb(hex_color)), t["lab_rgb"]).getpixel((0, 0)))
+
+
+def cmyk_lab(cmyk, profile=CMYK_PROFILE):
+    from PIL import Image, ImageCms
+    t = _icc_transforms(profile)
+    px = tuple(int(round(v * 255)) for v in cmyk)
+    return _lab_px(ImageCms.applyTransform(Image.new("CMYK", (1, 1), px), t["lab_cmyk"]).getpixel((0, 0)))
+
+
+def srgb_to_cmyk(hex_color, *, profile=CMYK_PROFILE, snap_pct=1.0, neutrals="k", neutral_chroma=2.0):
     """sRGB hex -> (c, m, y, k) floats 0..1 through a real ICC transform: LittleCMS sRGB ->
     Ghostscript default_cmyk.icc ("Artifex CMYK SWOP Profile"), relative colorimetric + black point
-    compensation (Pillow ImageCms). snap_pct rounds to whole percents (brand-guide values; None =
-    raw 8-bit ICC result). neutrals='k': exact greys (r=g=b) become K-only with the same L* in the
-    profile (no rich black for neutral art); 'icc' keeps the profile's rich black."""
+    compensation (Pillow ImageCms, 8-bit). snap_pct rounds to whole percents (brand-guide values;
+    None = raw ICC result). neutrals='k': (near-)neutral colours, Lab chroma <= neutral_chroma,
+    print on black only, with the K whose L* in the profile matches (no CMY registration on greys,
+    black = 100 K instead of the profile's ~296 % rich black); neutrals='icc' keeps the ICC mix."""
     from PIL import Image, ImageCms
     t = _icc_transforms(profile)
     rgb = hex_to_rgb(hex_color)
-    if neutrals == "k" and rgb[0] == rgb[1] == rgb[2]:
-        target = ImageCms.applyTransform(Image.new("RGB", (1, 1), rgb), t["lab_rgb"]).getpixel((0, 0))[0]
+    L, a, b = srgb_lab(hex_color, profile)
+    if neutrals == "k" and math.hypot(a, b) <= neutral_chroma:
         best, bk = None, 0
         for k in range(256):
-            L = ImageCms.applyTransform(Image.new("CMYK", (1, 1), (0, 0, 0, k)), t["lab_cmyk"]).getpixel((0, 0))[0]
-            if best is None or abs(L - target) < best:
-                best, bk = abs(L - target), k
+            Lk = cmyk_lab((0, 0, 0, k / 255.0), profile)[0]
+            if best is None or abs(Lk - L) < best:
+                best, bk = abs(Lk - L), k
         vals = (0.0, 0.0, 0.0, bk / 255.0)
     else:
         px = ImageCms.applyTransform(Image.new("RGB", (1, 1), rgb), t["fwd"]).getpixel((0, 0))
@@ -2777,15 +2880,7 @@ def cmyk_to_srgb(cmyk, profile=CMYK_PROFILE):
 
 def delta_e76(hex_color, cmyk, profile=CMYK_PROFILE):
     """CIE76 dE between the sRGB colour and its CMYK print simulation (Lab, D50)."""
-    from PIL import Image, ImageCms
-    t = _icc_transforms(profile)
-    a = ImageCms.applyTransform(Image.new("RGB", (1, 1), hex_to_rgb(hex_color)), t["lab_rgb"]).getpixel((0, 0))
-    b = ImageCms.applyTransform(Image.new("CMYK", (1, 1), tuple(int(round(v * 255)) for v in cmyk)),
-                                t["lab_cmyk"]).getpixel((0, 0))
-
-    def lab(p):
-        return (p[0] * 100 / 255, (p[1] if p[1] < 128 else p[1] - 256), (p[2] if p[2] < 128 else p[2] - 256))
-    la, lb = lab(a), lab(b)
+    la, lb = srgb_lab(hex_color, profile), cmyk_lab(cmyk, profile)
     return math.sqrt(sum((x - y) ** 2 for x, y in zip(la, lb)))
 
 
@@ -2908,7 +3003,7 @@ def svg_to_cmyk_shapes(svg_text, convert=srgb_to_cmyk):
         for g, rgb in reversed(painted):
             if not g.intersects(G) or g.intersection(G).area < 1e-3:
                 continue
-            return rgb if G.difference(g).area < 1e-3 else None
+            return rgb if G.difference(g.buffer(0.02)).area < 1e-3 else None
         return (1.0, 1.0, 1.0)
 
     def walk(n, clips, cgeoms):
@@ -2966,7 +3061,7 @@ def svg_to_cmyk_shapes(svg_text, convert=srgb_to_cmyk):
                 from shapely.geometry import LineString
                 from shapely.ops import unary_union
                 G = unary_union([LineString(pts).buffer(sw / 2) for pts in
-                                 (flatten_subpath(sp, 24) for sp in subpaths(transform_path(n.path, n.ctm)))
+                                 (flatten_subpath(sp, tol=0.005) for sp in subpaths(transform_path(n.path, n.ctm)))
                                  if len(pts) >= 2] or [LineString([(0, 0), (0, 0)]).buffer(0)])
                 opt = {"stroke": sw, "linecap": st.get("stroke-linecap", "butt"),
                        "linejoin": {"miter-clip": "miter", "arcs": "miter"}.get(st.get("stroke-linejoin"), st.get("stroke-linejoin", "miter")),
@@ -3029,6 +3124,8 @@ def main(argv=None):
     a.add_argument("--scale", type=float, default=1.0, help="pt per SVG user unit (default 1)")
     a.add_argument("--flat-groups", action="store_true", help="inline groups instead of Form XObjects")
     a.add_argument("--ppi", type=int, default=300, help="raster resolution for filters / EPS flattening")
+    a.add_argument("--compat", choices=("rsvg", "spec"), default="rsvg",
+                   help="rsvg: match librsvg (reference renderer); spec: SVG2 bbox + nested clip-paths")
     b = sub.add_parser("cmyk", help="flat solid-fill SVG -> device-CMYK .pdf/.ai/.eps (ICC-converted)")
     b.add_argument("svg")
     b.add_argument("out_base")
@@ -3042,7 +3139,8 @@ def main(argv=None):
     args = ap.parse_args(argv)
     if args.cmd == "rgb":
         rep = export_rgb(open(args.svg, encoding="utf-8").read(), args.out_base, title=args.title, scale=args.scale,
-                         group_mode="flat" if args.flat_groups else "xobject", raster_ppi=args.ppi, flatten_ppi=args.ppi)
+                         group_mode="flat" if args.flat_groups else "xobject", raster_ppi=args.ppi, flatten_ppi=args.ppi,
+                         compat=args.compat)
         _print_report(rep)
     elif args.cmd == "cmyk":
         svg = open(args.svg, encoding="utf-8").read()
