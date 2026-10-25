@@ -1,0 +1,6 @@
+# the repo root ignores *.json; brand params/tokens are source files
+!*.json
+__pycache__/
+*.pyc
+# design-panel scratch work stays out of the kit
+design/

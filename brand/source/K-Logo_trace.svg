@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+<title>K logo - faithful vector trace of the original</title>
+<circle id="disc" cx="512" cy="512" r="512" fill="#FEFDFB"/>
+<g id="K">
+  <path id="red" fill="#EE3F2A" d="M267.51 211.435 L405.578 211.435 L405.578 443.258 L267.51 358.52 Z"/>
+  <path id="yellow" fill="#FAC311" d="M267.51 358.52 L405.578 443.258 L267.51 624.859 Z"/>
+  <path id="green" fill="#2CA53B" d="M267.51 624.859 L405.578 443.258 L521.922 514.665 L757.518 812.589 L587.378 812.589 L405.578 582.692 L405.578 812.589 L267.51 812.589 Z"/>
+  <path id="blue" fill="#3B81F1" d="M581.829 211.435 L752.463 211.435 L521.922 514.665 L405.578 443.258 Z"/>
+</g></svg>
