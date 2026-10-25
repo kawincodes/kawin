@@ -1568,11 +1568,13 @@ def shading_dict(g, which, box_root=None, colorspace="DeviceRGB", mapper=None, b
 
 
 def shading_bands(g, which, box_root=None, backdrop=(1.0, 1.0, 1.0)):
-    """Shadings that together paint the gradient. pad -> one shading. repeat/reflect -> one shading
-    per period (Domain [0 1], Extend [false true], to be painted in list order: each band's forward
-    extension is overpainted by the next, so there are no seams). One function per period keeps
-    full colour resolution in renderers that sample a shading's whole Domain into a fixed table
-    (pdfium: 256 steps)."""
+    """Shadings that together paint the gradient, in painting order. pad -> one shading.
+    repeat/reflect -> one shading per period (Domain [0 1]), painted from the last period back to
+    the first, each with Extend [true, last-period]: every band's backward extension is overpainted
+    by the next band, so there are no seams. One function per period keeps full colour resolution
+    in renderers that sample a shading's whole Domain into a fixed table (pdfium: 256 steps); the
+    back-to-front order with start extension is also what Ghostscript 10.02 renders correctly for
+    radial bands under nested clips (forward order with Extend [false true] does not)."""
     if g["spread"] not in ("repeat", "reflect"):
         return [shading_dict(g, which, box_root, backdrop=backdrop)]
     n0, n1 = _tile_range(g, box_root)
@@ -1591,9 +1593,9 @@ def shading_bands(g, which, box_root=None, backdrop=(1.0, 1.0, 1.0)):
             gk = dict(gk, coords=(fx + k * (cx - fx), fy + k * (cy - fy), fr + k * (r - fr),
                                   fx + (k + 1) * (cx - fx), fy + (k + 1) * (cy - fy), fr + (k + 1) * (r - fr)))
         sh = shading_dict(gk, which, None, backdrop=backdrop)
-        sh["Extend"] = [k == n0, True]
+        sh["Extend"] = [True, k == n1 - 1]
         out.append(sh)
-    return out
+    return out[::-1]
 
 
 # =========================================================================== PDF object writer

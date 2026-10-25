@@ -17,6 +17,7 @@ Exit status 0 = every check passed.
 """
 from __future__ import annotations
 
+
 import io
 import json
 import os
@@ -512,6 +513,7 @@ def facet_iou(img, ref_orig, shapes, proof, tol=30):
 def main():
     summary = {}
     print(f"output dir: {OUT}")
+    trace_src = open(os.path.join(os.path.dirname(HERE), "source", "K-Logo_trace.svg")).read()
     # ---------------------------------------------------------------- sRGB -> CMYK
     print(f"\n== sRGB -> CMYK via ICC: {vx.icc_profile_name()} ({vx.CMYK_PROFILE}), relative colorimetric + BPC")
     conv = {}
@@ -542,6 +544,24 @@ def main():
           st["shadings"] >= 7 and st["smasks"] >= 3, str(st))
     check("fixture: named groups kept as Form XObjects", st["form_xobjects"] >= 10, str(st))
 
+    # ---------------------------------------------------------------- options: flat groups, scale, viewBox origin
+    rf = vx.export_rgb(fx, os.path.join(OUT, "fixture_flat_half"), group_mode="flat", scale=0.5)
+    ok, info = pdf_structure(rf["pdf"], 512.0)
+    ref = ref_render(fx, 1024)
+    stf = [diff_stats(gs_render(rf[k], 1024, 512.0, eps=(k == "eps"))[0], ref)["mean"] for k in ("pdf", "eps")]
+    check("fixture group_mode='flat', scale=0.5 (512 pt page): valid, no Form groups except compositing, "
+          "pdf/eps vs rsvg mean < 2/255", ok and info["counts"]["form_xobjects"] == info["counts"]["transparency_groups"]
+          and max(stf) < 2.0, f"boxes={info['boxes']['TrimBox']} forms={info['counts']['form_xobjects']} "
+          f"mean pdf={stf[0]:.3f} eps={stf[1]:.3f}")
+    vb = trace_src.replace('viewBox="0 0 1024 1024" width="1024" height="1024"', 'viewBox="-100 -50 1224 1124" width="1224" height="1124"')
+    rv = vx.export_rgb(vb, os.path.join(OUT, "trace_vb_offset"))
+    refv = np.asarray(Image.alpha_composite(Image.new("RGBA", (1224, 1124), (255, 255, 255, 255)),
+                                            Image.open(io.BytesIO(subprocess.run(["rsvg-convert", "-f", "png"], input=vb.encode(),
+                                                                                 capture_output=True, check=True).stdout)).convert("RGBA")).convert("RGB")).astype(np.int16)
+    stv = [diff_stats(gs_render(rv[k], 1224, 1224.0, eps=(k == "eps"))[0][:1124], refv)["mean"] for k in ("pdf", "eps")]
+    check("viewBox with non-zero origin (-100 -50 1224 1124): page 1224x1124 pt, pdf/eps vs rsvg mean < 2/255",
+          rv["page_pt"] == (1224.0, 1124.0) and max(stv) < 2.0, f"mean pdf={stv[0]:.3f} eps={stv[1]:.3f}")
+
     # ---------------------------------------------------------------- edge-case fixture
     eg = edge_svg()
     open(os.path.join(OUT, "edge.svg"), "w").write(eg)
@@ -557,7 +577,6 @@ def main():
           f"mean={st['mean']:.3f}/255")
 
     # ---------------------------------------------------------------- trace (as delivered SVG, with disc)
-    trace_src = open(os.path.join(os.path.dirname(HERE), "source", "K-Logo_trace.svg")).read()
     summary["trace_svg"] = run_rgb("trace", trace_src, os.path.join(OUT, "K-Logo_trace"), expect_fills=5)
     # trace K only (kmark exact polygons), for gap checks
     kk = svg_doc(flat_group(K, trap=False), size=K.size, title="K logo - trace (mark only)")
