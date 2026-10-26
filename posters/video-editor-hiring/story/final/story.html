@@ -382,15 +382,15 @@ svg{display:block}
   <section id="s6" class="L" style="opacity:0">
     <div class="a kick g" id="s6kG" style="left:0;width:1080px;top:436px;height:64px;font-size:64px;gap:16px">
       <svg width="44" height="36" viewBox="0 0 54 44"><polygon points="0,0 17,0 54,44 37,44" fill="#FC7403"/></svg><span>WE&rsquo;RE HIRING</span></div>
-    <div class="a kick" id="s6kS" style="left:0;width:1080px;top:436px;height:64px;font-size:64px;gap:16px;clip-path:inset(0px 1080px 0px 0px)">
+    <div class="a kick" id="s6kS" style="left:0;width:1080px;top:436px;height:64px;font-size:64px;gap:16px;clip-path:inset(-90px 1080px -90px 0px)">
       <svg width="44" height="36" viewBox="0 0 54 44"><polygon points="0,0 17,0 54,44 37,44" fill="#FC7403"/></svg><span>WE&rsquo;RE HIRING</span></div>
     <div class="hl" style="top:496px;height:368px;font-size:368px">
       <div class="gw" id="s6vG">VIDEO</div>
-      <div class="w" id="s6vS" style="clip-path:inset(0px 1080px 0px 0px)">VIDEO</div>
+      <div class="w" id="s6vS" style="clip-path:inset(-90px 1080px -90px 0px)">VIDEO</div>
     </div>
     <div class="hl" style="top:842px;height:368px;font-size:368px">
       <div class="go" id="s6eG">EDITOR</div>
-      <div class="o" id="s6eS" style="clip-path:inset(0px 1080px 0px 0px)">EDITOR</div>
+      <div class="o" id="s6eS" style="clip-path:inset(-90px 1080px -90px 0px)">EDITOR</div>
     </div>
     <div class="a" style="left:0;width:1080px;top:1216px;height:104px;display:flex;justify-content:center">
       <div class="pill pillG" id="s6rG" style="position:absolute"><svg class="ico" width="66" height="66" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><ellipse cx="32" cy="32" rx="10.5" ry="24"/><path d="M8 32 H56 M11.5 20 H52.5 M11.5 44 H52.5"/></svg><span>REMOTE</span></div>
@@ -492,10 +492,11 @@ function slam(el,t,s0,blur){
   tw(el,'opacity',[[t-0.01,0],[t,1]]);
   if(blur) tw(el,'filter',[[t,'blur('+blur+'px)'],[t+F1,'blur(0px)']]);
 }
-function rgb(r,c,t){
+function rgb(r,c,t,a){
+  a=a||[18,10,5];
   [[r,-1],[c,1]].forEach(function(p){
     tw(p[0],'opacity',[[t-0.01,0],[t,0.85],[t+0.08,0.85],[t+0.09,0]]);
-    tw(p[0],'transform',[[t,'translate('+(18*p[1])+'px,0px)'],[t+F1,'translate('+(10*p[1])+'px,'+(3*p[1])+'px)'],[t+2*F1,'translate('+(5*p[1])+'px,0px)'],[t+0.1,'translate(0px,0px)']]);
+    tw(p[0],'transform',[[t,'translate('+(a[0]*p[1])+'px,0px)'],[t+F1,'translate('+(a[1]*p[1])+'px,'+(3*p[1])+'px)'],[t+2*F1,'translate('+(a[2]*p[1])+'px,0px)'],[t+0.1,'translate(0px,0px)']]);
   });
 }
 /* pop: visible from t-2f, ease-IN to contact (scale 1.04) exactly on t, settled by t+0.15 */
@@ -530,7 +531,7 @@ var RISER=[16.0,16.5,17.0,17.5];
 var CAMS=[[0,1],[1.0,1.007,'o'],[1.12,1.013],[1.5,1.016,'o'],[1.62,1.021],[1.98,1.025]];
 tw('#cam','transform',CAMS.map(function(k){ return [k[0],'translate(0px,0px) scale('+k[1]+')',k[2]]; }).concat([
   [2.0,'translate(12px,-8px) scale(1)'],[2+F1,'translate(-9px,6px) scale(1)'],[2+2*F1,'translate(4px,-3px) scale(1)'],[2.1,'translate(0px,0px) scale(1)'],
-  [2.49,'translate(0px,0px) scale(1)'],[2.5,'translate(9px,-6px) scale(1)'],[2.5+F1,'translate(-6px,4px) scale(1)'],[2.5+2*F1,'translate(3px,-2px) scale(1)'],[2.6,'translate(0px,0px) scale(1)']]));
+  [2.49,'translate(0px,0px) scale(1)'],[2.5,'translate(0px,-10px) scale(1)'],[2.5+F1,'translate(0px,7px) scale(1)'],[2.5+2*F1,'translate(0px,-3px) scale(1)'],[2.6,'translate(0px,0px) scale(1)']]));
 
 /* --- logo: rides the riser push, flies to the HUD (KRS mark only) at 6.0-6.35, returns for the end card --- */
 var HUDT='translate(436.8px,-6.9px) scale(0.559)', ENDT='translate(30px,-14px) scale(0.857143)';
@@ -569,7 +570,7 @@ tw('#s1eG','opacity',[[2.49,1],[2.5,0]]);
   tw(s,'filter',[[1.5,'drop-shadow(0px 0px 4px rgba(255,190,140,0.3))','i'],[1.98,'drop-shadow(0px 0px 22px rgba(252,140,40,0.85))']]);
 });
 slam('#s1vS',2.0,1.14,6); rgb('#s1vR','#s1vC',2.0);
-slam('#s1eS',2.5,[1.02,1.17],6);   /* EDITOR is 86 % wide: oversize vertically only so it never leaves x 64..1016 */ rgb('#s1eR','#s1eC',2.5);
+slam('#s1eS',2.5,[1,1.17],6);   /* EDITOR is 86 % wide: oversize + shake vertically only so it never leaves x 64..1016 */ rgb('#s1eR','#s1eC',2.5,[12,7,3]);
 /* T1 whip-pan left */
 tw('#s1','transform',[[5.75,'translateX(0px)','w'],[6.25,'translateX(-1080px)']]);
 tw('#s1','opacity',[[6.25,1],[6.26,0]]);
@@ -690,8 +691,9 @@ tw('#s6','opacity',[[23.74,0],[23.75,1]]);
 var RX0=56, RX1=1024;
 tw('#wph6','transform',[[24.5,'translateX('+RX0+'px)'],[25.0,'translateX('+RX1+'px)']]);
 tw('#wph6','opacity',[[24.49,0],[24.5,1],[25.0,1],[25.12,0]]);
-['#s6kS','#s6vS','#s6eS'].forEach(function(s){ tw(s,'clipPath',[[24.5,'inset(0px '+(1080-RX0)+'px 0px 0px)'],[25.0,'inset(0px '+(1080-RX1)+'px 0px 0px)'],[25.0,'inset(0px 0px 0px 0px)']]); });
-['#s6kG','#s6vG','#s6eG'].forEach(function(s){ tw(s,'clipPath',[[24.5,'inset(0px 0px 0px '+RX0+'px)'],[25.0,'inset(0px 0px 0px '+RX1+'px)'],[25.0,'inset(0px 0px 0px 1080px)']]); });
+/* top/bottom insets are negative so the glyph shadows are never cut by the reference box */
+['#s6kS','#s6vS','#s6eS'].forEach(function(s){ tw(s,'clipPath',[[24.5,'inset(-90px '+(1080-RX0)+'px -90px 0px)'],[25.0,'inset(-90px '+(1080-RX1)+'px -90px 0px)'],[25.0,'inset(-90px -90px -90px -90px)']]); });
+['#s6kG','#s6vG','#s6eG'].forEach(function(s){ tw(s,'clipPath',[[24.5,'inset(-90px 0px -90px '+RX0+'px)'],[25.0,'inset(-90px 0px -90px '+RX1+'px)'],[25.0,'inset(-90px 0px -90px 1080px)']]); });
 /* 25.0 REMOTE pill + CTA bar pop; 25.5 DM line slides in; 26.0 END HIT ignites APPLY NOW */
 pop('#s6r',25.0,30,0.8);
 pop('#s6c',25.0,30,0.9);
