@@ -42,7 +42,6 @@ import zlib
 import numpy as np
 import soundfile as sf
 from scipy import signal
-from pedalboard import Compressor, Reverb
 
 SR = 48000
 BPM = 120.0
@@ -255,15 +254,72 @@ def _sat(x: np.ndarray, drive: float) -> np.ndarray:
     return np.tanh(drive * x) / np.tanh(drive)
 
 
-def _reverb(x: np.ndarray, room=0.5, damp=0.5, width=1.0, hp=200.0, lp=8000.0,
-            predelay=0.0, tail=0.0) -> np.ndarray:
-    """Wet-only Freeverb (pedalboard) return, band-limited, length len(x)+tail."""
+_IR_CACHE: dict = {}
+
+
+def _make_ir(rt: float, hf: float = 0.5, er: float = 0.15) -> np.ndarray:
+    """Synthetic stereo room impulse response (no samples used): decorrelated
+    noise with 3-band frequency-dependent decay (lows 0.85*rt, mids rt, highs
+    hf*rt), a 15 ms diffuse build-up and a few soft early reflections.
+    Unit energy per channel.  Smooth and non-metallic (unlike small Freeverb
+    rooms, whose all-pass resonances showed up as tones at 1.85/2.4 kHz)."""
+    key = (round(rt, 3), round(hf, 3), round(er, 3))
+    if key in _IR_CACHE:
+        return _IR_CACHE[key]
+    rng = _rng(f"ir|{key}")
+    m = _n(rt * 1.05)
+    t = _t(m)
+    k = 6.9078                       # ln(1000): -60 dB at t = rt
+    build = np.clip(t / 0.015, 0, 1) ** 1.5
+    ir = np.zeros((m, 2))
+    for ch in range(2):
+        nz = rng.standard_normal(m)
+        lo = _filt(nz, "lowpass", 500.0, 2)
+        hi = _filt(nz, "highpass", 4000.0, 2)
+        mid = nz - lo - hi
+        tail = (lo * np.exp(-k * t / (0.85 * rt)) + mid * np.exp(-k * t / rt) +
+                hi * np.exp(-k * t / (hf * rt))) * build
+        e_tail = float(np.sum(tail ** 2))
+        gl = _n(0.004)
+        for _ in range(6):           # early reflections: short noise grains
+            d = _n(rng.uniform(0.003, 0.028))
+            grain = rng.standard_normal(gl) * np.exp(-_t(gl) / 0.0006)
+            grain *= np.sqrt(er * e_tail / 6 / np.sum(grain ** 2))
+            tail[d:d + gl] += grain[: max(0, min(gl, m - d))]
+        ir[:, ch] = tail
+    fo = _n(0.05)
+    ir[-fo:] *= np.linspace(1.0, 0.0, fo)[:, None]
+    ir /= np.sqrt(np.sum(ir ** 2) / 2.0)
+    _IR_CACHE[key] = ir
+    return ir
+
+
+_CONV: dict = {}
+
+
+def _reverb(x: np.ndarray, rt=0.6, hf=0.5, hp=200.0, lp=8000.0, predelay=0.0,
+            tail=0.0, er=0.15) -> np.ndarray:
+    """Wet-only reverb return, length len(x)+tail.  Runs the synthetic IR
+    through pedalboard.Convolution (JUCE partitioned convolution); its
+    built-in IR normalisation is calibrated out so the wet has unit-energy
+    gain.  Wet is band-limited (hp/lp) to keep lows dry and highs soft."""
+    from pedalboard import Convolution
+    key = (round(rt, 3), round(hf, 3), round(er, 3))
+    if key not in _CONV:
+        ir = _make_ir(rt, hf, er)
+        conv = Convolution(np.ascontiguousarray(ir.T, dtype=np.float32), mix=1.0,
+                           sample_rate=SR)
+        imp = np.zeros((2, len(ir) + 256), dtype=np.float32)
+        imp[:, 0] = 1.0
+        resp = conv(imp, SR)
+        gain = float(np.sqrt(np.sum(ir ** 2) / (np.sum(resp.astype(float) ** 2) + 1e-30)))
+        _CONV[key] = (conv, gain)
+    conv, gain = _CONV[key]
     pad = _n(tail) if tail > 0 else 0
     pre = _n(predelay) if predelay > 0 else 0
     xin = np.concatenate([np.zeros((pre, 2)), x, np.zeros((pad, 2))], axis=0)
-    rv = Reverb(room_size=room, damping=damp, wet_level=1.0, dry_level=0.0,
-                width=width)
-    w = rv(np.ascontiguousarray(xin.T, dtype=np.float32), SR).T.astype(float)
+    conv.reset()
+    w = conv(np.ascontiguousarray(xin.T, dtype=np.float32), SR).T.astype(float) * gain
     w = w[: len(x) + pad]
     w = _filt(w, "highpass", hp, 2)
     w = _filt(w, "lowpass", lp, 2)
@@ -274,13 +330,9 @@ def _with_tail(x: np.ndarray, extra: int) -> np.ndarray:
     return np.concatenate([x, np.zeros((extra, 2))], axis=0)
 
 
-def _compress(x: np.ndarray, thr=-16.0, ratio=2.5, attack=8.0, release=150.0):
-    pk = np.max(np.abs(x)) + 1e-12
-    y = x / pk * 0.7
-    comp = Compressor(threshold_db=thr, ratio=ratio, attack_ms=attack,
-                      release_ms=release)
-    y = comp(np.ascontiguousarray(y.T, dtype=np.float32), SR).T.astype(float)
-    return y
+def _unit(x: np.ndarray) -> np.ndarray:
+    """Scale to unit RMS (so noise-layer gains are comparable)."""
+    return x / (np.sqrt(np.mean(np.asarray(x, float) ** 2)) + 1e-20)
 
 
 def true_peak(x: np.ndarray) -> float:
@@ -407,8 +459,8 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
     else:
         bright = 0.15 + 0.85 * (1 - u) ** 1.3 * (0.5 + 0.5 * prox)
     bright = np.clip(bright, 0, 1)
-    fc_body = 500.0 * (1.0 + (6.0 + 3.0 * I) * bright ** 1.2)      # ~500 -> 5k
-    fc_swish = 380.0 * (1.0 + (3.2 + 1.2 * I) * bright ** 1.1)     # ~380 -> 2k
+    fc_body = 250.0 * (1.0 + (12.0 + 6.0 * I) * bright ** 1.2)     # ~250 -> 4.7k
+    fc_swish = 320.0 * (1.0 + (3.0 + 1.0 * I) * bright ** 1.1)     # ~320 -> 1.6k
 
     # pan / width
     if direction == "lr":
@@ -420,12 +472,12 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
     width = 0.25 + 0.55 * prox
 
     nz = _stereo_noise(n, rng, width)
-    body = _svf(_pinkish(nz), fc_body, 0.75, "lp") * 0.8
+    body = _filt(_svf(_pinkish(nz), fc_body, 0.75, "lp"), "highpass", 110.0, 2) * 0.8
     swish = _svf(nz, fc_swish, 1.6, "bp") * 1.1
     air = _filt(_stereo_noise(n, rng, 0.8), "highpass", 6500.0, 4)
-    air *= (prox ** 3)[:, None] * 0.10 * I
-    low = _filt(_pinkish(rng.standard_normal(n)), "lowpass", 170.0, 4)
-    low = _center(low * prox ** 2 * 0.9 * I ** 1.5)
+    air *= (prox ** 3)[:, None] * 0.16 * I
+    low = _filt(_filt(_pinkish(rng.standard_normal(n)), "lowpass", 170.0, 4), "highpass", 40.0, 2)
+    low = _center(low * prox ** 2 * 0.3 * I ** 1.5)
 
     sig = (body + swish) * amp[:, None] + air * taper[:, None]
     # equal-power pan applied on mid; keep some of the side for width
@@ -435,7 +487,7 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
     gl, gr = np.cos(th) * np.sqrt(2), np.sin(th) * np.sqrt(2)
     out = np.stack([mid * gl + side, mid * gr - side], axis=1)
     out += low * taper[:, None]
-    out += 0.16 * _reverb(out, room=0.28, damp=0.6, hp=300, lp=7000)
+    out += 0.2 * _reverb(out, rt=0.35, hp=300, lp=7000)
     out = _mono_low(out, 150)
     return _finish(out, length=n, fade_in=0.004, fade_out=0.012)
 
@@ -493,9 +545,9 @@ def slash(dur: float = 0.35) -> np.ndarray:
     # displaced-air low whump (gives the slice some weight)
     low = _filt(rng.standard_normal(n), "lowpass", 260.0, 4)
     lenv = np.where(t < th, (t / th) ** 2, np.exp(-(t - th) / 0.045))
-    out += _center(low * lenv * 0.9)
+    out += _center(low * lenv * 0.35)
 
-    out += 0.22 * _reverb(out, room=0.45, damp=0.35, hp=600, lp=10000)
+    out += 0.25 * _reverb(out, rt=0.7, hf=0.6, hp=600, lp=10000)
     out = _mono_low(out, 150)
     return _finish(out, length=n, fade_in=0.003, fade_out=0.05)
 
@@ -504,26 +556,27 @@ def slash(dur: float = 0.35) -> np.ndarray:
 # 3. impact
 # ----------------------------------------------------------------------------
 _IMPACT = {
-    "big": dict(f0=120.0, f1=38.0, glide=0.075, sub_tau=0.40, sub_amp=1.0,
-                body="F2", body_tau=0.17, body_amp=0.75, punch_tau=0.045,
-                crack_tau=0.030, crack_tail=0.16, crack_amp=0.55, click=0.45,
-                drive=1.8, room=0.78, wet=0.34, length=2.0),
-    "medium": dict(f0=140.0, f1=48.0, glide=0.05, sub_tau=0.24, sub_amp=0.85,
-                   body="C3", body_tau=0.11, body_amp=0.75, punch_tau=0.035,
-                   crack_tau=0.022, crack_tail=0.10, crack_amp=0.50, click=0.40,
-                   drive=1.5, room=0.62, wet=0.26, length=1.2),
-    "small": dict(f0=190.0, f1=70.0, glide=0.03, sub_tau=0.11, sub_amp=0.6,
-                  body="F3", body_tau=0.065, body_amp=0.8, punch_tau=0.022,
-                  crack_tau=0.014, crack_tail=0.05, crack_amp=0.45, click=0.35,
-                  drive=1.3, room=0.40, wet=0.18, length=0.7),
+    "big": dict(f0=120.0, f1=38.0, glide=0.11, sub_tau=0.30, sub_amp=1.0, drive=1.6,
+                body="F2", body_tau=0.16, body_amp=0.8, punch_tau=0.040, punch=0.20,
+                crack_tau=0.028, crack_tail=0.15, crack=0.17, click=0.22,
+                rt=1.5, wet=0.38, length=1.8),
+    "medium": dict(f0=140.0, f1=48.0, glide=0.07, sub_tau=0.19, sub_amp=0.85, drive=1.5,
+                   body="C3", body_tau=0.11, body_amp=0.8, punch_tau=0.030, punch=0.20,
+                   crack_tau=0.020, crack_tail=0.10, crack=0.16, click=0.20,
+                   rt=0.9, wet=0.32, length=1.1),
+    "small": dict(f0=190.0, f1=70.0, glide=0.035, sub_tau=0.09, sub_amp=0.6, drive=1.3,
+                  body="F3", body_tau=0.06, body_amp=0.85, punch_tau=0.018, punch=0.18,
+                  crack_tau=0.012, crack_tail=0.05, crack=0.15, click=0.18,
+                  rt=0.5, wet=0.24, length=0.6),
 }
 
 
 def impact(size: str = "big") -> np.ndarray:
     """Slam: sub drop (sine 120->38 Hz for 'big'), tuned punchy body (F2 / C3 /
-    F3), transient click (~3-5 kHz), short noise crack, reverb tail on
-    everything but the sub.  Sub is soft-saturated so it reads on phones.
-    Hit is at t=0; natural length (big ~1.8 s, medium ~1 s, small ~0.5 s)."""
+    F3 + octave), low-mid punch, transient click (~3-5 kHz), short noise
+    crack, and a reverb tail on everything except the (dry, mono) sub.  The
+    sub and body are soft-saturated so the hit still reads on phone speakers.
+    Hit is at t=0; natural length (big ~1.6 s, medium ~1 s, small ~0.5 s)."""
     if size not in _IMPACT:
         raise ValueError("size must be 'big', 'medium' or 'small'")
     c = _IMPACT[size]
@@ -534,34 +587,35 @@ def impact(size: str = "big") -> np.ndarray:
     # sub drop
     f_sub = c["f1"] + (c["f0"] - c["f1"]) * np.exp(-t / c["glide"])
     sub = _sine(f_sub, n) * _decay(n, c["sub_tau"], 0.0015)
-    sub = _sat(sub * 0.9, c["drive"]) * c["sub_amp"]
+    sub = _sat(sub * 0.95, c["drive"]) * c["sub_amp"]
 
-    # tuned body ("tom" with fast pitch drop) + low-mid thump noise
+    # tuned body ("tom" with fast pitch drop) + octave partial for small speakers
     fb = _note(c["body"], "impact")
+    NOTES_USED["impact"].add(midi_name(note_midi(c["body"]) + 12))
     f_body = fb * (1.0 + 0.9 * np.exp(-t / 0.012))
-    body = (_sine(f_body, n) + 0.25 * _sine(f_body * 1.5, n) * np.exp(-t / 0.05))
-    body = _sat(body * _decay(n, c["body_tau"], 0.001) * 0.8, 1.4) * c["body_amp"]
-    punch = _filt(_filt(rng.standard_normal(n), "lowpass", 420.0, 4), "highpass", 70.0, 2)
-    punch *= _decay(n, c["punch_tau"], 0.001) * 0.9
+    body = _sine(f_body, n) + 0.35 * _sine(2.0 * f_body, n) * np.exp(-t / 0.04)
+    body = _sat(body * _decay(n, c["body_tau"], 0.001) * 0.85, 1.5) * c["body_amp"]
 
-    # crack (stereo noise) + click
-    crack = _stereo_noise(n, rng, 0.6)
-    crack = _filt(_filt(crack, "highpass", 450.0, 2), "lowpass", 7500.0, 2)
-    cenv = np.exp(-t / c["crack_tau"]) + 0.12 * np.exp(-t / c["crack_tail"])
-    crack *= (cenv * _ramp_in(n, 0.0008))[:, None] * c["crack_amp"]
+    # low-mid punch (noise 90-700 Hz)
+    punch = _unit(_filt(rng.standard_normal(n), "bandpass", [90.0, 700.0], 2))
+    punch *= _decay(n, c["punch_tau"], 0.001) * c["punch"]
+
+    # crack (stereo noise 500 Hz - 9 kHz) + click (2.5-6 kHz, ~2 ms)
+    crack = _filt(_stereo_noise(n, rng, 0.6), "bandpass", [500.0, 9000.0], 2)
+    crack /= np.sqrt(np.mean(crack ** 2))
+    cenv = (np.exp(-t / c["crack_tau"]) + 0.12 * np.exp(-t / c["crack_tail"])) * _ramp_in(n, 0.0008)
+    crack *= cenv[:, None] * c["crack"]
     kn = _n(0.02)
-    click = _filt(rng.standard_normal(kn), "bandpass", [2800.0, 5200.0], 2)
-    click = click * np.exp(-_t(kn) / 0.0016) * _ramp_in(kn, 0.0003) * c["click"] * 2.2
+    click = _unit(_filt(rng.standard_normal(kn), "bandpass", [2500.0, 6000.0], 2))
+    click *= np.exp(-_t(kn) / 0.002) * _ramp_in(kn, 0.0003) * c["click"]
     click_st = np.zeros((n, 2))
     _place(click_st, _center(click), 0)
 
-    verb_in = _center(body * 0.6 + punch * 0.5) + crack + click_st
-    wet = _reverb(verb_in, room=c["room"], damp=0.55, hp=220, lp=6000, predelay=0.012)
-    wet = wet[:n]
+    verb_in = _center(body * 0.5 + punch) + crack + click_st
+    wet = _reverb(verb_in, rt=c["rt"], hp=220, lp=6000, predelay=0.012)
     out = _center(sub + body + punch) + crack + click_st + c["wet"] * wet
-    out = _compress(out, thr=-17.0, ratio=2.2, attack=10.0, release=180.0)
     out = _mono_low(out, 150)
-    return _finish(out, fade_in=0.002, trim_db=-58.0)
+    return _finish(out, fade_in=0.002, trim_db=-50.0)
 
 
 # ----------------------------------------------------------------------------
@@ -575,13 +629,15 @@ def reject() -> np.ndarray:
     t = _t(n)
     rng = _rng("reject")
 
-    f = 50.0 + 45.0 * np.exp(-t / 0.03)
-    thud = _sat(_sine(f, n) * _decay(n, 0.13, 0.0015) * 0.9, 2.0)
-    lowmid = _filt(rng.standard_normal(n), "bandpass", [110.0, 420.0], 2)
-    lowmid *= _decay(n, 0.035, 0.001) * 1.1
-    slap = _filt(rng.standard_normal(n), "bandpass", [700.0, 2200.0], 2)
-    slap *= _decay(n, 0.009, 0.0005) * 0.55
-    out = _center(thud + lowmid + slap)
+    f = 52.0 + 48.0 * np.exp(-t / 0.028)
+    thud = _sat(_sine(f, n) * _decay(n, 0.085, 0.0015) * 0.95, 2.2)
+    fk = _note("F3", "reject")
+    knock = _sine(fk * (1.0 + 0.5 * np.exp(-t / 0.008)), n) * _decay(n, 0.03, 0.001) * 0.45
+    lowmid = _unit(_filt(rng.standard_normal(n), "bandpass", [120.0, 500.0], 2))
+    lowmid *= _decay(n, 0.03, 0.001) * 0.22
+    slap = _unit(_filt(rng.standard_normal(n), "bandpass", [800.0, 2600.0], 2))
+    slap *= _decay(n, 0.008, 0.0005) * 0.16
+    out = _center(thud + knock + lowmid + slap)
 
     # muted error blips
     blip_len = 0.085
@@ -591,11 +647,11 @@ def reject() -> np.ndarray:
     for i, (nm, start, pan) in enumerate((("C3", 0.055, -0.12), ("Ab2", 0.055 + SIXTEENTH, 0.12))):
         fr = _note(nm, "reject")
         sq = _bl_wave(fr, bn, "square", max_h=31) + 0.7 * _bl_wave(fr * 2 ** (9 / 1200), bn, "square", max_h=31, phase0=0.4)
-        sq = _filt(_filt(sq, "lowpass", 950.0, 4), "highpass", 80.0, 2)
+        sq = _filt(_filt(sq, "lowpass", 1300.0, 4), "highpass", 80.0, 2)
         sq *= benv * (0.42 if i == 0 else 0.40)
         _place(out, _pan(sq, pan), _n(start))
 
-    out += 0.15 * _reverb(out, room=0.32, damp=0.55, hp=250, lp=5000)
+    out += 0.18 * _reverb(out, rt=0.35, hp=250, lp=5000)
     out = _mono_low(out, 150)
     return _finish(out, fade_in=0.002, trim_db=-58.0)
 
@@ -603,7 +659,7 @@ def reject() -> np.ndarray:
 # ----------------------------------------------------------------------------
 # 5. check
 # ----------------------------------------------------------------------------
-def _bell_pluck(f: float, n: int, decay=0.42) -> np.ndarray:
+def _bell_pluck(f: float, n: int, decay=0.30) -> np.ndarray:
     """Soft FM bell / mallet pluck (harmonic body + faint inharmonic strike)."""
     t = _t(n)
     idx = 1.1 * np.exp(-t / 0.035)
@@ -627,7 +683,7 @@ def check() -> np.ndarray:
     echo = np.zeros_like(out)
     _place(echo, out[:, ::-1] * 0.14, _n(2 * SIXTEENTH))       # 8th-note echo, swapped
     out += _filt(echo, "lowpass", 4500.0, 2)
-    out += 0.24 * _reverb(out, room=0.55, damp=0.45, hp=400, lp=8000, predelay=0.01)
+    out += 0.30 * _reverb(out, rt=0.9, hp=400, lp=8000, predelay=0.01)
     return _finish(out, fade_in=0.002, trim_db=-58.0)
 
 
@@ -666,7 +722,7 @@ def pop(pitch_semitones: int = 0) -> np.ndarray:
     y = body + thock
     y[:kn] += click
     out = _center(y)
-    out += 0.12 * _reverb(out, room=0.3, damp=0.5, hp=350, lp=7000, predelay=0.006)
+    out += 0.15 * _reverb(out, rt=0.3, hp=350, lp=7000, predelay=0.006)
     return _finish(out, fade_in=0.002, trim_db=-56.0)
 
 
@@ -682,8 +738,8 @@ def tick() -> np.ndarray:
              (_note("F8", "tick"), 0.12, 0.0022)]
     y = _modal_click(modes, n, rng, noise_amp=0.35, noise_hp=6500.0, noise_tau=0.0005)
     out = _pan(y, 0.0)
-    out[:, 1] = np.roll(out[:, 1], 6)        # 0.12 ms skew: tiny width, mono-safe
-    out[:6, 1] = 0.0
+    out[:, 1] = np.roll(out[:, 1], 3)        # 60 us skew: tiny width, mono-safe
+    out[:3, 1] = 0.0
     return _finish(out, length=n, fade_in=0.002, fade_out=0.006)
 
 
@@ -703,8 +759,8 @@ def scrub(dur: float) -> np.ndarray:
 
     rate = 2.0 / SIXTEENTH                # 16 ticks per second (32nd notes)
     kn = _n(0.03)
-    f_a = _note("C7", "scrub")
-    f_b = _note("F6", "scrub")
+    f_a = _note("F6", "scrub")
+    f_b = _note("C6", "scrub")
     times = np.arange(0.0, max(dur - 0.012, 0.0), 1.0 / rate)
     for i, tt in enumerate(times):
         acc = (i % 4 == 0)
@@ -726,9 +782,9 @@ def scrub(dur: float) -> np.ndarray:
     nz = _stereo_noise(n, rng, 0.45)
     tex = _svf(nz, 650.0 * speed, 3.0, "bp") + 0.6 * _svf(nz, 1700.0 * speed, 4.0, "bp")
     flutter = 0.75 + 0.25 * np.cos(2 * np.pi * rate * t)
-    tex *= (0.13 * speed * flutter)[:, None]
+    tex *= (0.20 * speed * flutter)[:, None]
     out += tex
-    out += 0.10 * _reverb(out, room=0.25, damp=0.6, hp=400, lp=6000)
+    out += 0.12 * _reverb(out, rt=0.25, hp=400, lp=6000)
     edge = min(0.02, dur / 4)
     return _finish(out, length=n, fade_in=edge, fade_out=min(0.03, dur / 4))
 
@@ -754,7 +810,7 @@ def riser(dur: float = 1.5) -> np.ndarray:
     noise = _svf(nz, fc, 0.9, "lp")
     whistle = _svf(nz, 300.0 * 20.0 ** (u ** 1.2), 6.0, "bp") * 0.45
     namp = u ** 2.2 * _ramp_in(n, 0.05)
-    noise = (noise + whistle) * namp[:, None] * 0.9
+    noise = _filt((noise + whistle) * namp[:, None] * 0.9, "highpass", 100.0, 2)
 
     # tonal layer: power fifth gliding up two octaves, ending on F5 + C6
     F3 = _note("F3", "riser")
@@ -774,7 +830,7 @@ def riser(dur: float = 1.5) -> np.ndarray:
     tone *= (u ** 1.8 * trem * 0.55)[:, None]
 
     out = noise + tone
-    out += 0.25 * _reverb(out, room=0.7, damp=0.5, hp=300, lp=9000)
+    out += 0.30 * _reverb(out, rt=1.2, hp=300, lp=9000)
     out = _mono_low(out, 150)
     # finish but keep the end at full level (only a 3 ms click-guard fade)
     return _finish(out, length=n, fade_in=0.03, fade_out=0.003)
@@ -794,7 +850,7 @@ def downlifter(dur: float = 1.0) -> np.ndarray:
 
     nz = _stereo_noise(n, rng, 0.85 - 0.6 * u)
     fc = 9000.0 * (150.0 / 9000.0) ** (u ** 0.7)
-    noise = _svf(_pinkish(nz), fc, 1.1, "lp")
+    noise = _filt(_svf(_pinkish(nz), fc, 1.1, "lp"), "highpass", 60.0, 2)
     noise *= ((1 - u) ** 1.6 * _ramp_in(n, 0.004))[:, None] * 0.9
 
     F4 = _note("F4", "downlifter")
@@ -809,7 +865,7 @@ def downlifter(dur: float = 1.0) -> np.ndarray:
     tone *= ((1 - u) ** 2.2 * _ramp_in(n, 0.004))[:, None] * 0.35
 
     out = noise + tone
-    out += 0.28 * _reverb(out, room=0.65, damp=0.5, hp=250, lp=8000)
+    out += 0.35 * _reverb(out, rt=1.2, hp=250, lp=8000)
     out = _mono_low(out, 150)
     return _finish(out, length=n, fade_in=0.003, fade_out=min(0.08, dur * 0.1))
 
@@ -854,7 +910,8 @@ def shimmer(dur: float = 1.2) -> np.ndarray:
         tg = _t(gl)
         a = rng.uniform(0.3, 1.0) * (1400.0 / f) ** 0.7
         g = (np.sin(2 * np.pi * f * tg) * np.exp(-tg / tau) +
-             0.10 * np.sin(2 * np.pi * 2.0 * f * tg) * np.exp(-tg / (0.5 * tau)) +
+             0.22 * np.sin(2 * np.pi * 2.0 * f * tg) * np.exp(-tg / (0.5 * tau)) +
+             0.08 * np.sin(2 * np.pi * 3.0 * f * tg) * np.exp(-tg / (0.33 * tau)) +
              0.05 * np.sin(2 * np.pi * 2.76 * f * tg) * np.exp(-tg / (0.3 * tau)))
         g *= _ramp_in(gl, 0.0015) * a * 0.32
         _place(out, _pan(g, rng.uniform(-0.85, 0.85)), _n(tt))
@@ -871,15 +928,35 @@ def shimmer(dur: float = 1.2) -> np.ndarray:
     spk = _filt(np.maximum(rng.standard_normal(n), 0) ** 3, "lowpass", 60.0, 2)
     spk /= spk.max() + 1e-9
     dshape = _ramp_in(n, att) * np.exp(-np.maximum(t - att, 0) / (0.3 * dur))
-    air *= (spk * dshape * 0.10)[:, None]
+    air *= (spk * dshape * 0.22)[:, None]
     out += air
+
+    # glitter pings: tiny very-high bell grains (F8 Ab8 C9)
+    hi_pool = [_note(x, "shimmer") for x in ("F8", "Ab8", "C9")]
+    tt = 0.0
+    while True:
+        tt += rng.exponential(1.0 / 45.0)
+        if tt >= t_end:
+            break
+        dens = (np.sin(0.5 * np.pi * min(tt / att, 1.0)) ** 2 *
+                np.exp(-max(tt - att, 0.0) / (0.3 * dur)))
+        if rng.uniform() > dens:
+            continue
+        f = hi_pool[rng.integers(len(hi_pool))]
+        tau = rng.uniform(0.008, 0.025)
+        gl = min(_n(5 * tau), n - _n(tt))
+        if gl < 32:
+            continue
+        tg = _t(gl)
+        g = np.sin(2 * np.pi * f * tg) * np.exp(-tg / tau) * _ramp_in(gl, 0.001)
+        _place(out, _pan(g * rng.uniform(0.04, 0.10), rng.uniform(-1, 1)), _n(tt))
 
     # cross echoes (16th / dotted 16th) and room
     echo = np.zeros_like(out)
     _place(echo[:, 0:1], out[:, 1:2] * 0.32, _n(SIXTEENTH))
     _place(echo[:, 1:2], out[:, 0:1] * 0.32, _n(1.5 * SIXTEENTH))
     out += _filt(echo, "lowpass", 6000.0, 2)
-    out += 0.40 * _reverb(out, room=0.82, damp=0.35, hp=500, lp=10000, predelay=0.015)
+    out += 0.50 * _reverb(out, rt=1.8, hf=0.7, hp=500, lp=10000, predelay=0.015)
     fade = np.cos(0.5 * np.pi * np.clip((u - 0.72) / 0.28, 0, 1)) ** 2
     out *= fade[:, None]
     return _finish(out, length=n, fade_in=0.004, fade_out=0.02)
@@ -907,9 +984,9 @@ def reverse_swell(dur: float = 0.8) -> np.ndarray:
         for r in _CYM_RATIOS:
             metal[:, ch] += _bl_wave(337.0 * r * det, n, "square", max_h=41,
                                      phase0=rng.uniform(0, 6.28))
-    metal = _filt(_filt(metal, "highpass", 5200.0, 4), "lowpass", 13000.0, 2) * 0.35
+    metal = _filt(_filt(metal, "highpass", 4000.0, 4), "lowpass", 13000.0, 2) * 0.35
     hiss = _filt(_stereo_noise(n, rng, 0.85), "highpass", 6500.0, 4) * 0.7
-    mid = _filt(_stereo_noise(n, rng, 0.7), "bandpass", [900.0, 2600.0], 2) * 0.18
+    mid = _filt(_stereo_noise(n, rng, 0.7), "bandpass", [900.0, 2600.0], 2) * 0.30
     e_hi = np.exp(-t / (0.22 * dur))
     e_mid = np.exp(-t / (0.32 * dur))
     crash = (metal + hiss) * e_hi[:, None] + mid * e_mid[:, None]
@@ -917,13 +994,13 @@ def reverse_swell(dur: float = 0.8) -> np.ndarray:
 
     # forward soft triad (reversed it becomes a swelling chord bloom)
     chord = np.zeros((n, 2))
-    for nm, pan in (("F4", -0.3), ("Ab4", 0.3), ("C5", 0.0), ("F3", 0.0)):
+    for nm, pan in (("F4", -0.3), ("Ab4", 0.3), ("C5", 0.0)):
         f = _note(nm, "reverse_swell")
         chord += _pan(_bell_pluck(f, n, decay=0.35 * dur), pan)
-    chord *= 0.16
+    chord *= 0.07
 
     fwd = crash + chord
-    fwd = fwd + 0.6 * _reverb(fwd, room=0.8, damp=0.45, hp=300, lp=11000)[:n]
+    fwd = fwd + 0.7 * _reverb(fwd, rt=1.4, hp=300, lp=11000)[:n]
     rev = fwd[::-1].copy()
     # make the very start of the swell silent and smooth
     rev *= (np.sin(0.5 * np.pi * np.clip(t / (0.35 * dur), 0, 1)) ** 2)[:, None]

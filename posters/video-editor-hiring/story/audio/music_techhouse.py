@@ -530,19 +530,19 @@ def lufs(x: np.ndarray) -> float:
 # instruments
 # ----------------------------------------------------------------------------------------------
 def _kick(vel, rng, big=False):
-    dur = 1.6 if big else 0.42
+    dur = 1.0 if big else 0.42
     n = int(dur * SR)
     t = np.arange(n) / SR
     f_end = hz(nm("F1"))                                          # body tuned to the tonic, 43.7 Hz
     f = f_end + ((210.0 if big else 175.0) - f_end) * np.exp(-t / 0.028) + 380.0 * np.exp(-t / 0.0035)
     body = np.sin(2 * np.pi * np.cumsum(f) / SR)
-    hold, tau = (0.06, 0.45) if big else (0.035, 0.17)
+    hold, tau = (0.05, 0.28) if big else (0.035, 0.17)
     amp = np.where(t < hold, 1.0, np.exp(-(t - hold) / tau))
     body = np.tanh(1.7 * body * amp) / np.tanh(1.7)
-    click = _filt(rng.standard_normal(n), "bandpass", [2600.0, 5200.0], 2) * np.exp(-t / 0.0030)
+    click = _filt(rng.standard_normal(n), "bandpass", [3000.0, 5200.0], 2) * np.exp(-t / 0.0035)
     click /= np.max(np.abs(click[: int(0.01 * SR)])) + 1e-9
-    y = body + 0.22 * click
-    return vel * y * _fades(n, 0.002, 0.03 if not big else 0.3)
+    y = body + 0.5 * click
+    return vel * y * _fades(n, 0.002, 0.03 if not big else 0.25)
 
 
 def _clap(vel, rng):
@@ -557,7 +557,7 @@ def _clap(vel, rng):
         on = np.clip(lt / 0.0006, 0, 1)
         env += g * on * np.where(lt >= 0, np.exp(-np.maximum(lt, 0) / 0.0045), 0.0)
     env += 0.55 * np.where(t >= 0.028, np.exp(-np.maximum(t - 0.028, 0) / 0.065), 0.0)
-    y = (body + air) * env
+    y = _peq((body + air) * env, 3000.0, -3.0, 1.0)
     y /= np.max(np.abs(y)) + 1e-9
     return vel * y * _fades(n, 0.002, 0.05)
 
@@ -647,7 +647,7 @@ def _bass_note(midi, dur, vel, cache, final=False):
         fc = 160.0 + 900.0 * np.exp(-t / 0.08)
     else:
         amp = _fades(n, 0.003, 0.014) * (0.75 + 0.25 * np.exp(-t / 0.05))
-        fc = 260.0 + 1100.0 * np.exp(-t / 0.035) * vel
+        fc = 420.0 + 2200.0 * np.exp(-t / 0.04) * vel
     sub = np.sin(2 * np.pi * f0 * t) * amp
     mid = _additive(f0, n, SAW_AMPS, fc, q=1.1) * amp
     mid = np.tanh(2.0 * mid) / 2.0
@@ -774,8 +774,8 @@ def _db2(g):
 
 
 # stem-internal levels (dB)
-LV = dict(kick=-7.0, clap=-15.5, clap_plate=-21.0, hat=-23.0, ohat=-24.0, snare=-17.0, crash=-23.0,
-          sub=-11.0, midbass=-15.5, pad=-17.0, arp=-19.0, lift=-19.0, stab=-15.0, delay=-25.0,
+LV = dict(kick=-7.0, clap=-14.5, clap_plate=-21.0, hat=-22.0, ohat=-23.0, snare=-17.0, crash=-23.0,
+          sub=-4.0, midbass=-6.0, pad=-20.0, arp=-18.5, lift=-19.0, stab=-15.0, delay=-25.0,
           riser=-22.0, riser_tone=-27.0, boom=-12.0, downlifter=-27.0, revcym=-19.0, impact=-21.0)
 
 
@@ -883,6 +883,8 @@ def render(duration, drop_time, end_hit_time, seed=1):
                            amp_tau=0.9 if fin else 0.28, cache=pcache)
                 arp_bus.add(e["t"] + 0.004 * j, y, _db2(LV["stab"]) / np.sqrt(len(e["midis"])))
     A = _filt(arp_bus.x, "highpass", 220.0, 2)
+    a_rms = _db(np.sqrt(np.mean(A[int(PRE * SR):] ** 2)) + 1e-12)
+    A = _pb(Compressor(threshold_db=a_rms + 5.0, ratio=4.0, attack_ms=1.5, release_ms=70.0), A)
     A = _peq(A, 2800.0, -2.5, 1.2)
     A_d = _pingpong(A, 0.375, 0.42) * _db2(LV["delay"] - LV["arp"]) * 4.0
     A = A + A_d
@@ -1039,6 +1041,7 @@ def render_demo(duration=17.5, drop_time=1.8, end_hit_time=14.5, seed=1, out_dir
     st = render(duration, drop_time, end_hit_time, seed=seed)
     mix = sum(st[k].astype(np.float64) for k in ("drums", "bass", "music", "fx"))
     y = master_preview(mix)
+    y = (y - np.mean(y, axis=0) * _fades(len(y), 0.005, TAIL_FADE)[:, None])
     wav = os.path.join(out_dir, "music_techhouse_demo.wav")
     sf.write(wav, y.astype(np.float32), SR, subtype="FLOAT")
     png = os.path.join(out_dir, "music_techhouse_demo_spectrogram.png")
