@@ -180,7 +180,7 @@ def fmt(v, nd=4):
 
 def _rnd(v, nd=4):
     r = round(float(v), nd)
-    return 0.0 if r == 0 else (int(r) if r == int(r) else r)
+    return int(r) if r == int(r) else r
 
 
 _NAMED = {
@@ -1393,7 +1393,7 @@ def svg_to_variant(svg_text, name=None, background="auto", arc_tol=DEFAULT_ARC_T
             shp = n0.get("_shape") or {}
             t = shp.get("type")
             bg = {"type": "circle" if t == "circle" else ("rect" if t == "rect" else "path"),
-                  "fill": n0["fill"], "d": n0["d"]}
+                  "fill": n0["fill"], "d": n0["d"], "name": n0["name"]}
             if t in ("circle", "rect"):
                 bg.update({k: v for k, v in shp.items() if k != "type"})
             if n0.get("fill_rule"):
@@ -1597,7 +1597,7 @@ class _Model:
         if fill is None or "g" in fill:
             self.w.add("background must have a solid fill; skipped")
             return None
-        node = {"n": "Background", "fill": fill, "op": 1.0, "fop": fill.get("alpha", 1.0), "fx": [],
+        node = {"n": str(bg.get("name") or "Background"), "fill": fill, "op": 1.0, "fop": fill.get("alpha", 1.0), "fx": [],
                 "eo": bg.get("fill_rule") == "evenodd"}
         has_d = bool(bg.get("d"))
         if t == "circle" and ("r" in bg or not has_d):
@@ -2363,7 +2363,7 @@ var SPOTS = [];
 var GRADS = [];
 var STATS = { layers: 0, sublayers: 0, groups: 0, paths: 0, points: 0, live: 0, clips: 0,
               maxDev: -1, checkFail: 0, grads: 0, gradDev: 0, gradFixed: 0, gradStopDev: 0,
-              fx: 0, fxFail: 0, masks: 0, maskFail: 0, saved: [] };
+              fx: 0, fxFail: 0, masks: 0, maskFail: 0, orderFail: 0, saved: [] };
 
 function note(s) { LOG.push(s); }
 function bigger(v, m) { v = Math.abs(v); return (v > m) ? v : m; }
@@ -2594,6 +2594,7 @@ function build(container, n, F) {
     holder = item;
     if (n.m) { holder = item.groupItems.add(); holder.name = n.n + ' (content)'; }
     for (i = 0; i < n.ch.length; i++) build(holder, n.ch[i], F);
+    checkOrder(holder.pageItems, itemNames(n.ch), 'group "' + n.n + '"');
     if (n.clip) {
       cl = makeShape(item, n.clip.subs, F, n.clip.eo);       // added last = topmost = the clip
       cl.name = n.n + ' (clip)';
@@ -2615,6 +2616,18 @@ function build(container, n, F) {
   if (n.fx) applyFx(item, n.fx);
   return item;
 }
+
+// Stacking order: index 0 is the FRONT; `names` is the paint order (first = back).
+function checkOrder(coll, names, what) {
+  var i, n = names.length;
+  try {
+    if (coll.length !== n) { STATS.orderFail++; note(what + ' holds ' + coll.length + ' items, expected ' + n); return; }
+    for (i = 0; i < n; i++) {
+      if (coll[i].name !== names[n - 1 - i]) { STATS.orderFail++; note('Stacking order in ' + what + ': item ' + (i + 1) + ' from the front is "' + coll[i].name + '", expected "' + names[n - 1 - i] + '"'); return; }
+    }
+  } catch (e) { STATS.orderFail++; note('Stacking order of ' + what + ' not checked: ' + e); }
+}
+function itemNames(list) { var out = [], i; for (i = 0; i < list.length; i++) out.push(list[i].n); return out; }
 
 // Re-reads every path against the FINAL artboard rectangles (frame independent).
 function verify(doc) {
@@ -2703,6 +2716,7 @@ function summary(doc) {
   L.push('Global process swatches in "' + DATA.swatchGroup + '": ' + sw.join(', '));
   L.push('Geometry check: max anchor/handle deviation ' + STATS.maxDev.toFixed(6) + ' artwork units' +
          (STATS.checkFail ? ' (' + STATS.checkFail + ' paths could not be checked)' : ''));
+  L.push('Stacking order: ' + (STATS.orderFail ? STATS.orderFail + ' problem(s), see notes' : 'as designed'));
   if (STATS.grads) L.push('Gradients: ' + STATS.grads + ' fills, vector deviation ' + STATS.gradDev.toFixed(6) +
          ' units, stop deviation ' + STATS.gradStopDev.toFixed(4) + '%' + (STATS.gradFixed ? ', ' + STATS.gradFixed + ' re-aimed' : ''));
   if (STATS.fx || STATS.fxFail) L.push('Effects: ' + STATS.fx + ' applied, ' + STATS.fxFail + ' failed');
@@ -2757,6 +2771,7 @@ function main() {
         STATS.sublayers++;
         build(sub, v.items[j], F);
       }
+      checkOrder(lay.layers, itemNames(v.items), 'layer "' + v.n + '"');
     }
     if (dflt.pageItems.length === 0 && dflt.layers.length === 0) dflt.remove();
     STATS.maxDev = verify(doc);
@@ -2792,7 +2807,7 @@ var LOG = [];
 var OPS = null;
 var PATHNO = 0;
 var STATS = { docs: 0, layers: 0, groups: 0, points: 0, maxDev: 0, checkFail: 0, live: 0, clips: 0,
-              fx: 0, fxFail: 0, swatches: 0, samples: 0, sampleFail: 0, sampleDev: 0, saved: [] };
+              fx: 0, fxFail: 0, swatches: 0, samples: 0, sampleFail: 0, sampleDev: 0, orderFail: 0, saved: [] };
 
 function note(s) { LOG.push(s); }
 function bigger(v, m) { v = Math.abs(v); return (v > m) ? v : m; }
@@ -3000,7 +3015,29 @@ function applyFx(doc, lyr, list) {
 // ---------------------------------------------------------------- tree
 // Children are built top-down and each is moved to the BOTTOM of its group, so the final
 // stacking order equals the SVG paint order wherever Photoshop first created the layer.
-function place(lyr, parent) { lyr.move(parent, ElementPlacement.PLACEATEND); }
+function place(lyr, parent) {
+  var n;
+  try { lyr.move(parent, ElementPlacement.PLACEATEND); return; } catch (e0) {}
+  // fallback for versions that refuse PLACEATEND (reported for empty groups)
+  n = parent.layers.length;
+  try {
+    if (n === 0) lyr.move(parent, ElementPlacement.INSIDE);
+    else lyr.move(parent.layers[n - 1], ElementPlacement.PLACEAFTER);
+  } catch (e1) {}      // it already is the group's last layer; checkOrder() reports real misplacements
+}
+
+// layers[0] is the TOP of a group: compare with the paint order (first item = bottom)
+function checkOrder(set, items) {
+  var i, want, got, n = items.length;
+  try {
+    if (set.layers.length !== n) { STATS.orderFail++; note('Group "' + set.name + '" has ' + set.layers.length + ' layers, expected ' + n); return; }
+    for (i = 0; i < n; i++) {
+      want = items[n - 1 - i].n;
+      got = set.layers[i].name;
+      if (got !== want) { STATS.orderFail++; note('Stacking order in "' + set.name + '": position ' + (i + 1) + ' from the top is "' + got + '", expected "' + want + '"'); return; }
+    }
+  } catch (e) { STATS.orderFail++; note('Stacking order of "' + set.name + '" not checked: ' + e); }
+}
 
 function build(doc, parent, n, s) {
   var lyr = null, path, i, set, isGrad;
@@ -3010,6 +3047,7 @@ function build(doc, parent, n, s) {
     place(set, parent);
     STATS.groups++;
     for (i = n.ch.length - 1; i >= 0; i--) build(doc, set, n.ch[i], s);
+    checkOrder(set, n.ch);
     if (n.clip) { doc.activeLayer = set; vectorMask(doc, n.clip.subs, s); STATS.clips++; }
     lyr = set;
   } else {
@@ -3107,6 +3145,7 @@ function summary() {
   L.push('Path check: ' + STATS.points + ' points, max deviation ' + STATS.maxDev.toFixed(6) + ' artwork units' +
          (STATS.checkFail ? ' (' + STATS.checkFail + ' not checked)' : ''));
   L.push('Colour check: ' + STATS.samples + ' samples, max difference ' + STATS.sampleDev + ' levels, ' + STATS.sampleFail + ' failed');
+  L.push('Stacking order: ' + (STATS.orderFail ? STATS.orderFail + ' problem(s), see notes' : 'as designed'));
   if (STATS.fx || STATS.fxFail) L.push('Effects: ' + STATS.fx + ' applied, ' + STATS.fxFail + ' failed');
   L.push('Swatches added: ' + STATS.swatches);
   L.push('Saved: ' + (STATS.saved.length ? STATS.saved.join(', ') : 'nothing'));
@@ -3144,6 +3183,7 @@ function main() {
       root.name = v.n;
       for (j = v.items.length - 1; j >= 0; j--) build(doc, root, v.items[j], v.s);
       try { first.remove(); } catch (e1) {}
+      checkOrder(root, v.items);
       sampleCheck(doc, v);
       if (DATA.ppi !== 72) {
         try { doc.resizeImage(undefined, undefined, DATA.ppi, ResampleMethod.NONE); }
