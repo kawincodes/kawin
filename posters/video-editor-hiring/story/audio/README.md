@@ -81,3 +81,36 @@ mt.render_demo()   # demo/music_techhouse_demo.wav (stems summed, preview master
 - Robustness: drop at 0 s, drop at 3.3 s, a hit too close to the end (clamped) and a 12 s duration all render with valid checks. The same seed gives bit-identical output. Render time is about 20 s for 17.5 s of audio.
 
 **For the mixer:** sum the stems and duck `music` (and some of `fx`) under voice or SFX as needed. `meta['beat_times']` / `downbeat_times` give the grid for snapping SFX. `fx` holds musical transitions (riser, booms, downlifter, reverse crash, end impact). It does not hold whooshes, which come from `sfx.py`.
+
+## Music bed — `music_cinematic.py` ("Cinematic hybrid pulse")
+
+An original trailer/showreel-style score. Everything is synthesized in the file: polyBLEP saws, sines, seeded noise, analytic envelopes, time-varying biquads, tanh drive and a convolution reverb built from a **synthetic** impulse response. It uses no samples or GM patches, and output is deterministic per `seed`.
+**F minor, 120 BPM, 4/4.** The progression is **Fm – Db – Bbm – Csus4** (i–VI–iv–Vsus4, one chord per bar from the drop). The intro builds on a **Csus4** dominant pedal. The last bar before the end hit is the **Db → Eb** turnaround (VI–VII–i). The tail rings on **Fm(add9)**. The V is a sus4 chord, so every note stays in F natural minor with no E natural.
+
+```python
+import music_cinematic as mc                     # python -I; needs numpy, scipy, soundfile (+ ffmpeg for the demo)
+st = mc.render(duration=17.5, drop_time=1.8, end_hit_time=14.5, seed=1)
+st['drums'], st['bass'], st['music'], st['fx']  # float32 (N, 2), N = round(duration*48000), unmastered
+st['meta']  # bpm, key, beat_times, drop_time, end_hit_time_snapped (+ bar_times, meter, chord_timeline, ...)
+mc.render_demo()   # demo/music_cinematic_demo.wav, _spectrogram.png, _waveform.png, _report.json
+```
+
+| time | what happens |
+|---|---|
+| 0 → drop | **Build.** Starts sounding at t=0: the first 8th note is at 0.05 s, and the pad is already sustaining from the pre-roll. A clock tick-tock plays 8ths (F8 on the beat panned left, C8 off the beat panned right). An 8th-note C pulse bass opens its low-pass from 170 to 850 Hz. A Csus4 string pad swells (×0.62 → ×1.05, LP 1 → 3.6 kHz). Heartbeat toms land on the beats, with a 16th tom fill and a hat crescendo over the last beat. A grid-locked noise riser (tremolo 8ths → 16ths → 32nds) and a reverse cymbal lead in. Sustained parts drop out for the last 16th (the "breath"). |
+| **drop** | A bar line falls exactly on `drop_time`. **Hit:** big kick, F2 taiko, crash, F1 sub boom, and an Fm "braam" (4 detuned saws per note, pitch scoop, LP envelope). Then the full groove: kick (A/B patterns), processed claps on 2 and 4, 16th hats, the clock ticks, an 8th-note saw+sub ostinato bass on the chord roots (octave pickup on the last 8th), a 16th spiccato-style synth ostinato with a 3/16 ping-pong delay, and the supersaw string pad (high-passed at 150 Hz). Deep tom groove from bar 3. Tom fills close each 2-bar phrase. |
+| drop + 4 bars | Second cycle: crash, a softer braam, a reverse-cymbal lead-in, and the bass, pad and ostinato filters open further. |
+| last bar | **Turnaround** Db → Eb. If the hit is not 4·k beats after the drop, this bar becomes 5/4 or 6/4 (or a 3/4 bar is added), so the end hit is also a downbeat. The Eb braam swells, the bass drives in 16ths, a 16th tom fill plays with a clap roll, a riser and reverse cymbal build, then a one-16th breath. |
+| **end hit** | `end_hit_time` snapped to the nearest beat (14.5 → **14.3** in the demo), reported in `meta['end_hit_time_snapped']`. Big kick, taiko, clap, crash, sub boom and braam. The arrangement then thins to a sustained **Fm(add9)** pad, a ringing F1 bass, the braam tail and a few fading clock ticks. Everything decays and fades to digital zero exactly at `duration` (the last 0.25 s is a raised-cosine fade). |
+
+**Stems** share one common gain, so they are balanced as mixed. The hottest stem (drums) sits at -6.5 dBTP. Demo values: drums -6.5 / bass -11.8 / music -9.2 / fx -12.7 dBTP. Summed at unity they peak at -3.4 dBTP and measure -18.2 LUFS. `fx` holds musical transitions only (risers, reverse cymbals, sub booms). Whooshes, stamps and pops come from `sfx.py`.
+
+**Mixing design.** The bass is sidechained to every kick (-14 dB, 120 ms release); the pad (-3 dB) and ostinato (-2.5 dB) duck lightly. The kick tail is tuned to Ab1 (52 Hz), clear of the F1 sub. Kick, toms, pad and braam are folded to mono below 120–150 Hz (mix side/mid below 150 Hz: -31 dB). Each bus is set by loudness while it plays (`BUS_LUFS`), not by peak. The bass has an octave-up saw layer and drive, so the pulse still reads on phone speakers (energy from 250 Hz to 1 kHz).
+
+**Verified** (`render_demo()` writes a `checks` block, and all are true):
+- **Stems:** true peak ≤ -6 dBTP, |DC| < 1e-7 in the demo (< 1e-4 in every tested case), finite, first and last samples 0.
+- **Demo:** ffmpeg ebur128 gives **-14.1 LUFS I, LRA 2.0 LU, -1.4 dBTP**.
+- **Timing:** drop onset within 1 ms of `drop_time`. Drop and end hit are bar lines for drop/hit/duration combinations including drop=0, 0.4, 3.1 and 6.0 s and hits needing 4/4, 5/4 and 6/4 last bars.
+- **Notes:** `check_score()` passed 523 notes. All pitches are in F minor. Pad, ostinato and braam notes are chord tones, and the bass is always the chord root.
+- **Clicks:** none found. Bass and music HF above 14 kHz never exceed -70 dBFS, and every sound has ≥ 2 ms raised-cosine edges.
+- **Spectrum:** demo octave bands fall steadily: 2 kHz -16.8, 4 kHz -18.9, 8 kHz -19.5 dB re 63 Hz, so nothing piles up at 2–4 kHz. Hats sit above 7 kHz. The kick is 45–160 Hz plus a 3–5 kHz click.

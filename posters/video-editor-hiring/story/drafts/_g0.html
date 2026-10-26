@@ -523,7 +523,7 @@ drop('#c34',11.5); flashLane('#l34',11.5);
 
 /* --- T3 lights drop / S4 BREAKDOWN --- */
 tw('#bgDark','opacity',[[13.75,0,'io'],[14.1,1],[17.95,1],[18.1,0]]);
-tw('#vig2','opacity',[[13.75,0,'io'],[14.1,1],[16.0,1,'i'],[17.95,0.6],[18.1,0]]);
+tw('#vig2','opacity',[[13.75,0,'io'],[14.1,1],[17.75,1,'io'],[18.1,0]]);
 tw('#s4','opacity',[[14.0,0,'o'],[14.22,1],[18.25,1],[18.26,0]]);
 tw('#s4','transform',[[14.0,'scale(1.08)','o'],[14.4,'scale(1)']]);
 function stamp(n,t){
@@ -569,7 +569,7 @@ tw('#s5h','transform',[[17.95,'scale(1.05)','o'],[18.3,'scale(1)']]);
 tw('#c51','transform',[[17.95,'scale(1.04)','o'],[18.3,'scale(1)']]);
 slideIn('#c52',18.5);
 slideIn('#c53',19.0);
-var G0='0px 6px 16px 0px rgba(0,0,0,0.3), 0px 0px 0px 0px rgba(252,116,3,0)', G1='0px 6px 16px 0px rgba(0,0,0,0.3), 0px 0px 30px 6px rgba(252,116,3,0.8)';
+var G0='inset 0px 0px 0px 0px rgba(252,116,3,0), 0px 6px 16px 0px rgba(0,0,0,0.3)', G1='inset 0px 0px 30px 8px rgba(252,116,3,0.75), 0px 6px 16px 0px rgba(0,0,0,0.3)';
 [['#t51',20.0],['#t52',20.5],['#t53',21.0]].forEach(function(q){ tw(q[0],'boxShadow',[[q[1]-0.01,G0],[q[1],G1,'o'],[q[1]+0.6,G0]]); });
 /* T5 whip-pan up */
 tw('#s5','transform',[[23.75,'translateY(0px)','w'],[24.25,'translateY(-1920px)']]);

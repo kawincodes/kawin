@@ -1,4 +1,19 @@
 {
+ "checks": {
+  "stems_true_peak_le_minus6": true,
+  "stems_dc_lt_1e4": true,
+  "stems_finite": true,
+  "stems_start_end_silent": true,
+  "stems_shape": true,
+  "demo_true_peak_le_minus1": true,
+  "demo_dc_lt_1e4": true,
+  "drop_is_bar_line": true,
+  "end_hit_is_bar_line": true,
+  "drop_onset_within_1ms": true,
+  "notes_in_key": true,
+  "audible_from_t0": true
+ },
+ "all_checks_pass": true,
  "params": {
   "duration": 17.5,
   "drop_time": 1.8,
@@ -114,7 +129,7 @@
     "Fm9"
    ]
   ],
-  "stem_gain_db": -4.62,
+  "stem_gain_db": -4.61,
   "stem_peak_dbtp": -6.5,
   "sample_rate": 48000,
   "musical_check": {
@@ -175,79 +190,79 @@
  ],
  "stems": {
   "drums": {
-   "peak_dBFS": -6.55,
+   "peak_dBFS": -6.64,
    "true_peak_dBTP": -6.5,
-   "lufs_I": -21.82,
+   "lufs_I": -21.89,
    "max_momentary": -16.32,
    "dc": [
-    4.01e-10,
-    2.04e-09
+    1.04e-09,
+    1.33e-09
    ],
    "finite": true,
    "first_last_abs": [
     0.0,
     0.0
    ],
-   "level_at_t0_dBFS": -42.6,
+   "level_at_t0_dBFS": -45.1,
    "octave_bands_dB": {
     "31.5": -31.3,
     "63": 0.0,
-    "125": -3.8,
-    "250": -8.8,
-    "500": -21.5,
-    "1000": -22.2,
-    "2000": -19.9,
-    "4000": -15.6,
-    "8000": -17.0,
-    "16000": -19.8
+    "125": -3.9,
+    "250": -8.9,
+    "500": -21.6,
+    "1000": -22.3,
+    "2000": -20.0,
+    "4000": -17.5,
+    "8000": -17.4,
+    "16000": -19.9
    }
   },
   "bass": {
-   "peak_dBFS": -11.82,
-   "true_peak_dBTP": -11.82,
-   "lufs_I": -24.02,
-   "max_momentary": -20.93,
+   "peak_dBFS": -11.74,
+   "true_peak_dBTP": -11.74,
+   "lufs_I": -24.01,
+   "max_momentary": -20.84,
    "dc": [
-    1.23e-08,
-    1.23e-08
+    1.24e-08,
+    1.24e-08
    ],
    "finite": true,
    "first_last_abs": [
     0.0,
     0.0
    ],
-   "level_at_t0_dBFS": -25.4,
+   "level_at_t0_dBFS": -26.9,
    "octave_bands_dB": {
-    "31.5": -6.1,
+    "31.5": -6.0,
     "63": 0.0,
     "125": -7.0,
     "250": -11.5,
-    "500": -15.4,
+    "500": -15.3,
     "1000": -20.3,
-    "2000": -29.9,
-    "4000": -44.8,
-    "8000": -67.7,
-    "16000": -92.0
+    "2000": -29.8,
+    "4000": -44.7,
+    "8000": -67.6,
+    "16000": -91.9
    }
   },
   "music": {
-   "peak_dBFS": -9.19,
-   "true_peak_dBTP": -9.17,
-   "lufs_I": -24.17,
-   "max_momentary": -19.89,
+   "peak_dBFS": -9.22,
+   "true_peak_dBTP": -9.2,
+   "lufs_I": -24.15,
+   "max_momentary": -19.96,
    "dc": [
-    6.35e-08,
-    -7.48e-08
+    4.95e-08,
+    -1.02e-07
    ],
    "finite": true,
    "first_last_abs": [
     0.0,
     0.0
    ],
-   "level_at_t0_dBFS": -34.8,
+   "level_at_t0_dBFS": -32.8,
    "octave_bands_dB": {
-    "31.5": -45.7,
-    "63": -7.7,
+    "31.5": -44.4,
+    "63": -7.8,
     "125": -2.9,
     "250": 0.0,
     "500": -1.2,
@@ -259,12 +274,12 @@
    }
   },
   "fx": {
-   "peak_dBFS": -13.13,
-   "true_peak_dBTP": -13.12,
+   "peak_dBFS": -12.74,
+   "true_peak_dBTP": -12.73,
    "lufs_I": -25.83,
    "max_momentary": -19.78,
    "dc": [
-    -8.77e-09,
+    -8.78e-09,
     -8.04e-09
    ],
    "finite": true,
@@ -275,12 +290,12 @@
    "level_at_t0_dBFS": -57.6,
    "octave_bands_dB": {
     "31.5": 0.0,
-    "63": -2.1,
-    "125": -16.6,
+    "63": -2.0,
+    "125": -16.8,
     "250": -23.5,
     "500": -31.7,
     "1000": -26.7,
-    "2000": -22.3,
+    "2000": -22.2,
     "4000": -19.3,
     "8000": -19.0,
     "16000": -24.6
@@ -295,30 +310,30 @@
   },
   "true_peak_internal_dBTP": -1.4,
   "dc": [
-   -1.68e-05,
-   -1.67e-05
+   -1.82e-05,
+   -1.98e-05
   ],
   "first_last": [
    0.0,
    0.0
   ],
   "max_momentary_by_section": {
-   "intro 0-drop": -14.2,
+   "intro 0-drop": -14.3,
    "drop bar": -10.3,
    "groove": -11.5,
    "turnaround": -11.3,
    "hit+tail": -10.6
   },
   "octave_bands_dB": {
-   "31.5": -6.4,
+   "31.5": -6.3,
    "63": 0.0,
-   "125": -4.7,
-   "250": -7.3,
+   "125": -4.6,
+   "250": -7.2,
    "500": -10.0,
    "1000": -12.2,
    "2000": -16.8,
-   "4000": -17.6,
-   "8000": -19.3,
+   "4000": -18.9,
+   "8000": -19.5,
    "16000": -22.5
   },
   "drop_onset_error_ms": 0.938

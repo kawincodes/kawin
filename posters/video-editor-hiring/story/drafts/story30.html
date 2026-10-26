@@ -193,7 +193,7 @@ svg{display:block}
 #wph .hd{position:absolute;left:-22px;top:0}
 #sweep{left:-300px;top:-200px;width:300px;height:2400px;opacity:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(190,220,255,.16) 40%,rgba(255,255,255,.30) 50%,rgba(190,220,255,.16) 60%,rgba(255,255,255,0));mix-blend-mode:screen}
 #flash{background:radial-gradient(900px 900px at 50% 46%, rgba(255,220,180,.9), rgba(252,116,3,.25) 50%, rgba(252,116,3,0) 80%);mix-blend-mode:screen;opacity:0}
-#grain{background-size:1024px 1024px;image-rendering:pixelated;mix-blend-mode:overlay;opacity:.07;pointer-events:none}
+#grain{background-size:1024px 1024px;image-rendering:pixelated;mix-blend-mode:overlay;opacity:.09;pointer-events:none}
 </style>
 </head>
 <body>
@@ -523,7 +523,7 @@ drop('#c34',11.5); flashLane('#l34',11.5);
 
 /* --- T3 lights drop / S4 BREAKDOWN --- */
 tw('#bgDark','opacity',[[13.75,0,'io'],[14.1,1],[17.95,1],[18.1,0]]);
-tw('#vig2','opacity',[[13.75,0,'io'],[14.1,1],[16.0,1,'i'],[17.95,0.6],[18.1,0]]);
+tw('#vig2','opacity',[[13.75,0,'io'],[14.1,1],[17.75,1,'io'],[18.1,0]]);
 tw('#s4','opacity',[[14.0,0,'o'],[14.22,1],[18.25,1],[18.26,0]]);
 tw('#s4','transform',[[14.0,'scale(1.08)','o'],[14.4,'scale(1)']]);
 function stamp(n,t){
@@ -569,7 +569,7 @@ tw('#s5h','transform',[[17.95,'scale(1.05)','o'],[18.3,'scale(1)']]);
 tw('#c51','transform',[[17.95,'scale(1.04)','o'],[18.3,'scale(1)']]);
 slideIn('#c52',18.5);
 slideIn('#c53',19.0);
-var G0='0px 6px 16px 0px rgba(0,0,0,0.3), 0px 0px 0px 0px rgba(252,116,3,0)', G1='0px 6px 16px 0px rgba(0,0,0,0.3), 0px 0px 30px 6px rgba(252,116,3,0.8)';
+var G0='inset 0px 0px 0px 0px rgba(252,116,3,0), 0px 6px 16px 0px rgba(0,0,0,0.3)', G1='inset 0px 0px 30px 8px rgba(252,116,3,0.75), 0px 6px 16px 0px rgba(0,0,0,0.3)';
 [['#t51',20.0],['#t52',20.5],['#t53',21.0]].forEach(function(q){ tw(q[0],'boxShadow',[[q[1]-0.01,G0],[q[1],G1,'o'],[q[1]+0.6,G0]]); });
 /* T5 whip-pan up */
 tw('#s5','transform',[[23.75,'translateY(0px)','w'],[24.25,'translateY(-1920px)']]);
@@ -640,7 +640,7 @@ function brOff(t){
 var grainEl=$('#grain'), tiles=[], seed=20261026;
 function rnd(){ seed=(Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; }
 for(var k=0;k<4;k++){ var cv=document.createElement('canvas'); cv.width=cv.height=256; var g=cv.getContext('2d'), im=g.createImageData(256,256);
-  for(var i=0;i<im.data.length;i+=4){ var v=(rnd()*255)|0; im.data[i]=im.data[i+1]=im.data[i+2]=v; im.data[i+3]=255; }
+  for(var i=0;i<im.data.length;i+=4){ var v=rnd()<0.5?64:192;   /* binary grain: compresses ~3x better than uniform noise */ im.data[i]=im.data[i+1]=im.data[i+2]=v; im.data[i+3]=255; }
   g.putImageData(im,0,0); tiles.push('url('+cv.toDataURL()+')'); }
 
 /* logo shine mask = the logo itself */

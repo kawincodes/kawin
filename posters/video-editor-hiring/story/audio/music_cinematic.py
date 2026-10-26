@@ -186,7 +186,7 @@ def arrange(g: dict) -> dict:
             on_beat = j % 2 == 0
             E["tick"].append((t, DRUM_PITCH["tick"] if on_beat else DRUM_PITCH["tock"], (0.78 if on_beat else 0.6) + 0.22 * u))
             if t < drop - GAP - 1e-9:
-                E["bass"].append((t, 0.19, CHORDS[ch_at(t)]["bass"], (0.62 if on_beat else 0.5) + 0.38 * u, False))
+                E["bass"].append((t, 0.19, CHORDS[ch_at(t)]["bass"], (0.5 if on_beat else 0.4) + 0.48 * u, False))
         for kb in range(-int(math.floor(drop / BEAT + 1e-9)), -1):  # heartbeat toms on the intro beats
             t = drop + kb * BEAT
             E["tom"].append((t, "low", 0.42 + 0.25 * (t / drop), False))
@@ -211,7 +211,8 @@ def arrange(g: dict) -> dict:
         energy = 0.86 if bi < 2 else (0.93 if bi < 4 else 1.0)
         if last:
             h = nbeats // 2
-            segs = ([(bt, bt + h * BEAT, TURNAROUND[0])] if h else []) + [(bt + h * BEAT, bt + nbeats * BEAT, TURNAROUND[1])]
+            first = PROGRESSION[0] if bi == 0 else TURNAROUND[0]          # the drop itself always lands on i
+            segs = ([(bt, bt + h * BEAT, first)] if h else []) + [(bt + h * BEAT, bt + nbeats * BEAT, TURNAROUND[1])]
         else:
             segs = [(bt, bt + nbeats * BEAT, PROGRESSION[bi % len(PROGRESSION)])]
         for a, b, c in segs:
@@ -651,7 +652,7 @@ def _kick(vel, rng, big=False):
     body = np.tanh(2.2 * _sine(f) * env) / np.tanh(2.2)       # saturation -> 87/131 Hz harmonics for phones
     click = _norm(signal.sosfilt(_sos("bp", (2800.0, 5200.0), 2), rng.standard_normal(n))) * np.exp(-t / 0.0016)
     knock = _norm(signal.sosfilt(_sos("bp", (180.0, 600.0), 2), rng.standard_normal(n))) * np.exp(-t / 0.01)
-    x = body + 0.2 * click + (0.22 if big else 0.12) * knock
+    x = body + 0.16 * click + (0.22 if big else 0.12) * knock
     return x * _edge(n, int(0.002 * SR), int(0.03 * SR)) * vel
 
 
@@ -732,7 +733,7 @@ def _boom(vel, rng, decay=1.0):
     f = f1 + (2.0 * f1 - f1) * np.exp(-t / 0.07)
     x = np.tanh(1.8 * _sine(f) * np.exp(-t / decay)) / np.tanh(1.8)
     thump = _norm(_filt(rng.standard_normal(n), "lp", 220.0, 2)) * np.exp(-t / 0.03)
-    return _filt((x + 0.25 * thump) * _edge(n, int(0.003 * SR), int(0.1 * n)), "hp", 30.0, 2) * vel
+    return _filt(x + 0.25 * thump, "hp", 30.0, 2) * _edge(n, int(0.003 * SR), int(0.1 * n)) * vel
 
 
 def _riser(T, vel, rng):
@@ -795,8 +796,8 @@ def _pad_bus(chords, L, seed, D):
     k = 0
     for v, ln in lines.items():
         for a, b, m, kind in ln:
-            att = 0.07 if kind == "final" else (0.45 if a < -1.0 else 0.32)
-            rel = 0.45
+            att = 0.07 if kind == "final" else (0.45 if a < -1.0 else 0.25)
+            rel = 0.3
             n = int((b - a + rel) * SR)
             x = _supersaw(m, n, _rng(seed, "pad", k))
             x *= _edge(n, int(att * SR), int(rel * SR))[:, None]
@@ -896,8 +897,8 @@ def _braam(chord, dur, vel, kind, rng):
             amp = amp * np.exp(-t / 2.2)
     out = _tvf(out, "lp", fc, q=0.9, stages=2, block=64)
     out = np.tanh(2.0 * _norm(out)) / np.tanh(2.0)
-    out *= (amp * _edge(n, int(0.012 * SR), int((rel if rel else 0.003) * SR)))[:, None]
     out = _filt(out, "hp", 70.0, 4)
+    out *= (amp * _edge(n, int(0.012 * SR), int((rel if rel else 0.003) * SR)))[:, None]
     return out * vel
 
 
@@ -905,7 +906,7 @@ def _braam(chord, dur, vel, kind, rng):
 # mix
 # ==============================================================================================
 BUS_LUFS = {                 # loudness of each bus while it plays (before the common stem gain)
-    "kick": -19.5, "tom": -22.0, "clap": -23.0, "hat": -31.0, "tick": -30.0, "crash": -27.0,
+    "kick": -19.5, "tom": -22.0, "clap": -23.0, "hat": -31.0, "tick": -32.5, "crash": -27.0,
     "bass": -19.5,
     "pad": -21.5, "ost": -26.0, "braam": -22.5,
     "boom": -21.0, "riser": -25.0, "revcym": -27.0,
@@ -943,7 +944,7 @@ def render(duration, drop_time, end_hit_time, seed=1, _buses=False):
         _place(B["tick"], _pan(_tick(m, v, _rng(seed, "tick", i)), -0.35 if m == DRUM_PITCH["tick"] else 0.35), t)
     for i, (t, v, d) in enumerate(E.get("crash", [])):
         _place(B["crash"], _crash(v, _rng(seed, "crash", i), d), t)
-    B["tom"] += 0.30 * _reverb(B["tom"], "room", hp=200.0, lp=6000.0)
+    B["tom"] = _mono_below(B["tom"] + 0.30 * _reverb(B["tom"], "room", hp=200.0, lp=6000.0), 120.0)
     B["clap"] += 0.35 * _reverb(B["clap"], "room", hp=400.0, lp=8000.0) + 0.12 * _reverb(B["clap"], "hall", hp=500.0, lp=7000.0)
     B["tick"] += 0.18 * _pingpong(B["tick"], 3 * S16, fb=0.35, taps=4, hp=2500.0, lp=12000.0)
     B["kick"] = _mono_below(B["kick"], 150.0)
@@ -958,19 +959,19 @@ def render(duration, drop_time, end_hit_time, seed=1, _buses=False):
 
     # ---------------------------------------------------------------- music: pad, ostinato, braam
     pad = _pad_bus(score["chords"], L, seed, D)
-    pts = [(-PRE, 850.0)] + (_curve(0.0, drop, 850.0, 3600.0, 1.3) if drop > 0.05 else []) + [(drop, 2900.0)]
+    pts = [(-PRE, 1000.0)] + (_curve(0.0, drop, 1000.0, 3600.0, 1.3) if drop > 0.05 else []) + [(drop, 2900.0)]
     if bar4 is not None:
         pts += [(bar4 - 0.01, 3000.0), (bar4, 3900.0)]
     pts += [(last_bt, 3900.0), (hit - GAP, 5600.0), (hit, 5200.0), (hit + 0.4, 4800.0), (D + POST, 1300.0)]
     pad = _tvf(pad, "lp", _auto(pts, L), q=0.6, stages=2, block=64)
     pad = _filt(pad, "hp", 150.0, 2)
-    lvl = [(-PRE, 0.5)] + (_curve(0.0, drop, 0.5, 1.0, 1.5) if drop > 0.05 else []) + [(drop, 0.82)]
+    lvl = [(-PRE, 0.62)] + (_curve(0.0, drop, 0.62, 1.05, 1.5) if drop > 0.05 else []) + [(drop, 0.82)]
     if bar4 is not None:
         lvl += [(bar4 - 0.01, 0.84), (bar4, 0.95)]
     lvl += [(last_bt, 0.95), (hit - GAP, 1.15), (hit, 1.0), (D + POST, 1.0)]
     pad = pad * _auto(lvl, L)[:, None]
     pad = pad + 0.32 * _reverb(pad, "hall", hp=300.0, lp=8000.0)
-    B["pad"] = pad
+    B["pad"] = _mono_below(pad, 140.0)
 
     pts = [(-PRE, 900.0), (drop, 900.0)]
     if bar4 is not None:
@@ -1138,10 +1139,25 @@ def render_demo(duration=17.5, drop_time=1.8, end_hit_time=14.5, seed=1, out_dir
     i_drop = int(round(drop * SR))
     seg = d[i_drop - int(0.005 * SR): i_drop + int(0.05 * SR)]
     on = int(np.argmax(seg > 0.25 * seg.max())) - int(0.005 * SR)
-    rep = dict(params=dict(duration=duration, drop_time=drop_time, end_hit_time=end_hit_time, seed=seed),
+    sr = stem_report(st)
+    checks = dict(
+        stems_true_peak_le_minus6=all(v["true_peak_dBTP"] <= -6.0 for v in sr.values()),
+        stems_dc_lt_1e4=all(max(abs(d) for d in v["dc"]) < 1e-4 for v in sr.values()),
+        stems_finite=all(v["finite"] for v in sr.values()),
+        stems_start_end_silent=all(max(v["first_last_abs"]) < 1e-6 for v in sr.values()),
+        stems_shape=all(st[k].shape == (int(round(duration * SR)), 2) and st[k].dtype == np.float32 for k in STEMS),
+        demo_true_peak_le_minus1=eb["TP_dBTP"] <= -1.0,
+        demo_dc_lt_1e4=float(np.max(np.abs(np.mean(y, axis=0)))) < 1e-4,
+        drop_is_bar_line=any(abs(t - drop) < 1e-9 for t in meta["bar_times"]),
+        end_hit_is_bar_line=any(abs(t - hit) < 1e-9 for t in meta["bar_times"]),
+        drop_onset_within_1ms=abs(on / SR) <= 0.001,
+        notes_in_key=meta["musical_check"]["violations"] == 0,
+        audible_from_t0=max(v["level_at_t0_dBFS"] for v in sr.values()) > -40.0)
+    rep = dict(checks=checks, all_checks_pass=all(checks.values()),
+               params=dict(duration=duration, drop_time=drop_time, end_hit_time=end_hit_time, seed=seed),
                meta={k: v for k, v in meta.items() if k != "beat_times"},
                beat_times=meta["beat_times"],
-               stems=stem_report(st),
+               stems=sr,
                demo=dict(ebur128=eb, true_peak_internal_dBTP=round(_db(_true_peak(y)), 2),
                          dc=[float(f"{v:.2e}") for v in np.mean(y, axis=0)],
                          first_last=[float(np.max(np.abs(y[0]))), float(np.max(np.abs(y[-1])))],
@@ -1155,5 +1171,5 @@ def render_demo(duration=17.5, drop_time=1.8, end_hit_time=14.5, seed=1, out_dir
 
 if __name__ == "__main__":
     r = render_demo()
-    print(json.dumps({k: r[k] for k in ("stems", "demo")}, indent=1))
+    print(json.dumps({k: r[k] for k in ("checks", "all_checks_pass", "demo")}, indent=1))
     print(json.dumps({k: r["meta"][k] for k in ("drop_time", "end_hit_time_snapped", "meter", "chord_timeline", "stem_gain_db", "musical_check")}, indent=1))
