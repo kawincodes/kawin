@@ -263,7 +263,7 @@ def arrange(g: dict, rng) -> list:
         ev.append(dict(inst="snare", t=tn, tn=tn, vel=0.30 + 0.70 * p ** 1.3, pitch=1.0 + 0.45 * p,
                        hp=250 + 900 * p))
     # small fill at the end of every 4th bar (not inside the turnaround)
-    for k in range(3, hk - 2, 16):
+    for k in range(15, hk - 2, 16):
         for s, v in ((1, 0.45), (2, 0.6), (3, 0.8)):
             tn = drop + k * BEAT + s * S16
             ev.append(dict(inst="snare", t=tn + _swing(s), tn=tn, vel=v, pitch=1.0 + 0.1 * s, hp=300))
@@ -534,7 +534,7 @@ def _kick(vel, rng, big=False):
     n = int(dur * SR)
     t = np.arange(n) / SR
     f_end = hz(nm("F1"))                                          # body tuned to the tonic, 43.7 Hz
-    f = f_end + (210.0 if big else 175.0 - f_end) * np.exp(-t / 0.028) + 380.0 * np.exp(-t / 0.0035)
+    f = f_end + ((210.0 if big else 175.0) - f_end) * np.exp(-t / 0.028) + 380.0 * np.exp(-t / 0.0035)
     body = np.sin(2 * np.pi * np.cumsum(f) / SR)
     hold, tau = (0.06, 0.45) if big else (0.035, 0.17)
     amp = np.where(t < hold, 1.0, np.exp(-(t - hold) / tau))
@@ -822,7 +822,7 @@ def render(duration, drop_time, end_hit_time, seed=1):
     plate = _pb(Reverb(room_size=0.32, damping=0.6, wet_level=1.0, dry_level=0.0, width=0.9),
                 _delay(plate_send.x, 0.012))
     plate = _filt(_filt(plate, "highpass", 450.0, 2), "lowpass", 7500.0, 2)
-    D = drums.x + _db2(LV["clap_plate"] - LV["clap"]) * _db2(LV["clap"]) * plate * 3.0
+    D = drums.x + _db2(LV["clap_plate"]) * plate * 2.0
     D = D * _gap_gate(n_tot, [drop, t_hit])[:, None]
 
     # ------------------------------------------------ BASS
@@ -893,6 +893,7 @@ def render(duration, drop_time, end_hit_time, seed=1):
 
     # ------------------------------------------------ FX
     fx = _Bus(n_tot)
+    send = _Bus(n_tot)                                   # end-hit impact -> big reverb
     for e in events:
         i = e["inst"]
         if i == "riser":
@@ -930,17 +931,19 @@ def render(duration, drop_time, end_hit_time, seed=1):
             y = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-tt / tau)
             th = _filt(rng.standard_normal(n), "lowpass", 380.0, 2) * np.exp(-tt / 0.035) * 0.6
             y = np.tanh(1.4 * (y + th)) / np.tanh(1.4)
-            fx.add(e["t"], y * _fades(n, 0.002, min(0.4, e["dur"] * 0.3)), _db2(LV["boom"]) * e["vel"])
+            y = y * _fades(n, 0.002, min(0.4, e["dur"] * 0.3))
+            fx.add(e["t"], y, _db2(LV["boom"]) * e["vel"])
+            if e.get("final"):
+                send.add(e["t"], _filt(y, "highpass", 200.0, 2), _db2(LV["boom"]))
         elif i == "impact":
             n = int(min(e["dur"], 2.5) * SR)
             tt = np.arange(n) / SR
             nz = _filt(rng.standard_normal((n, 2)), "bandpass", [300.0, 5000.0], 2)
             y = nz * (np.exp(-tt / 0.09))[:, None]
             fx.add(e["t"], y, _db2(LV["impact"]))
-    F = fx.x
-    imp_wet = _pb(Reverb(room_size=0.9, damping=0.45, wet_level=1.0, dry_level=0.0, width=1.0),
-                  _filt(F, "highpass", 200.0, 2))
-    F = F + 0.35 * imp_wet * (tl >= t_hit - 0.01)[:, None]
+            send.add(e["t"], y, _db2(LV["impact"]))
+    imp_wet = _pb(Reverb(room_size=0.9, damping=0.45, wet_level=1.0, dry_level=0.0, width=1.0), send.x)
+    F = fx.x + 0.35 * imp_wet
     F = _filt(F, "highpass", 28.0, 2)
 
     # ------------------------------------------------ crop, clean, fades, level
