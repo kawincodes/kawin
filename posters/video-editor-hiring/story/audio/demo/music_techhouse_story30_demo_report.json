@@ -1,0 +1,1026 @@
+{
+  "checks": {
+    "stems_true_peak_le_minus6": true,
+    "stems_sample_peak_le_minus6": true,
+    "stems_dc_lt_1e4": true,
+    "stems_finite": true,
+    "stems_all_have_signal": true,
+    "stems_start_end_zero": true,
+    "notes_in_key": true,
+    "anchors_are_downbeats": true,
+    "hit_onsets_on_anchors_within_2ms": true,
+    "end_hit_transient": true,
+    "order_full_intro_lt_grooveA_lt_drop2": true,
+    "order_HP150_intro_lt_grooveA_lt_drop2": true,
+    "drop2_ge_grooveA_plus1_full": true,
+    "drop2_ge_grooveA_plus1_HP150": true,
+    "breakdown_le_grooveA_minus3_both": true,
+    "breakdown_darker": true,
+    "audible_from_t0": true,
+    "tail_fades_to_zero": true,
+    "no_unexplained_clicks_at_boundaries": true,
+    "demo_I_minus14_pm05": true,
+    "demo_true_peak_le_minus1": true,
+    "demo_LRA_le_8": true,
+    "music_mono_corr_ge_045": true,
+    "music_no_window_corr_lt_02": true
+  },
+  "all_checks_pass": true,
+  "params": {
+    "duration": 30.0,
+    "drop1": 2.0,
+    "breakdown": 14.0,
+    "drop2": 18.0,
+    "end_hit": 26.0,
+    "seed": 1
+  },
+  "render_s": 21.6,
+  "section_loudness_stems_sum": {
+    "sections": {
+      "intro": {
+        "t0": 0.0,
+        "t1": 2.0,
+        "LUFS": -25.9,
+        "LUFS_HP150": -25.95,
+        "maxM": -23.3,
+        "maxM_HP150": -23.35,
+        "centroid_Hz": 1044.0,
+        "above2k_pct": 8.49
+      },
+      "groove_a": {
+        "t0": 2.0,
+        "t1": 14.0,
+        "LUFS": -20.23,
+        "LUFS_HP150": -22.54,
+        "maxM": -18.35,
+        "maxM_HP150": -21.55,
+        "centroid_Hz": 314.0,
+        "above2k_pct": 2.08
+      },
+      "breakdown": {
+        "t0": 14.0,
+        "t1": 18.0,
+        "LUFS": -25.25,
+        "LUFS_HP150": -26.79,
+        "maxM": -20.71,
+        "maxM_HP150": -22.3,
+        "centroid_Hz": 334.0,
+        "above2k_pct": 1.93
+      },
+      "breakdown_dark": {
+        "t0": 14.0,
+        "t1": 16.0,
+        "LUFS": -26.4,
+        "LUFS_HP150": -29.83,
+        "maxM": -20.71,
+        "maxM_HP150": -24.86,
+        "centroid_Hz": 135.0,
+        "above2k_pct": 0.4
+      },
+      "breakdown_build": {
+        "t0": 16.0,
+        "t1": 18.0,
+        "LUFS": -24.17,
+        "LUFS_HP150": -24.87,
+        "maxM": -21.75,
+        "maxM_HP150": -22.3,
+        "centroid_Hz": 661.0,
+        "above2k_pct": 4.59
+      },
+      "drop2": {
+        "t0": 18.0,
+        "t1": 26.0,
+        "LUFS": -18.75,
+        "LUFS_HP150": -20.42,
+        "maxM": -17.17,
+        "maxM_HP150": -18.8,
+        "centroid_Hz": 387.0,
+        "above2k_pct": 2.55
+      },
+      "end": {
+        "t0": 26.0,
+        "t1": 30.0,
+        "LUFS": -22.18,
+        "LUFS_HP150": -24.15,
+        "maxM": -15.94,
+        "maxM_HP150": -20.22,
+        "centroid_Hz": 256.0,
+        "above2k_pct": 1.81
+      }
+    },
+    "contrast_LU": {
+      "LUFS": {
+        "groove_a_minus_intro": 5.67,
+        "drop2_minus_groove_a": 1.48,
+        "breakdown_minus_groove_a": -5.02,
+        "breakdown_dark_minus_groove_a": -6.17,
+        "build_minus_dark": 2.23
+      },
+      "LUFS_HP150": {
+        "groove_a_minus_intro": 3.41,
+        "drop2_minus_groove_a": 2.12,
+        "breakdown_minus_groove_a": -4.25,
+        "breakdown_dark_minus_groove_a": -7.29,
+        "build_minus_dark": 4.96
+      }
+    }
+  },
+  "section_loudness_demo_master": {
+    "sections": {
+      "intro": {
+        "t0": 0.0,
+        "t1": 2.0,
+        "LUFS": -19.43,
+        "LUFS_HP150": -19.48,
+        "maxM": -16.83,
+        "maxM_HP150": -16.88,
+        "centroid_Hz": 1044.0,
+        "above2k_pct": 8.49
+      },
+      "groove_a": {
+        "t0": 2.0,
+        "t1": 14.0,
+        "LUFS": -13.78,
+        "LUFS_HP150": -16.1,
+        "maxM": -12.05,
+        "maxM_HP150": -15.1,
+        "centroid_Hz": 315.0,
+        "above2k_pct": 2.09
+      },
+      "breakdown": {
+        "t0": 14.0,
+        "t1": 18.0,
+        "LUFS": -18.78,
+        "LUFS_HP150": -20.32,
+        "maxM": -14.27,
+        "maxM_HP150": -15.83,
+        "centroid_Hz": 335.0,
+        "above2k_pct": 1.93
+      },
+      "breakdown_dark": {
+        "t0": 14.0,
+        "t1": 16.0,
+        "LUFS": -19.94,
+        "LUFS_HP150": -23.36,
+        "maxM": -14.27,
+        "maxM_HP150": -18.42,
+        "centroid_Hz": 135.0,
+        "above2k_pct": 0.4
+      },
+      "breakdown_build": {
+        "t0": 16.0,
+        "t1": 18.0,
+        "LUFS": -17.7,
+        "LUFS_HP150": -18.4,
+        "maxM": -15.28,
+        "maxM_HP150": -15.83,
+        "centroid_Hz": 661.0,
+        "above2k_pct": 4.59
+      },
+      "drop2": {
+        "t0": 18.0,
+        "t1": 26.0,
+        "LUFS": -12.52,
+        "LUFS_HP150": -14.21,
+        "maxM": -11.02,
+        "maxM_HP150": -12.9,
+        "centroid_Hz": 384.0,
+        "above2k_pct": 2.52
+      },
+      "end": {
+        "t0": 26.0,
+        "t1": 30.0,
+        "LUFS": -15.87,
+        "LUFS_HP150": -17.77,
+        "maxM": -10.11,
+        "maxM_HP150": -14.19,
+        "centroid_Hz": 265.0,
+        "above2k_pct": 1.88
+      }
+    },
+    "contrast_LU": {
+      "LUFS": {
+        "groove_a_minus_intro": 5.65,
+        "drop2_minus_groove_a": 1.26,
+        "breakdown_minus_groove_a": -5.0,
+        "breakdown_dark_minus_groove_a": -6.16,
+        "build_minus_dark": 2.24
+      },
+      "LUFS_HP150": {
+        "groove_a_minus_intro": 3.38,
+        "drop2_minus_groove_a": 1.89,
+        "breakdown_minus_groove_a": -4.22,
+        "breakdown_dark_minus_groove_a": -7.26,
+        "build_minus_dark": 4.96
+      }
+    }
+  },
+  "anchors": {
+    "drop1": {
+      "t": 2.0,
+      "is_downbeat": true,
+      "broadband_onset_ms_breath_dB": [
+        1.44,
+        -84.9
+      ],
+      "mix_onset_ms": 1.37
+    },
+    "breakdown": {
+      "t": 14.0,
+      "is_downbeat": true,
+      "broadband_onset_ms_breath_dB": [
+        1.33,
+        -25.4
+      ],
+      "mix_onset_ms": -18.54
+    },
+    "drop2": {
+      "t": 18.0,
+      "is_downbeat": true,
+      "broadband_onset_ms_breath_dB": [
+        1.42,
+        -84.1
+      ],
+      "mix_onset_ms": 1.44
+    },
+    "end_hit": {
+      "t": 26.0,
+      "is_downbeat": true,
+      "broadband_onset_ms_breath_dB": [
+        1.46,
+        -84.1
+      ],
+      "mix_onset_ms": 1.46
+    }
+  },
+  "tail": {
+    "hit_0_400ms_dBFS": -9.6,
+    "27.00-28.00s_dBFS": -18.2,
+    "28.00-29.00s_dBFS": -22.8,
+    "29.00-29.50s_dBFS": -25.0,
+    "29.50-29.70s_dBFS": -28.7,
+    "29.70-29.85s_dBFS": -30.1,
+    "29.85-29.95s_dBFS": -39.1,
+    "29.95-29.99s_dBFS": -57.6,
+    "29.99-30.00s_dBFS": -88.4,
+    "last_sample_master": 0.0,
+    "last_sample_stems": 0.0
+  },
+  "clicks": {
+    "boundaries": [
+      2.0,
+      14.0,
+      18.0,
+      26.0,
+      16.0
+    ],
+    "discontinuities_total": {
+      "bass": 0,
+      "music": 18,
+      "fx": 0
+    },
+    "unexplained": {
+      "bass": [],
+      "music": [],
+      "fx": []
+    },
+    "unexplained_near_boundaries": {
+      "bass": [],
+      "music": [],
+      "fx": []
+    },
+    "hf_spikes_gt_minus80dBFS": {
+      "bass": 1302,
+      "music": 816
+    }
+  },
+  "loudness_curve_1s": {
+    "columns": [
+      "t0",
+      "LUFS_full",
+      "LUFS_HP150"
+    ],
+    "rows": [
+      [
+        0.0,
+        -27.4,
+        -27.5
+      ],
+      [
+        0.5,
+        -26.3,
+        -26.4
+      ],
+      [
+        1.0,
+        -24.6,
+        -24.7
+      ],
+      [
+        1.5,
+        -20.6,
+        -22.6
+      ],
+      [
+        2.0,
+        -19.4,
+        -22.3
+      ],
+      [
+        2.5,
+        -20.1,
+        -22.7
+      ],
+      [
+        3.0,
+        -20.0,
+        -22.5
+      ],
+      [
+        3.5,
+        -20.0,
+        -22.5
+      ],
+      [
+        4.0,
+        -20.3,
+        -22.7
+      ],
+      [
+        4.5,
+        -20.4,
+        -22.8
+      ],
+      [
+        5.0,
+        -20.3,
+        -22.6
+      ],
+      [
+        5.5,
+        -20.5,
+        -22.8
+      ],
+      [
+        6.0,
+        -20.5,
+        -22.6
+      ],
+      [
+        6.5,
+        -20.4,
+        -22.4
+      ],
+      [
+        7.0,
+        -20.4,
+        -22.6
+      ],
+      [
+        7.5,
+        -20.5,
+        -22.6
+      ],
+      [
+        8.0,
+        -20.7,
+        -22.7
+      ],
+      [
+        8.5,
+        -20.6,
+        -22.6
+      ],
+      [
+        9.0,
+        -20.6,
+        -22.7
+      ],
+      [
+        9.5,
+        -20.5,
+        -23.0
+      ],
+      [
+        10.0,
+        -20.3,
+        -22.9
+      ],
+      [
+        10.5,
+        -20.1,
+        -22.5
+      ],
+      [
+        11.0,
+        -19.8,
+        -22.1
+      ],
+      [
+        11.5,
+        -19.9,
+        -22.1
+      ],
+      [
+        12.0,
+        -20.2,
+        -22.5
+      ],
+      [
+        12.5,
+        -20.2,
+        -22.4
+      ],
+      [
+        13.0,
+        -19.9,
+        -22.0
+      ],
+      [
+        13.5,
+        -20.5,
+        -23.3
+      ],
+      [
+        14.0,
+        -23.5,
+        -27.3
+      ],
+      [
+        14.5,
+        -28.2,
+        -31.2
+      ],
+      [
+        15.0,
+        -28.7,
+        -31.5
+      ],
+      [
+        15.5,
+        -27.2,
+        -28.6
+      ],
+      [
+        16.0,
+        -25.6,
+        -26.3
+      ],
+      [
+        16.5,
+        -24.4,
+        -25.2
+      ],
+      [
+        17.0,
+        -22.9,
+        -23.6
+      ],
+      [
+        17.5,
+        -19.3,
+        -21.2
+      ],
+      [
+        18.0,
+        -18.0,
+        -20.3
+      ],
+      [
+        18.5,
+        -18.7,
+        -20.8
+      ],
+      [
+        19.0,
+        -18.4,
+        -20.3
+      ],
+      [
+        19.5,
+        -18.2,
+        -19.8
+      ],
+      [
+        20.0,
+        -18.7,
+        -20.4
+      ],
+      [
+        20.5,
+        -18.9,
+        -20.7
+      ],
+      [
+        21.0,
+        -18.5,
+        -20.2
+      ],
+      [
+        21.5,
+        -18.6,
+        -20.3
+      ],
+      [
+        22.0,
+        -18.6,
+        -20.1
+      ],
+      [
+        22.5,
+        -18.6,
+        -20.1
+      ],
+      [
+        23.0,
+        -19.0,
+        -20.6
+      ],
+      [
+        23.5,
+        -18.6,
+        -20.0
+      ],
+      [
+        24.0,
+        -18.8,
+        -20.3
+      ],
+      [
+        24.5,
+        -19.4,
+        -21.1
+      ],
+      [
+        25.0,
+        -20.1,
+        -21.3
+      ],
+      [
+        25.5,
+        -18.0,
+        -20.8
+      ],
+      [
+        26.0,
+        -17.6,
+        -20.7
+      ],
+      [
+        26.5,
+        -20.5,
+        -21.8
+      ],
+      [
+        27.0,
+        -22.6,
+        -23.4
+      ],
+      [
+        27.5,
+        -24.6,
+        -25.3
+      ],
+      [
+        28.0,
+        -27.0,
+        -27.5
+      ],
+      [
+        28.5,
+        -28.3,
+        -28.8
+      ],
+      [
+        29.0,
+        -31.1,
+        -31.5
+      ]
+    ]
+  },
+  "out_of_key_energy_pct": {
+    "intro": {
+      "music": 2.97
+    },
+    "groove_a": {
+      "music": 2.36
+    },
+    "breakdown_dark": {
+      "music": 0.11,
+      "bass": 14.06
+    },
+    "breakdown_build": {
+      "music": 1.67
+    },
+    "drop2": {
+      "music": 2.88
+    },
+    "end": {
+      "music": 3.82,
+      "bass": 0.01
+    }
+  },
+  "meta": {
+    "bpm": 120.0,
+    "key": "F minor",
+    "downbeat_times": [
+      0.0,
+      2.0,
+      4.0,
+      6.0,
+      8.0,
+      10.0,
+      12.0,
+      14.0,
+      16.0,
+      18.0,
+      20.0,
+      22.0,
+      24.0,
+      26.0,
+      28.0
+    ],
+    "drop_time": 2.0,
+    "end_hit_time_snapped": 26.0,
+    "drop1": 2.0,
+    "breakdown": 14.0,
+    "drop2": 18.0,
+    "end_hit": 26.0,
+    "duration": 30.0,
+    "section_times": {
+      "drop1": 2.0,
+      "breakdown": 14.0,
+      "drop2": 18.0,
+      "end_hit": 26.0,
+      "duration": 30.0
+    },
+    "section_boundaries": [
+      0.0,
+      2.0,
+      14.0,
+      18.0,
+      26.0,
+      30.0
+    ],
+    "sections": [
+      {
+        "name": "intro",
+        "t0": 0.0,
+        "t1": 2.0
+      },
+      {
+        "name": "grooveA",
+        "t0": 2.0,
+        "t1": 14.0,
+        "bars": 6,
+        "full_from": 10.0
+      },
+      {
+        "name": "breakdown",
+        "t0": 14.0,
+        "t1": 18.0,
+        "bars": 2,
+        "dark": [
+          14.0,
+          16.0
+        ],
+        "build": [
+          16.0,
+          18.0
+        ]
+      },
+      {
+        "name": "drop2",
+        "t0": 18.0,
+        "t1": 26.0,
+        "bars": 4,
+        "turnaround": [
+          25.0,
+          26.0
+        ]
+      },
+      {
+        "name": "end",
+        "t0": 26.0,
+        "t1": 30.0
+      }
+    ],
+    "requested_anchors": {
+      "duration": 30.0,
+      "drop1": 2.0,
+      "breakdown": 14.0,
+      "drop2": 18.0,
+      "end_hit": 26.0
+    },
+    "fx_transitions": [
+      {
+        "kind": "riser",
+        "t0": 0.0,
+        "t1": 1.98
+      },
+      {
+        "kind": "downlifter",
+        "t0": 2.0,
+        "t1": 4.0
+      },
+      {
+        "kind": "sub_boom",
+        "t0": 2.0,
+        "t1": 3.6
+      },
+      {
+        "kind": "sub_boom",
+        "t0": 14.0,
+        "t1": 15.2
+      },
+      {
+        "kind": "riser",
+        "t0": 16.0,
+        "t1": 17.98
+      },
+      {
+        "kind": "reverse_cymbal",
+        "t0": 17.0,
+        "t1": 18.0
+      },
+      {
+        "kind": "downlifter",
+        "t0": 18.0,
+        "t1": 20.0
+      },
+      {
+        "kind": "sub_boom",
+        "t0": 18.0,
+        "t1": 19.6
+      },
+      {
+        "kind": "reverse_cymbal",
+        "t0": 25.0,
+        "t1": 26.0
+      },
+      {
+        "kind": "sub_boom",
+        "t0": 26.0,
+        "t1": 29.6
+      }
+    ],
+    "scale": [
+      "F",
+      "G",
+      "Ab",
+      "Bb",
+      "C",
+      "Db",
+      "Eb"
+    ],
+    "progression": [
+      "Fm",
+      "Db",
+      "Ab",
+      "Eb"
+    ],
+    "breakdown_chords": {
+      "dark": [
+        "Fm",
+        "Db"
+      ],
+      "build": [
+        "Db",
+        "Db",
+        "Eb",
+        "Eb"
+      ]
+    },
+    "turnaround_chord": "Eb",
+    "final_chord": "Fmadd9",
+    "chord_timeline": [
+      [
+        0.0,
+        2.0,
+        "Eb"
+      ],
+      [
+        2.0,
+        4.0,
+        "Fm"
+      ],
+      [
+        4.0,
+        6.0,
+        "Db"
+      ],
+      [
+        6.0,
+        8.0,
+        "Ab"
+      ],
+      [
+        8.0,
+        10.0,
+        "Eb"
+      ],
+      [
+        10.0,
+        12.0,
+        "Fm"
+      ],
+      [
+        12.0,
+        14.0,
+        "Db"
+      ],
+      [
+        14.0,
+        16.0,
+        "Fm"
+      ],
+      [
+        16.0,
+        17.0,
+        "Db"
+      ],
+      [
+        17.0,
+        18.0,
+        "Eb"
+      ],
+      [
+        18.0,
+        20.0,
+        "Fm"
+      ],
+      [
+        20.0,
+        22.0,
+        "Db"
+      ],
+      [
+        22.0,
+        24.0,
+        "Ab"
+      ],
+      [
+        24.0,
+        26.0,
+        "Eb"
+      ],
+      [
+        26.0,
+        30.0,
+        "Fmadd9"
+      ]
+    ],
+    "stem_scale_db": -11.661417972033647,
+    "sample_rate": 48000,
+    "swing_s": 0.01,
+    "n_events": 801,
+    "musical_check": {
+      "violations": 0,
+      "pitched_events": 481,
+      "pitched_notes": 584,
+      "lead_notes": 16,
+      "tuned_snare_hits": 56
+    }
+  },
+  "n_beats": 60,
+  "stems": {
+    "drums": {
+      "peak_dBFS": -9.76,
+      "true_peak_dBTP": -9.57,
+      "rms_dBFS": -25.36,
+      "lufs": -24.32,
+      "dc": [
+        1.41e-10,
+        1.53e-10
+      ],
+      "finite": true,
+      "first_audible_s": 0.0015,
+      "first_last_sample": [
+        0.0,
+        0.0
+      ],
+      "bands_pct": {
+        "20-60": 63.86,
+        "60-120": 16.06,
+        "120-250": 11.41,
+        "250-1000": 7.17,
+        "1000-2000": 0.35,
+        "2000-4000": 0.2,
+        "4000-6000": 0.18,
+        "6000-12000": 0.45,
+        "12000-20000": 0.31
+      }
+    },
+    "bass": {
+      "peak_dBFS": -11.46,
+      "true_peak_dBTP": -11.45,
+      "rms_dBFS": -29.16,
+      "lufs": -28.26,
+      "dc": [
+        -3.5e-13,
+        -3.53e-13
+      ],
+      "finite": true,
+      "first_audible_s": 2.1355,
+      "first_last_sample": [
+        0.0,
+        0.0
+      ],
+      "bands_pct": {
+        "20-60": 34.74,
+        "60-120": 35.7,
+        "120-250": 17.88,
+        "250-1000": 10.17,
+        "1000-2000": 1.23,
+        "2000-4000": 0.26,
+        "4000-6000": 0.02,
+        "6000-12000": 0.0,
+        "12000-20000": 0.0
+      }
+    },
+    "music": {
+      "peak_dBFS": -7.01,
+      "true_peak_dBTP": -7.0,
+      "rms_dBFS": -27.0,
+      "lufs": -23.93,
+      "dc": [
+        -1.82e-10,
+        1.11e-10
+      ],
+      "finite": true,
+      "first_audible_s": 0.0006,
+      "first_last_sample": [
+        0.0,
+        0.0
+      ],
+      "bands_pct": {
+        "20-60": 0.0,
+        "60-120": 0.0,
+        "120-250": 4.81,
+        "250-1000": 70.07,
+        "1000-2000": 18.79,
+        "2000-4000": 5.57,
+        "4000-6000": 0.58,
+        "6000-12000": 0.16,
+        "12000-20000": 0.01
+      }
+    },
+    "fx": {
+      "peak_dBFS": -16.93,
+      "true_peak_dBTP": -16.42,
+      "rms_dBFS": -39.58,
+      "lufs": -32.11,
+      "dc": [
+        -1.03e-11,
+        1.07e-11
+      ],
+      "finite": true,
+      "first_audible_s": 0.0059,
+      "first_last_sample": [
+        0.0,
+        0.0
+      ],
+      "bands_pct": {
+        "20-60": 75.45,
+        "60-120": 8.75,
+        "120-250": 4.17,
+        "250-1000": 1.66,
+        "1000-2000": 0.59,
+        "2000-4000": 2.11,
+        "4000-6000": 2.56,
+        "6000-12000": 4.01,
+        "12000-20000": 0.7
+      }
+    }
+  },
+  "music_stereo": {
+    "corr": 0.767,
+    "mono_loss_dB": -0.54,
+    "corr_1k_3k": 0.781,
+    "corr_3k_8k": 0.895,
+    "worst_window": {
+      "t": 29.5,
+      "corr": 0.473,
+      "win_s": 0.5
+    }
+  },
+  "unmastered_sum": {
+    "lufs": -20.4,
+    "true_peak_dBTP": -4.36,
+    "first100ms_rms_dBFS": -30.8
+  },
+  "demo": {
+    "ebur128": {
+      "I_LUFS": -14.1,
+      "LRA_LU": 4.5,
+      "TP_dBTP": -1.3
+    },
+    "python_lufs": -14.06,
+    "true_peak_dBTP": -1.3,
+    "first100ms_rms_dBFS": -24.4,
+    "dc": [
+      -9.46e-07,
+      -9.46e-07
+    ]
+  }
+}

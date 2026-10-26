@@ -7,8 +7,8 @@
  {
   "t": 0.75,
   "type": "shimmer",
-  "dur": 0.75,
-  "note": "Warm glint sweeps across the KRS logo (0.75-1.5)."
+  "dur": 0.7,
+  "note": "Warm glint sweeps linearly across the KRS logo, left to right: on the K from the first frame after 0.75, off the logo by 1.45."
  },
  {
   "t": 1.0,
@@ -36,7 +36,7 @@
   "t": 1.5,
   "type": "shimmer",
   "dur": 0.4,
-  "note": "Light streak sweeps diagonally across the frame (1.5-1.9)."
+  "note": "Light streak, already on screen in the top-left corner at 1.5, sweeps diagonally across the frame (linear; out of frame by 1.9)."
  },
  {
   "t": 1.75,
@@ -64,8 +64,8 @@
  {
   "t": 5.0,
   "type": "shimmer",
-  "dur": 0.7,
-  "note": "Light streak sweeps across the VIDEO / EDITOR headline (5.0-5.7; text does not move)."
+  "dur": 0.65,
+  "note": "Light streak, on screen in the top-left corner at 5.0, crosses the VIDEO / EDITOR headline (linear; out of frame by 5.65; text does not move)."
  },
  {
   "t": 5.75,
@@ -207,7 +207,7 @@
   "type": "whoosh",
   "dur": 0.35,
   "direction": "up",
-  "note": "RIPPLE DELETE: the two rejected clips lift out (17.0-17.15) and the pro clip slides up into the gap (17.05-17.35)."
+  "note": "RIPPLE DELETE: the two rejected clips lift out (17.0-17.15) and the pro clip slides up to the centre of the frame (17.05-17.35)."
  },
  {
   "t": 17.5,
@@ -215,11 +215,11 @@
   "note": "Render bar 100 %; brackets fully orange."
  },
  {
-  "t": 17.6,
+  "t": 17.7,
   "type": "whoosh",
-  "dur": 0.7,
+  "dur": 0.6,
   "direction": "lr",
-  "note": "Brand-slash band (R-leg angle, motion-blurred with a trailing tail) sweeps bottom-left to top-right (17.6-18.3), crossing the frame centre exactly on 18.0."
+  "note": "Brand-slash band (R-leg angle, motion-blurred with a trailing tail) enters the frame bottom-left at 17.73 and sweeps to the top-right, crossing the frame centre exactly on 18.0; gone by 18.3."
  },
  {
   "t": 18.0,
@@ -229,7 +229,7 @@
  {
   "t": 18.0,
   "type": "slash",
-  "note": "Band crosses the frame centre: BENEFITS heading + card 01 are revealed by its diagonal edge."
+  "note": "Band crosses the frame centre: BENEFITS heading, card 01 and the dashed placeholders for cards 02 / 03 are revealed by its diagonal edge."
  },
  {
   "t": 18.0,
@@ -242,7 +242,7 @@
   "type": "whoosh",
   "dur": 0.1,
   "direction": "rl",
-  "note": "Card 02 slides in from the right (18.4-18.5)."
+  "note": "Card 02 slides in from the right over its dashed placeholder (18.4-18.5)."
  },
  {
   "t": 18.5,
@@ -255,7 +255,7 @@
   "type": "whoosh",
   "dur": 0.1,
   "direction": "rl",
-  "note": "Card 03 slides in from the right (18.9-19.0)."
+  "note": "Card 03 slides in from the right over its dashed placeholder (18.9-19.0)."
  },
  {
   "t": 19.0,
@@ -282,7 +282,7 @@
   "t": 22.0,
   "type": "shimmer",
   "dur": 0.6,
-  "note": "Light streak sweeps behind the benefit cards (22.0-22.6)."
+  "note": "Light streak enters from off-screen left (first visible 22.03) and sweeps behind the benefit cards (kept below the heading), out of frame by 22.57."
  },
  {
   "t": 22.0,

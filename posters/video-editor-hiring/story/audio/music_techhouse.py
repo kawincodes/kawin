@@ -590,7 +590,8 @@ def _smooth_comp(x: np.ndarray, thr_db: float, ratio: float, attack: float = 0.0
     grid, then two 2 ms box passes at audio rate.  pedalboard's Compressor switches its peak ballistics at
     every waveform peak, which on a sustained sub put slope corners (2-5 kHz "kinks", -32 dB) on the peaks."""
     hop = 48
-    lv = 10.0 * np.log10(uniform_filter1d(np.mean(x ** 2, axis=1), int(win * SR))[::hop] + 1e-20)
+    ms = np.maximum(uniform_filter1d(np.mean(x ** 2, axis=1), int(win * SR))[::hop], 0.0)   # running sums can dip < 0
+    lv = 10.0 * np.log10(ms + 1e-20)
     tgt = np.minimum(0.0, (thr_db - lv) * (1.0 - 1.0 / ratio))
     a_att, a_rel = math.exp(-hop / (attack * SR)), math.exp(-hop / (release * SR))
     g = np.empty_like(tgt)
@@ -1115,6 +1116,7 @@ def _render_events(events, N, seed, rng, auto, _parts=None):
         tail_fade   final raised-cosine fade (s), ends exactly at `duration`
         pad_gain    optional f(tl) -> extra pad gain (render_story only)
         smooth_dynamics optional bool -> C1-smooth bass compressor + bass/arp limiters (render_story only)
+        final_pad_amp optional f(t since hit, q = t / (tail - tail_fade)) -> final pad envelope (render_story)
     Story-only instruments (clock, lead, chord, pulse bass) are rendered only when such events exist, so
     render() output is bit-identical to the pre-refactor module.  Returns (stems, common scale)."""
     n_tot = int(PRE * SR) + N + int(0.5 * SR)
@@ -1194,7 +1196,10 @@ def _render_events(events, N, seed, rng, auto, _parts=None):
             y = _supersaw_chord(e["midis"], n, rng)
             tt = np.arange(n) / SR
             q = np.clip(tt / max(e["dur"] - auto["tail_fade"], 0.1), 0, 1)
-            amp = (1.0 + 0.35 * np.exp(-tt / 0.25)) * (1.0 - 0.6 * q ** 1.5)    # swell on hit, ring out
+            if "final_pad_amp" in auto:                                       # render_story: held chord
+                amp = auto["final_pad_amp"](tt, q)
+            else:
+                amp = (1.0 + 0.35 * np.exp(-tt / 0.25)) * (1.0 - 0.6 * q ** 1.5)    # swell on hit, ring out
             y *= (amp * _fades(n, 0.004, 0.05))[:, None]
         else:
             n = int((e["dur"] + rel) * SR)
@@ -1559,10 +1564,12 @@ STORY_SECTIONS = dict(
                backbeat_snare=True, chord_stabs=True, lead=True),
 )
 STORY_BREAKDOWN = dict(
-    entry=dict(kick=0.9, crash=0.5, boom=0.55, boom_dur=1.2),     # the breakdown downbeat accent
+    entry=dict(kick=0.9, crash=0.5, boom=0.55, boom_dur=1.2,      # the breakdown downbeat accent; no music
+               downlifter=False),                                 # downlifter: the cue sheet's SFX one owns it
     dark_pad_fc=480.0, dark_glide=0.35, dark_wobble_oct=0.15,      # pad LP: glide down, slow 1-bar breathing
     pad_dark_db=2.0,                                              # pad lift while dark (it is low-passed)
-    pulse=((0, 1.0, 0.24), (2, 0.62, 0.24)),                      # dark bars: (16th pos, vel, dur) per beat
+    pulse=((0, 0.5, 0.2), (2, 1.0, 0.24)),                        # dark bars: (16th pos, vel, dur) per beat --
+                                                                  # off-8th accent, so stamps on the beat land in a dip
     clock=((0, "F6", 0.9, 0.3), (2, "C6", 0.65, -0.3)),           # tick on the beat, tock on the off-8th
     build_pad_fc=(480.0, 2300.0), build_arp_fc=(650.0, 2400.0),
 )
@@ -1577,9 +1584,10 @@ STORY_LEAD = {
     "Eb": ((0, 6, "Bb5"), (6, 6, "G5"), (12, 2, "Ab5"), (14, 2, "Bb5")),
 }
 # story-only levels (dB; *_delay / *_verb are wet returns re dry)
-STORY_LV = dict(clock=-27.0, lead=-10.0, lead_delay=-9.0, lead_verb=-13.0, chord=-10.5, chord_verb=-15.0,
-                backbeat_snare=0.5, pad_end_db=4.0)          # pad_end_db: held Fm(add9) under the end card
-STORY_TAIL_PAD_FC = (3200.0, 1000.0, 1.3)     # end: pad LP closes start -> end Hz (curve exponent), slower than render()
+STORY_LV = dict(clock=-19.0, lead=-10.0, lead_delay=-9.0, lead_verb=-13.0, chord=-10.5, chord_verb=-15.0,
+                backbeat_snare=0.5, pad_end_db=6.0)          # pad_end_db: held Fm(add9) under the end card
+STORY_TAIL_PAD_FC = (3200.0, 1400.0, 1.3)     # end: pad LP closes start -> end Hz (curve exponent), slower than render()
+STORY_END_HOLD = (0.45, 2.5)                  # end pad envelope 1 - a*q^b: holds (-1 dB at mid-tail), -5 dB at the fade
 
 
 def story_grid(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=26.0) -> dict:
@@ -1862,9 +1870,11 @@ def arrange_story(g: dict, rng) -> list:
                    midi_end=nm("F5")))
     ev.append(dict(inst="revcym", t=t_d2 - BEAT * 2, tn=t_d2 - BEAT * 2, dur=BEAT * 2))
     ev.append(dict(inst="revcym", t=t_hit - BEAT * 2, tn=t_hit - BEAT * 2, dur=BEAT * 2))
-    for t, v, d in ((drop, 0.8, 1.6), (t_bd, BD["entry"]["boom"], BD["entry"]["boom_dur"]), (t_d2, 0.9, 1.6)):
+    for t, v, d, dl in ((drop, 0.8, 1.6, True), (t_bd, BD["entry"]["boom"], BD["entry"]["boom_dur"], BD["entry"]["downlifter"]),
+                        (t_d2, 0.9, 1.6, True)):
         ev.append(dict(inst="boom", t=t, tn=t, dur=d, vel=v))
-        ev.append(dict(inst="downlifter", t=t, tn=t, dur=BAR))
+        if dl:
+            ev.append(dict(inst="downlifter", t=t, tn=t, dur=BAR))
     ev.append(dict(inst="boom", t=t_hit, tn=t_hit, dur=g["duration"] - t_hit, vel=1.0, final=True))
     ev.append(dict(inst="impact", t=t_hit, tn=t_hit, dur=g["duration"] - t_hit))
     ev.sort(key=lambda e: e["t"])
@@ -1958,7 +1968,8 @@ def _story_auto(g: dict) -> dict:
 
     ghost = [drop + k * BEAT for k in range(g["k0"], 0)] + [drop + k * BEAT for k in range(g["kbuild"], g["kd"])]
     return dict(gaps=[drop, t_d2, t_hit], ghost=ghost, pad_cutoff=pad_cutoff, arp_cutoff=arp_cutoff,
-                arp_gain=arp_gain, pad_gain=pad_gain, tail_fade=STORY_TAIL_FADE, smooth_dynamics=True)
+                arp_gain=arp_gain, pad_gain=pad_gain, tail_fade=STORY_TAIL_FADE, smooth_dynamics=True,
+                final_pad_amp=lambda tt, q: (1.0 + 0.35 * np.exp(-tt / 0.25)) * (1.0 - STORY_END_HOLD[0] * q ** STORY_END_HOLD[1]))
 
 
 def render_story(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=26.0, seed=1, _parts=None):
@@ -1985,16 +1996,21 @@ def render_story(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=2
         downbeat_times=[r9(g["drop"] + k * BEAT) for k in range(g["k_first"], g["k_last"] + 1) if k % 4 == 0],
         drop_time=d1, end_hit_time_snapped=hit,                      # render()-compatible keys
         drop1=d1, breakdown=bd, drop2=d2, end_hit=hit, duration=dur,
+        section_times=dict(drop1=d1, breakdown=bd, drop2=d2, end_hit=hit, duration=dur),   # = music_cinematic
         section_boundaries=[0.0, d1, bd, d2, hit, dur],
         sections=[dict(name="intro", t0=0.0, t1=d1),
-                  dict(name="groove_a", t0=d1, t1=bd, bars=g["bars"]["groove_a"],
+                  dict(name="grooveA", t0=d1, t1=bd, bars=g["bars"]["groove_a"],
                        full_from=r9(g["drop"] + STORY_SECTIONS["groove_a"]["full_from_bar"] * BAR)),
                   dict(name="breakdown", t0=bd, t1=d2, bars=g["bars"]["breakdown"], dark=[bd, tb], build=[tb, d2]),
                   dict(name="drop2", t0=d2, t1=hit, bars=g["bars"]["drop2"], turnaround=[r9(g["t_hit"] - 2 * BEAT), hit]),
                   dict(name="end", t0=hit, t1=dur)],
-        anchors_requested=g["requested"],
-        fx_transitions=[dict(kind=e["inst"], t0=r9(e["t"]), t1=r9(e["t"] + e["dur"]))
-                        for e in events if e["inst"] in ("riser", "revcym", "downlifter")],
+        requested_anchors=g["requested"],
+        # fx-stem transition spans for sfx.fx_duck_gain(); kinds as in music_cinematic (+ downlifter)
+        fx_transitions=sorted(
+            [dict(kind={"revcym": "reverse_cymbal"}.get(e["inst"], e["inst"]), t0=r9(e["t"]), t1=r9(e["t"] + e["dur"]))
+             for e in events if e["inst"] in ("riser", "revcym", "downlifter")]
+            + [dict(kind="sub_boom", t0=r9(e["t"]), t1=r9(e["t"] + min(4 * (0.9 if e.get("final") else 0.45), e["dur"])))
+               for e in events if e["inst"] == "boom"], key=lambda d: d["t0"]),
         scale=list(SCALE), progression=list(PROGRESSION), breakdown_chords=dict(dark=list(BREAKDOWN_DARK),
                                                                                 build=list(BREAKDOWN_BUILD)),
         turnaround_chord=TURNAROUND_CHORD, final_chord=STORY_FINAL_CHORD,
@@ -2188,6 +2204,7 @@ def render_story_demo(out_dir=DEMO_DIR, seed=1, **anchors):
         stems_sample_peak_le_minus6=all(v["peak_dBFS"] <= -6.0 for v in srep.values()),
         stems_dc_lt_1e4=all(max(abs(d) for d in v["dc"]) < 1e-4 for v in srep.values()),
         stems_finite=all(v["finite"] for v in srep.values()),
+        stems_all_have_signal=all(v["lufs"] > -50.0 for v in srep.values()),
         stems_start_end_zero=all(max(v["first_last_sample"]) < 1e-6 for v in srep.values()),
         notes_in_key=meta["musical_check"]["violations"] == 0,
         anchors_are_downbeats=all(v["is_downbeat"] for v in anchors_rep.values()),

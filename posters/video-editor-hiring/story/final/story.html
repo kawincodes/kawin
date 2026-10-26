@@ -21,12 +21,12 @@
   0.0  INTRO   frame 0 = thumbnail: full KRS logo, ghost WE'RE HIRING / VIDEO / EDITOR, brackets, strip. Motion from frame 1:
                bracket pulse, strip scroll, background push-in, R-leg charging glow.
   0.5          SLASH: orange blade along the R-leg axis (0.36-0.64), the leg flashes white-hot.
-  0.75-1.5     warm glint across the logo.
+  0.75-1.45    warm glint across the logo (linear; on the K from the first frame after 0.75).
   1.0          playhead render-wipe turns the WE'RE HIRING kicker solid (pop); strip playhead ticks; brackets snap in.
-  1.5          ghost VIDEO / EDITOR light up to ~70 %; playhead ticks; brackets snap in; light sweep 1.5-1.9.
+  1.5          ghost VIDEO / EDITOR light up to ~70 %; playhead ticks; brackets snap in; light sweep 1.5-1.9 (on screen from 1.5).
   1.0-2.0      riser: stepped camera push, bg push 6 %, waveform ramps (linear); 1.75 playhead scrubs to centre.
   2.0  DROP 1  VIDEO smashes in ON the beat (first visible frame = beat frame; RGB split + shake 3 frames; flash).
-  2.5          EDITOR smashes in.   HOLD 2.7-5.75 (light streak 5.0-5.7).
+  2.5          EDITOR smashes in.   HOLD 2.7-5.75 (light streak 5.0-5.65, on screen from 5.0, linear).
   5.75-6.25 T1 WHIP-PAN LEFT (blur = 0.35 x per-frame travel); 6.0-6.35 logo flies to the HUD and resolves to the KRS mark.
   6.5/7.0/7.5  role clips pop on (contact on the beat).   8.0 REMOTE badge smashes in (ghost REMOTE teased in its slot).
   9.5-10.0 T2  full-height playhead render-wipe to SKILLS (media-bin layout).
@@ -35,16 +35,19 @@
   13.75-14.0 T3 bin pulls back + dims; HARD CUT to the breakdown on 14.0; it settles 14.0-14.2.
   14.5 / 15.0  X stamps (hatch + orange border + squash).   15.5 check, pro clip enables.
   16.0-17.5    riser stepped on the beats: render bar fills, brackets close + turn orange, vignette tightens, glow + light leak build.
-  17.0         RIPPLE DELETE: the two rejected clips lift out, the pro clip slides up into the gap.
-  17.6-18.3 T4 BRAND SLASH band (R-leg angle) - crosses the frame centre exactly on 18.0, <= 180 px/frame, velocity blur + tail.
-  18.0 DROP 2  BENEFITS + card 01 revealed by the band.   18.5 / 19.0 cards 02 / 03 slide in (contact on the beat).
-  20.0/20.5/21.0 read-along: icon tile fills orange, accent bar + numeral flare.  22.0 light streak behind the cards;
+  17.0         RIPPLE DELETE: the two rejected clips lift out, the pro clip slides up to the optical centre (y 790-1090).
+  17.6-18.3 T4 BRAND SLASH band (R-leg angle; enters the frame bottom-left at 17.73) - crosses the frame centre exactly on 18.0,
+               <= 180 px/frame, velocity blur + tail.
+  18.0 DROP 2  BENEFITS + card 01 + dashed placeholders for cards 02 / 03 revealed by the band.
+               18.5 / 19.0 cards 02 / 03 slide in over their placeholders (contact on the beat).
+  20.0/20.5/21.0 read-along: icon tile fills orange, accent bar + numeral flare.  22.0-22.6 light streak behind the cards
+               (enters from off-screen, masked above y 500);
   22.0/22.5/23.0 second accent pass.   HOLD (card 02 still 5.0 s).
   23.75-24.25 T5 WHIP-PAN UP (vertical blur); strip drops away; 23.95-24.45 logo returns to the end card.
   24.5-25.0    render playhead turns the ghost WE'RE HIRING / VIDEO / EDITOR solid.
   25.0         REMOTE pill + CTA bar (APPLY NOW) pop in.   25.5 'DM us your portfolio' slides in; brackets close in.
   26.0 END HIT APPLY NOW ignites orange, ring burst, flash, brackets lock; 26.1-26.6 logo glint (after the flash).
-  26.6-30.0    FINAL COMPOSITION STILL: only grain, a slow CTA glow and a tiny paper-plane nudge (27.0 / 29.0) move.
+  26.6-30.0    FINAL COMPOSITION STILL: only grain and a slow CTA glow (the paper-plane icon glows with it) change; nothing moves.
 -->
 <html lang="en">
 <head>
@@ -162,6 +165,9 @@ svg{display:block}
 /* S5 benefits */
 .card{position:absolute;left:64px;width:952px;height:268px;border-radius:24px;display:flex;align-items:center;gap:30px;padding:0 34px 0 40px;overflow:hidden;
   background:linear-gradient(180deg,rgba(18,58,130,.9),rgba(10,33,80,.9));border:1.5px solid rgba(255,255,255,.13);box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 18px 44px rgba(0,0,0,.32)}
+.cardG{position:absolute;left:64px;width:952px;height:268px;border-radius:24px;border:3px dashed rgba(150,190,255,.30);background:rgba(120,160,240,.035)}
+.cardG i{position:absolute;left:38px;top:63px;width:136px;height:136px;border-radius:26px;border:2.5px dashed rgba(252,116,3,.5)}
+.cardG b{position:absolute;left:204px;top:96px;width:430px;height:22px;border-radius:11px;background:rgba(150,190,255,.10);box-shadow:0 52px 0 -2px rgba(150,190,255,.06)}
 .card .acc{position:absolute;left:0;top:0;bottom:0;width:9px;background:linear-gradient(180deg,var(--o2),var(--o));transform-origin:0 50%}
 .card .tx{flex:1;min-width:0}
 .card .bt5{font-family:'Barlow Condensed';font-weight:800;font-size:58px;line-height:1.04;letter-spacing:.02em;white-space:nowrap}
@@ -264,7 +270,7 @@ svg{display:block}
   </g>
 </svg>
 <div id="bgDark" class="L"></div>
-<div id="bgFx" class="L" style="overflow:hidden"><div class="a" id="streak5"></div></div>
+<div id="bgFx" class="L" style="overflow:hidden;-webkit-mask-image:linear-gradient(180deg,rgba(0,0,0,0) 0px,rgba(0,0,0,0) 500px,#000 580px);mask-image:linear-gradient(180deg,rgba(0,0,0,0) 0px,rgba(0,0,0,0) 500px,#000 580px)"><div class="a" id="streak5"></div></div>
 
 <!-- =============== WORLD =============== -->
 <div id="cam" class="L">
@@ -371,6 +377,8 @@ svg{display:block}
       <div class="tile" style="width:136px;height:136px;border-radius:26px"><i class="tfl" id="tf51"></i><svg class="ico" id="ic51" width="82" height="82" viewBox="0 0 44 44" style="stroke-width:3"><circle cx="13" cy="22" r="8"/><path d="M21 22 H39 M33 22 V29 M38 22 V27"/></svg></div>
       <div class="tx"><div class="bt5">PREMIUM SOFTWARE</div><div class="bs">OEM license provided</div></div>
       <div class="bn" id="nm51">01</div></div>
+    <div class="cardG" id="c52G" style="top:812px"><i></i><b></b></div>
+    <div class="cardG" id="c53G" style="top:1100px"><i></i><b></b></div>
     <div class="card" id="c52" style="top:812px;opacity:0"><i class="acc" id="a52"></i>
       <div class="tile" style="width:136px;height:136px;border-radius:26px"><i class="tfl" id="tf52"></i><svg class="ico" id="ic52" width="82" height="82" viewBox="0 0 44 44" style="stroke-width:3"><rect x="11" y="5" width="29" height="23" rx="4"/><path d="M5 13 V35 a4 4 0 0 0 4 4 H32"/><path d="M22 12 L30 16.5 L22 21 Z"/></svg></div>
       <div class="tx"><div class="bt5">PREMIUM STOCK &amp; MOCKUP<br>SUBSCRIPTION</div><div class="bs">Pro access to a site like Envato</div></div>
@@ -546,8 +554,9 @@ tw('#lgR','filter',[[0,'saturate(1) brightness(1) drop-shadow(0px 0px 0px rgba(2
   [0.46,'saturate(0.9) brightness(1.18) drop-shadow(0px 0px 12px rgba(255,138,42,0.75))'],
   [0.5,'saturate(0.2) brightness(1.8) drop-shadow(0px 0px 18px rgba(255,150,60,0.95))','o'],
   [0.95,'saturate(1) brightness(1) drop-shadow(0px 0px 0px rgba(255,138,42,0))']]);
-var GB0='translateX(-260px) skewX(-24deg)', GB1='translateX(620px) skewX(-24deg)';
-tw('#lgBar','transform',[[0.75,GB0,'io'],[1.5,GB1],[1.5,GB0],[26.1,'translateX(-150px) skewX(-24deg)'],[26.6,'translateX(570px) skewX(-24deg)'],[26.6,GB0]]);
+var GB0='translateX(-260px) skewX(-24deg)';
+/* intro glint: parked off the logo until 0.75, its core is on the K from the first frame after 0.75, linear, off the logo by 1.5 */
+tw('#lgBar','transform',[[0.749,GB0],[0.75,'translateX(-100px) skewX(-24deg)'],[1.5,'translateX(450px) skewX(-24deg)'],[1.5,GB0],[26.1,'translateX(-150px) skewX(-24deg)'],[26.6,'translateX(570px) skewX(-24deg)'],[26.6,GB0]]);
 
 /* --- intro slash blade along the R-leg axis (48.5 deg) through the leg at (559,360) --- */
 var AX = 'translate(559px,360px) rotate(48.5deg) ';
@@ -636,9 +645,9 @@ tw('#c43g','opacity',[[15.49,0],[15.5,1,'o'],[15.95,0]]);
   tw(s,'transform',[[17.0,'translateY(0px) scale(1,1)','i'],[17.15,'translateY(-26px) scale(0.97,0.04)']]);
   tw(s,'opacity',[[17.07,1],[17.15,0]]);
 });
-tw('#c43','transform',[[17.05,'translateY(0px)','w'],[17.35,'translateY(-310px)']]);
+tw('#c43','transform',[[17.05,'translateY(0px)','w'],[17.35,'translateY(-220px)']]);
 /* riser 16-18, stepped on the beats (all of it off the text) */
-tw('#s4glow','transform',[[17.05,'translateY(0px)','w'],[17.35,'translateY(-310px)']]);
+tw('#s4glow','transform',[[17.05,'translateY(0px)','w'],[17.35,'translateY(-220px)']]);
 tw('#s4glow','opacity',stepKeys([[16.0,0.25],[16.5,0.5],[17.0,0.75],[17.5,1]],0,0.1).concat([[17.9,1],[18.1,0]]));
 tw('#s4rb','filter',flashKeys(RISER,'brightness(1) drop-shadow(0px 0px 0px rgba(255,176,112,0))','brightness(1.9) drop-shadow(0px 0px 16px rgba(255,190,130,1))',0.35));
 tw('#s4rb','transform',stepKeys([[16.0,'scaleX(0.25)'],[16.5,'scaleX(0.5)'],[17.0,'scaleX(0.75)'],[17.5,'scaleX(1)']],'scaleX(0)',0.1));
@@ -675,6 +684,8 @@ tw('#s5h','transform',[[17.95,'scale(1.05)','o'],[18.3,'scale(1)']]);
 tw('#c51','transform',[[17.95,'scale(1.04)','o'],[18.3,'scale(1)']]);
 slideIn('#c52',18.5);
 slideIn('#c53',19.0);
+tw('#c52G','opacity',[[18.5-2*F1-0.003,1],[18.5-2*F1-0.001,0]]);
+tw('#c53G','opacity',[[19.0-2*F1-0.003,1],[19.0-2*F1-0.001,0]]);
 /* read-along 20.0 / 20.5 / 21.0 (tile fills orange, icon flips navy, accent bar + numeral flare);
    second pass 22.0 / 22.5 / 23.0 on the accent bars + numerals; light streak behind the cards at 22.0 */
 [[1,20.0,22.0],[2,20.5,22.5],[3,21.0,23.0]].forEach(function(q){
@@ -685,7 +696,7 @@ slideIn('#c53',19.0);
   tw('#a5'+n,'boxShadow',flashKeys([ta,tb],'0px 0px 0px 0px rgba(255,150,60,0)','0px 0px 26px 6px rgba(255,150,60,0.95)',0.45));
   tw('#nm5'+n,'color',flashKeys([ta,tb],'#8FA3C9','#FF8A2A',0.45));
 });
-tw('#streak5','transform',[[22.0,'translateX(0px) rotate(24deg)','io'],[22.6,'translateX(1500px) rotate(24deg)']]);
+tw('#streak5','transform',[[22.0,'translateX(-250px) rotate(24deg)'],[22.6,'translateX(1800px) rotate(24deg)']]);
 tw('#streak5','opacity',[[21.99,0],[22.0,1],[22.6,1],[22.61,0]]);
 /* T5 whip-pan up */
 tw('#s5','transform',[[23.75,'translateY(0px)','w'],[24.25,'translateY(-1920px)']]);
@@ -717,14 +728,16 @@ tw('#ctaRing','transform',[[26.0,'scale(0.985)','o'],[26.45,'scale(1.06)']]);
 tw('#ctaRing','opacity',[[25.99,0],[26.0,0.95],[26.45,0]]);
 proc('#ctaGlow','opacity',function(t){ if(t<26.0) return 0; if(t<26.45) return (1-0.55*seg(t,26.0,26.45)).toFixed(4);
   var s=Math.sin(Math.PI*(t-26.45)/1.6); return (0.45+0.25*s*s).toFixed(4); });
-/* ambient during the final hold (non-text): tiny paper-plane nudge */
-tw('#plane','transform',[[27.0,'translate(0px,0px)','io'],[27.3,'translate(5px,-5px)','io'],[27.65,'translate(0px,0px)'],[29.0,'translate(0px,0px)','io'],[29.3,'translate(5px,-5px)','io'],[29.65,'translate(0px,0px)']]);
+/* ambient during the final hold (non-text, nothing moves): the paper-plane icon glows in phase with the CTA glow */
+proc('#plane','filter',function(t){ var a=0; if(t>=26.45){ var s=Math.sin(Math.PI*(t-26.45)/1.6); a=0.15+0.55*s*s; } else if(t>26.0) a=0.15*seg(t,26.0,26.45);
+  return 'drop-shadow(0px 0px 7px rgba(255,138,42,'+a.toFixed(4)+'))'; });
 
 /* --- global FX --- */
 tw('#flash','opacity',[[1.99,0],[2.0,0.22],[2.22,0],[2.49,0],[2.5,0.15],[2.7,0],[17.99,0],[18.0,0.26],[18.25,0],[25.99,0],[26.0,0.22],[26.35,0]]);
-(function(){ var A='translateX(-400px) rotate(18deg)', B='translateX(1700px) rotate(18deg)', k=[[0,A]], o=[[0,0]];
+/* light sweep: already on screen (top-left corner) on its cue frame, linear travel, fully out of frame by t+d */
+(function(){ var A='translateX(-60px) rotate(18deg)', B='translateX(1700px) rotate(18deg)', k=[[0,A]], o=[[0,0]];
   [[1.5,0.4],[5.0,0.7]].forEach(function(p){ var t=p[0], d=p[1];
-    k.push([t-0.01,A],[t,A,'io'],[t+d,B],[t+d+0.01,A]); o.push([t-0.01,0],[t,1],[t+d,1],[t+d+0.01,0]); });
+    k.push([t-0.01,A],[t,A],[t+d,B],[t+d+0.01,A]); o.push([t-0.01,0],[t,1],[t+d,1],[t+d+0.01,0]); });
   tw('#sweep','transform',k); tw('#sweep','opacity',o); })();
 tw('#stkTop','opacity',[[5.75,1,'io'],[6.25,0.12],[23.75,0.12,'io'],[24.25,1]]);
 /* after the two whip counter-moves the mid layer sits (-240,-230) px off; re-seat the top streaks (while dimmed) so on the
