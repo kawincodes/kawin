@@ -24,9 +24,16 @@ Production decisions
   * Fonts       - Inter 400 / 500 / 600 and JetBrains Mono 400, subset to the characters the
                   document uses. Inter ships as CFF (.otf), which Chromium's PDF writer embeds as
                   Type 3; the subsets are converted to TrueType outlines (fontTools cu2qu) so the
-                  PDF embeds real TrueType (CID) fonts. Labels in drawings clear the guides behind
-                  them with measured backing rects, not stroked halos: Chromium embeds stroked
-                  text as Type 3 too.
+                  PDF embeds real TrueType (CID) fonts. Labels sit on measured backing rects, not
+                  stroked halos: Chromium embeds stroked text as Type 3 too.
+  * Labels      - no guide line, dimension, arc, circle or dot of a drawing may run through or
+                  touch a label (3 px clear), and no two labels may touch: Draw measures every
+                  label box from the font's advance widths and verify() fails on any collision.
+                  A line hidden behind a backing rect still reads as a strike-through.
+  * Facts       - minimum sizes (MIN_PX ... GAPPED_MIN_MM), the palette sentence (PALETTE_CLAIM)
+                  and the file guide (files_rows) are single definitions; verify() measures the
+                  gapped mark's gap, checks that every file the guide names exists, and finds the
+                  wording on its page.
   * Colour      - CMYK via vector_export.srgb_to_cmyk (an ICC transform, LittleCMS sRGB ->
                   Ghostscript's default_cmyk.icc, relative colorimetric + black-point
                   compensation); if that module cannot be imported the same transform is built
@@ -53,7 +60,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 
-from shapely.geometry import Polygon  # noqa: E402
+from shapely.affinity import rotate as rotate_geom  # noqa: E402
+from shapely.geometry import LineString, Point, Polygon  # noqa: E402
+from shapely.geometry import box as shapely_box  # noqa: E402
 from shapely.ops import unary_union  # noqa: E402
 
 import brand  # noqa: E402
@@ -67,7 +76,8 @@ BASENAME = "K-Logo_Brand_Guidelines"
 TITLE = "K — Brand Mark Guidelines"
 VERSION = "1.0"
 DATE = "2026-10-25"
-TRACE_SVG = os.path.join(ROOT, "source", "K-Logo_trace.svg")
+TRACE_SVG = next((p for p in (os.path.join(ROOT, "source", n) for n in ("K-Logo_Trace.svg", "K-Logo_trace.svg"))
+                  if os.path.exists(p)), os.path.join(ROOT, "source", "K-Logo_trace.svg"))
 TRACE_PARAMS = os.path.join(HERE, "trace_params.json")
 
 W, H = 1920, 1080               # slide in CSS px; 1440 x 810 pt in the PDF (Chromium rounds page
@@ -76,6 +86,16 @@ PAGES = 11
 
 # Google's brand palette: only for the misuse page and the "distance from Google" numbers
 GOOGLE = {"red": "#EA4335", "yellow": "#FBBC05", "green": "#34A853", "blue": "#4285F4"}
+# Minimum sizes (lead decision). The gapped one-colour mark's gap is GAP_PCT of the mark height, so
+# it needs GAPPED_MIN_PX to be one whole pixel wide; verify() measures the gap on brand.gapped().
+MIN_PX, MIN_MM = 16, 8              # colour mark, badge, solid one-colour mark (hinted favicons)
+GAPPED_MIN_PX, GAPPED_MIN_MM = 128, 20
+GAP_PCT = 0.8
+TECH_SMALL_MAX = 64                 # tech icon: full detail above, the small version at and below
+# How the palette is described (lead decision, the same words in every document of the kit). The
+# hues stay within a few degrees of Google's (page 4 prints the numbers): never claim more.
+PALETTE_CLAIM = ("your own four colours, refined — deeper and cleaner, with the blue and green nudged off "
+                 "Google’s hues; still the same four-colour family")
 
 # ------------------------------------------------------------------ document colours
 # Everything but the brand colours is a tone of ink, moved in OKLCH so it keeps ink's cool hue.
@@ -197,12 +217,23 @@ def verdict(ok: bool, size: int = 30) -> str:
 
 class Draw:
     """An annotated drawing in design units shown at a known screen scale: px(n) converts screen
-    px to units, so hairlines and labels keep their screen size whatever the drawing's scale."""
+    px to units, so hairlines and labels keep their screen size whatever the drawing's scale.
 
-    def __init__(self, vb, width: float = None, height: float = None):
+    Every label's box and every guide (line, dimension, arc, arrow, dot, registered circle or
+    outline) is recorded as geometry; collisions() lists each guide that comes within CLEAR px of
+    a label it does not belong to. The build fails on any (verify() reports them per page): a
+    guide must never run through, or touch, a label - not even behind a backing rect, which
+    still reads as a strike-through."""
+
+    CLEAR = 3.0                                              # px of white kept around every label
+
+    def __init__(self, vb, width: float = None, height: float = None, name: str = ""):
         self.vb = vb
         self.s = width / vb[2] if width else height / vb[3]
         self.items, self.defs = [], []
+        self.name = name
+        self.labels = []                                     # [(text, polygon)]
+        self.guides = []                                     # [(geometry, what, label it may touch)]
 
     def px(self, n: float) -> float:
         return n / self.s
@@ -211,17 +242,35 @@ class Draw:
         self.items.extend(items)
         return self
 
-    def line(self, a, b, col=INK, w=1.0, dash=None, op=None):
+    def guide(self, geom, what: str, owner: str = None):
+        """Register drawn guide geometry (in units) for the collision check."""
+        self.guides.append((geom, what, owner))
+        return self
+
+    def line(self, a, b, col=INK, w=1.0, dash=None, op=None, what="line", owner=None):
+        """owner: the label this line leads to (a leader may touch its own label)."""
         extra = f' stroke-dasharray="{fmt(self.px(dash[0]))} {fmt(self.px(dash[1]))}"' if dash else ""
         extra += f' stroke-opacity="{fmt(op)}"' if op is not None else ""
+        self.guide(LineString([a, b]).buffer(self.px(w) / 2, cap_style=2), what, owner)
         return self.add(f'<path d="M{fmt(a[0])} {fmt(a[1])} L{fmt(b[0])} {fmt(b[1])}" fill="none" stroke="{col}" '
                         f'stroke-width="{fmt(self.px(w))}"{extra}/>')
 
+    def label_box(self, p, s, size, weight, anchor="start", rotate=None, pad=0.0):
+        """The label's box in units: advance width x (ascender .76 + descender .22) em, plus pad px."""
+        fs = self.px(size)
+        w = self.px(text_width(s, size, weight))
+        x = p[0] - {"start": 0, "middle": w / 2, "end": w}[anchor]
+        pd = self.px(pad)
+        box = shapely_box(x - pd, p[1] - 0.76 * fs - pd, x + w + pd, p[1] + 0.22 * fs + pd)
+        return rotate_geom(box, rotate, origin=p) if rotate else box
+
     def text(self, p, s, size=15, weight=500, col=INK, anchor="start", rotate=None, halo="#FFFFFF"):
         """Label at baseline point p. halo: a backing rect (measured from the font's advance
-        widths) that clears guides behind the label - a stroked 'paint-order' halo would make
-        Chromium embed the font as Type 3."""
+        widths) that also clears the mark or a tint behind the label - a stroked 'paint-order'
+        halo would make Chromium embed the font as Type 3. Guides never rely on it: they are
+        routed clear of every label (see collisions())."""
         fs = self.px(size)
+        self.labels.append((s, self.label_box(p, s, size, weight, anchor, rotate)))
         back = ""
         if halo:
             w = self.px(text_width(s, size, weight))
@@ -243,30 +292,58 @@ class Draw:
         s, r = self.px(size), self.px(run)
         for tip, sgn_ in ((a, -1), (b, 1)):
             ox, oy = ux * sgn_, uy * sgn_                       # pointing away from the gap
-            self.line(tip, (tip[0] + ox * r, tip[1] + oy * r), col, w)
+            self.line(tip, (tip[0] + ox * r, tip[1] + oy * r), col, w, what="arrow")
             base = (tip[0] + ox * s, tip[1] + oy * s)
-            self.add(f'<path d="M{fmt(tip[0])} {fmt(tip[1])} L{fmt(base[0] - oy * s * .45)} {fmt(base[1] + ox * s * .45)} '
-                     f'L{fmt(base[0] + oy * s * .45)} {fmt(base[1] - ox * s * .45)} Z" fill="{col}"/>')
+            head = [tip, (base[0] - oy * s * .45, base[1] + ox * s * .45), (base[0] + oy * s * .45, base[1] - ox * s * .45)]
+            self.guide(Polygon(head), "arrowhead")
+            self.add(f'<path d="M{fmt(head[0][0])} {fmt(head[0][1])} L{fmt(head[1][0])} {fmt(head[1][1])} '
+                     f'L{fmt(head[2][0])} {fmt(head[2][1])} Z" fill="{col}"/>')
         return self
 
     def dot(self, p, r=4.5, fill="#FFFFFF", col=INK, w=1.6):
+        self.guide(Point(p).buffer(self.px(r + w / 2)), "dot")
         return self.add(f'<circle cx="{fmt(p[0])}" cy="{fmt(p[1])}" r="{fmt(self.px(r))}" fill="{fill}" '
                         f'stroke="{col}" stroke-width="{fmt(self.px(w))}"/>')
+
+    def circle(self, c, r, col=INK, w=1.0, dash=None, what="circle"):
+        """An unfilled (guide) circle."""
+        extra = f' stroke-dasharray="{fmt(self.px(dash[0]))} {fmt(self.px(dash[1]))}"' if dash else ""
+        self.guide(Point(c).buffer(r + self.px(w) / 2, resolution=256).difference(Point(c).buffer(r - self.px(w) / 2, resolution=256)), what)
+        return self.add(f'<circle cx="{fmt(c[0])}" cy="{fmt(c[1])}" r="{fmt(r)}" fill="none" stroke="{col}" '
+                        f'stroke-width="{fmt(self.px(w))}"{extra}/>')
+
+    def collisions(self) -> list:
+        """[message] for every label that a guide (other than its own leader) comes within CLEAR px
+        of, and every pair of labels closer than that."""
+        out = []
+        for s, box in self.labels:
+            zone = box.buffer(self.px(self.CLEAR), join_style=2)
+            for g, what, owner in self.guides:
+                if owner != s and zone.intersects(g):
+                    depth = zone.intersection(g).area / max(zone.area, 1e-9)
+                    out.append(f"{self.name}: {what} within {self.CLEAR:g} px of label {s!r} ({100 * depth:.1f}% of its zone)")
+        for (s1, b1), (s2, b2) in itertools.combinations(self.labels, 2):
+            if b1.buffer(self.px(self.CLEAR) / 2).intersects(b2.buffer(self.px(self.CLEAR) / 2)):
+                out.append(f"{self.name}: labels {s1!r} and {s2!r} closer than {self.CLEAR:g} px")
+        return out
 
     def dim(self, a, b, col=INK, w=1.1, tick=7):
         """Dimension line a-b with short perpendicular end ticks."""
         dx, dy = b[0] - a[0], b[1] - a[1]
         n = math.hypot(dx, dy)
         nx, ny = -dy / n * self.px(tick), dx / n * self.px(tick)
-        self.line(a, b, col, w)
+        self.line(a, b, col, w, what="dimension line")
         for p in (a, b):
-            self.line((p[0] - nx, p[1] - ny), (p[0] + nx, p[1] + ny), col, w)
+            self.line((p[0] - nx, p[1] - ny), (p[0] + nx, p[1] + ny), col, w, what="dimension tick")
         return self
 
     def arc(self, c, r, a0, a1, col=INK, w=1.1):
         """Arc around c from angle a0 to a1 (degrees, SVG orientation: y down, clockwise +)."""
         p0 = (c[0] + r * math.cos(math.radians(a0)), c[1] + r * math.sin(math.radians(a0)))
         p1 = (c[0] + r * math.cos(math.radians(a1)), c[1] + r * math.sin(math.radians(a1)))
+        pts = [(c[0] + r * math.cos(math.radians(a0 + (a1 - a0) * i / 48)),
+                c[1] + r * math.sin(math.radians(a0 + (a1 - a0) * i / 48))) for i in range(49)]
+        self.guide(LineString(pts).buffer(self.px(w) / 2, cap_style=2), "angle arc")
         return self.add(f'<path d="M{fmt(p0[0])} {fmt(p0[1])} A{fmt(r)} {fmt(r)} 0 0 {1 if a1 > a0 else 0} '
                         f'{fmt(p1[0])} {fmt(p1[1])}" fill="none" stroke="{col}" stroke-width="{fmt(self.px(w))}"/>')
 
@@ -274,7 +351,14 @@ class Draw:
         return doc("".join(self.items), self.vb, "".join(self.defs))
 
     def html(self, cls=None) -> str:
+        """Inline SVG; records this drawing's label / guide collisions in COLLISIONS."""
+        COLLISIONS.extend(self.collisions())
+        LABELS_CHECKED[0] += len(self.labels)
         return inline(self.svg(), self.vb[2] * self.s, self.vb[3] * self.s, cls=cls)
+
+
+COLLISIONS = []                  # filled by Draw.html() during build_html(); checked by verify()
+LABELS_CHECKED = [0]
 
 
 # ------------------------------------------------------------------ measurements
@@ -472,10 +556,10 @@ def page_idea(M) -> str:
     edge = ext(J, p["armTL"], -0.72, 1.32)            # the arm's inner edge, both ways
     panels = []
     # 1 - the letter
-    d1 = Draw(vb, width=440)
+    d1 = Draw(vb, width=440, name="p2 letter")
     d1.add(f'<path d="{sil}" fill="{INK}"/>')
     # 2 - two lines through J
-    d2 = Draw(vb, width=440)
+    d2 = Draw(vb, width=440, name="p2 two lines")
     d2.add(f'<path d="{sil}" fill="{SURFACE2}"/>')
     d2.line(*fold, INK, 2.0).line(*edge, INK, 2.0)
     d2.dot(J, 6, fill=INK, col=INK).dot(P, 4.5)
@@ -484,11 +568,11 @@ def page_idea(M) -> str:
     d2.text((fold[0][0] - d2.px(8), fold[0][1] - d2.px(12)), "fold line", 15, 500, TEXT2, halo=None)
     d2.text((edge[1][0] + d2.px(10), edge[1][1] + d2.px(5)), "arm edge", 15, 500, TEXT2, halo=None)
     # 3 - four colours meet at J; the label sits in the notch above J (between stem and arm)
-    d3 = Draw(vb, width=440)
+    d3 = Draw(vb, width=440, name="p2 four colours")
     d3.add(mark(k))
     lead_dir = (math.cos(math.radians(74)), -math.sin(math.radians(74)))
     tip = (J[0] + lead_dir[0] * d3.px(44), J[1] + lead_dir[1] * d3.px(44))
-    d3.line((J[0] + lead_dir[0] * d3.px(7), J[1] + lead_dir[1] * d3.px(7)), tip, INK, 1.2)
+    d3.line((J[0] + lead_dir[0] * d3.px(7), J[1] + lead_dir[1] * d3.px(7)), tip, INK, 1.2, what="leader", owner="J")
     d3.dot(J, 6, fill="#FFFFFF", col=INK, w=2)
     d3.text((tip[0] - d3.px(4), tip[1] - d3.px(7)), "J", 17, 600, halo=None)
     caps = [("1", "The letter", "A stem, an arm and a leg. Straight edges, sharp corners."),
@@ -519,12 +603,12 @@ def page_construction(M) -> str:
     a = math.radians(k.arm_angle)
     da, na = (math.cos(a), -math.sin(a)), (math.sin(a), math.cos(a))       # arm direction / normal
     dl, nl = (math.cos(a), math.sin(a)), (math.sin(a), -math.cos(a))        # leg direction / normal
-    d = Draw((-150, -36, 1300, 1092), height=900)
+    d = Draw((-150, -36, 1300, 1092), height=900, name="p3 construction")
     G = RULE2
     # badge disc and canvas centre
-    d.add(f'<circle cx="512" cy="512" r="512" fill="none" stroke="{G}" stroke-width="{fmt(d.px(1.1))}" '
-          f'stroke-dasharray="{fmt(d.px(5))} {fmt(d.px(5))}"/>')
-    d.line((512, 4), (512, 1020), G, 1, dash=(5, 5)).line((4, 512), (1020, 512), G, 1, dash=(5, 5))
+    d.circle((512, 512), 512, G, 1.1, dash=(5, 5), what="badge circle")
+    d.line((512, 4), (512, 1020), G, 1, dash=(5, 5), what="canvas centre (vertical)")
+    d.line((4, 512), (1020, 512), G, 1, dash=(5, 5), what="canvas centre (horizontal)")
     # the mark
     d.add(mark(k))
     # the two cutting lines, continued past the letter
@@ -548,22 +632,38 @@ def page_construction(M) -> str:
     tb = (B[0] - p["armTR"][0]) / da[0]
     d.line(p["armTR"], (p["armTR"][0] + da[0] * (tb + 20), p["armTR"][1] + da[1] * (tb + 20)), INK, 0.8, dash=(4, 3))
     d.dim(A, B)
-    d.text((B[0] + d.px(24), B[1] - d.px(4)), f"d = {f2(m['arm_w'])}", 15, 600)
-    d.text((B[0] + d.px(24), B[1] + d.px(15)), f"{f2(m['arm_pct'], 1)}% of w", 13, 500, TEXT2)
+    # labels at the dimension's inner end, left of the slanted extension line through A and inside
+    # the badge circle: beyond B they would cross the circle and sit on the cap line's extension.
+    # Right-aligned 10 px clear of that line where it comes closest (at the block's lowest point).
+    def ext_x(q, u, y):
+        """x of the line through q with direction u at height y."""
+        return q[0] + (y - q[1]) * u[0] / u[1]
+
+    y_low = A[1] + d.px(21) + d.px(0.22 * 13)
+    xa = ext_x(p["armTL"], da, y_low) - d.px(10)
+    d.text((xa, A[1] + d.px(2)), f"d = {f2(m['arm_w'])}", 15, 600, anchor="end")
+    d.text((xa, A[1] + d.px(21)), f"{f2(m['arm_pct'], 1)}% of w", 13, 500, TEXT2, anchor="end")
     A2 = (p["legBL"][0] + dl[0] * t, p["legBL"][1] + dl[1] * t)
     B2 = (A2[0] + nl[0] * k.leg_w, A2[1] + nl[1] * k.leg_w)
     d.line(p["legBL"], (A2[0] + dl[0] * 14, A2[1] + dl[1] * 14), INK, 0.8, dash=(4, 3))
     tb = (B2[0] - p["legBR"][0]) / dl[0]
     d.line(p["legBR"], (p["legBR"][0] + dl[0] * (tb + 14), p["legBR"][1] + dl[1] * (tb + 14)), INK, 0.8, dash=(4, 3))
     d.dim(A2, B2)
-    d.text((B2[0] + d.px(14), B2[1] + d.px(6)), f"d = {f2(m['leg_w'])}", 15, 600)
-    d.text((B2[0] + d.px(14), B2[1] + d.px(25)), f"{f2(m['leg_pct'], 1)}% of w", 13, 500, TEXT2)
+    y_high = A2[1] + d.px(6) - d.px(0.76 * 15)               # the leg's extension leans the other way
+    xa2 = ext_x(p["legBL"], dl, y_high) - d.px(10)
+    d.text((xa2, A2[1] + d.px(6)), f"d = {f2(m['leg_w'])}", 15, 600, anchor="end")
+    d.text((xa2, A2[1] + d.px(25)), f"{f2(m['leg_pct'], 1)}% of w", 13, 500, TEXT2, anchor="end")
     # the shared slope: arcs in the notch (arm) and the counter (leg)
-    ang = k.arm_angle
-    d.arc(p["armTL"], 64, 180 - ang, 180)
-    d.text((p["armTL"][0] - 64 - d.px(8), p["armTL"][1] + d.px(36)), f"{f2(ang)}°", 14, 600, anchor="end")
-    d.arc(p["legBL"], 64, 180, 180 + ang)
-    d.text((p["legBL"][0] - 64 - d.px(8), p["legBL"][1] - d.px(24)), f"{f2(k.leg_angle)}°", 14, 600, anchor="end")
+    # labels end left of the canvas centre line (x 512), which runs through the notch and the
+    # counter; the arcs reach out toward them, level with each arc's middle
+    ang, ra = k.arm_angle, 80
+    xl = 512 - d.px(7)
+    d.arc(p["armTL"], ra, 180 - ang, 180)
+    ya = p["armTL"][1] + ra * math.sin(math.radians(ang / 2))
+    d.text((xl, ya + d.px(5)), f"{f2(ang)}°", 14, 600, anchor="end")
+    d.arc(p["legBL"], ra, 180, 180 + k.leg_angle)
+    yl = p["legBL"][1] - ra * math.sin(math.radians(k.leg_angle / 2))
+    d.text((xl, yl + d.px(5)), f"{f2(k.leg_angle)}°", 14, 600, anchor="end")
     # right extremes aligned
     xr = p["armTR"][0]
     d.line((xr, y0 - 2), (xr, y1 + 2), INK, 1.0, dash=(6, 4))
@@ -582,30 +682,35 @@ def page_construction(M) -> str:
         lp = (q[0] + d.px(off[0]), q[1] + d.px(off[1]))
         if lab != "P":
             d.line((q[0] + d.px(4), q[1] + (d.px(-4) if lab == "J" else d.px(4))),
-                   (lp[0] - d.px(2), lp[1] + (d.px(4) if lab == "J" else d.px(-14))), INK, 0.9)
+                   (lp[0] - d.px(2), lp[1] + (d.px(4) if lab == "J" else d.px(-14))), INK, 0.9, what="leader", owner=lab)
         d.text(lp, lab, 16, 600, halo=None)
-    # cap height and badge diameter. The mark's horizontal centre line (optical centring, below)
-    # crosses the cap-height label, so it is drawn first and the label's backing rect clears it.
+    # cap height and badge diameter. The canvas centre line (y 512) and the mark's centre line
+    # (y cy) cross the cap-height dimension near its middle, so its label is set in two lines in
+    # the upper half of the dimension, clear of both: a label centred on the dimension would be
+    # struck through by them.
     xc = xr + 96
-    xb = xc + 60                                             # x of the vertical centring arrows
     cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-    d.line((x1 + 8, cy), (xb + 12, cy), INK, 0.8, dash=(3, 3), op=0.75)
     d.dim((xc, y0), (xc, y1))
-    d.text((xc + d.px(20), (y0 + y1) / 2), f"cap height {f2(m['cap'])} = {f2(m['cap_pct'], 1)}% of 1024", 15, 600,
-           anchor="middle", rotate=90)
+    ym = (y0 + min(cy, 512) - d.px(12)) / 2                  # middle of the free upper part
+    d.text((xc + d.px(37), ym), f"cap height {f2(m['cap'])}", 15, 600, anchor="middle", rotate=90)
+    d.text((xc + d.px(18), ym), f"{f2(m['cap_pct'], 1)}% of 1024", 13, 500, TEXT2, anchor="middle", rotate=90)
     xD = 1084
-    d.line((512, 0), (xD + 14, 0), G, 1).line((512, 1024), (xD + 14, 1024), G, 1)
+    d.line((512, 0), (xD + 14, 0), G, 1, what="badge top").line((512, 1024), (xD + 14, 1024), G, 1, what="badge bottom")
     d.dim((xD, 0), (xD, 1024))
     d.text((xD + d.px(20), 512), "badge diameter 1024", 15, 600, anchor="middle", rotate=90)
     # optical centring: the mark's centre against the canvas centre. The x label sits left of the
     # arrows, under the stem: on the right it would land on the leg's dashed width extension.
     yb = y1 + 62
-    d.line((cx, y1 + 8), (cx, yb + 12), INK, 0.8)
+    d.line((cx, y1 + 8), (cx, yb + 12), INK, 0.8, what="mark centre (vertical)")
     d.arrows((512, yb), (cx, yb))
     d.text((512 - d.px(26), yb + d.px(5)), f"mark centre {sg(m['dx'])} x", 14, 600, anchor="end")
     d.text((512 + d.px(8), 992), "canvas centre", 13, 500, TEXT3)
+    # y: left of the stem, where no label or dimension sits between the fold-line and arm-edge
+    # labels; the mark's centre line runs out from the stem to the arrows
+    xb = x0 - 100
+    d.line((x0 - 8, cy), (xb - d.px(10), cy), INK, 0.8, dash=(3, 3), op=0.75, what="mark centre (horizontal)")
     d.arrows((xb, 512), (xb, cy))
-    d.text((xb + d.px(12), cy - d.px(18)), f"{sg(m['dy'])} y", 14, 600)
+    d.text((xb - d.px(12), cy - d.px(18)), f"{sg(m['dy'])} y", 14, 600, anchor="end")
     drawing = d.html()
 
     rows = [
@@ -655,7 +760,7 @@ def page_refinement(M) -> str:
     after = inline(brand.doc_badge(k, raster=True), 226, 226)
     # overlay: master silhouette, trace outline on top
     ts = unary_union(list(pieces.values()))
-    ov = Draw((0, 0, 1024, 1024), width=226)
+    ov = Draw((0, 0, 1024, 1024), width=226, name="p4 overlay")
     ov.add('<circle cx="512" cy="512" r="512" fill="#FFFFFF"/>')
     ov.add(f'<path d="{poly_d(silhouette(k))}" fill="{_grey(0.86)}"/>')
     ov.add(f'<path d="{brand.shape_d(ts)}" fill="none" stroke="{PALETTE["red"]}" stroke-width="{fmt(ov.px(1.4))}" '
@@ -700,7 +805,7 @@ def page_refinement(M) -> str:
             f'<div class="ref-right">{table}</div>')
     return slide(4, "Refinement", "From the original to the master",
                  "The same letter and the same footprint, made exact: one slope, one diagonal weight, aligned extremes, "
-                 "a centred fold and colours of its own. Numbers in units of the 1024 grid.", body, top=318)
+                 "a centred fold — and your own four colours, refined. Numbers in units of the 1024 grid.", body, top=318)
 
 
 # ------------------------------------------------------------------ 5 clear space and minimum size
@@ -709,7 +814,7 @@ def page_clearspace(M) -> str:
     x0, y0, x1, y1 = kmark.bbox(k)
     w = k.w
     vb = (x0 - w - 40, y0 - w - 40, x1 - x0 + 2 * w + 80, y1 - y0 + 2 * w + 80)
-    d = Draw(vb, height=600)
+    d = Draw(vb, height=600, name="p5 clear space")
     tint = _grey(0.955, 0.012)
     outer = (x0 - w, y0 - w, x1 - x0 + 2 * w, y1 - y0 + 2 * w)
     d.add(f'<path fill-rule="evenodd" fill="{tint}" d="M{fmt(outer[0])} {fmt(outer[1])}h{fmt(outer[2])}v{fmt(outer[3])}'
@@ -728,11 +833,11 @@ def page_clearspace(M) -> str:
     d.text((x0 + w + d.px(14), y0 - w / 2 + d.px(6)), f"w = stem width = {f2(w)}", 14, 500, TEXT2, halo=None)
     drawing = d.html()
 
-    fav16 = favicon_pixels(16)
+    fav16 = favicon_pixels(MIN_PX)
     fav_1x = pixel_art(fav16, 1)
     fav_4x = pixel_art(fav16, 4)
-    badge24 = inline(brand.doc_badge(k, raster=True), 24, 24)
-    mm_h = 8 / 25.4 * 96                                    # 8 mm in CSS px (96 px per inch)
+    badge_min = inline(brand.doc_badge(k, raster=True), MIN_PX, MIN_PX)
+    mm_h = MIN_MM / 25.4 * 96                               # 8 mm in CSS px (96 px per inch)
     print_mark = inline(doc(mark(k), tight_vb(k)), h=mm_h)
     ink_g = {n: INK for n in FACETS}
 
@@ -740,18 +845,21 @@ def page_clearspace(M) -> str:
         """One-colour ink mark, px_ = mark height in CSS px."""
         return inline(doc(mark(k, ink_g, gaps=gaps), tight_vb(k)), h=px_)
 
-    def samples(items):
-        return "".join(f'<figure class="ms"><div class="ms-art">{a}</div><figcaption>{c}</figcaption></figure>'
+    def samples(items, art_h=72):
+        return "".join(f'<figure class="ms"><div class="ms-art" style="height:{art_h}px">{a}</div><figcaption>{c}</figcaption></figure>'
                        for a, c in items)
 
     rows = [
-        ("Screen", "Smallest digital use: the grid-fitted favicon at 16 px; the badge at 24 px.",
-         samples([(fav_1x, "16 px favicon"), (fav_4x, "16 px, shown 4×"), (badge24, "24 px badge")])),
-        ("Print", "Mark height at least 8 mm. Shown here at 8 mm for a print at 100%.",
-         samples([(print_mark, "8 mm mark height")])),
-        ("One colour", "Construction gaps from 32 px up. Below 32 px use the solid one-colour mark: the gaps would close.",
-         samples([(one(True, 48), "48 px gapped"), (one(True, 32), "32 px gapped"),
-                  (one(False, 24), "24 px solid"), (one(False, 16), "16 px solid")])),
+        ("Screen", f"{MIN_PX} px high: the colour mark, the badge and the solid one-colour mark. "
+                   "The favicons are grid-fitted to hold it.",
+         samples([(fav_1x, f"{MIN_PX} px favicon"), (fav_4x, f"{MIN_PX} px, shown 4×"), (badge_min, f"{MIN_PX} px badge")])),
+        ("Print", f"Mark height at least {MIN_MM} mm; {GAPPED_MIN_MM} mm for the gapped one-colour mark. "
+                  f"Shown here at {MIN_MM} mm for a print at 100%.",
+         samples([(print_mark, f"{MIN_MM} mm mark height")])),
+        ("One colour", f"The gap is {GAP_PCT:g}% of the mark height: gapped from {GAPPED_MIN_PX} px "
+                       f"(a 1 px gap) and {GAPPED_MIN_MM} mm. Smaller, use the solid one-colour mark.",
+         samples([(one(True, GAPPED_MIN_PX), f"{GAPPED_MIN_PX} px gapped"), (one(False, 64), "64 px solid"),
+                  (one(False, 32), "32 px solid"), (one(False, MIN_PX), f"{MIN_PX} px solid")], GAPPED_MIN_PX)),
     ]
     mins = "".join(f'<div class="minrow"><div class="mintext"><h3>{t}</h3><p>{s}</p></div>'
                    f'<div class="minsamples">{x}</div></div>' for t, s, x in rows)
@@ -761,7 +869,7 @@ def page_clearspace(M) -> str:
             f'side of the mark’s bounds: no text, edges, images or other marks inside the tinted zone. On the badge, '
             f'the disc is the clear space.</p><h3 class="sub" style="margin-top:34px">Minimum sizes</h3>{mins}</div>')
     return slide(5, "Clear space and minimum size", "Room to breathe, sizes that hold",
-                 "Clear space keeps the mark legible; minimum sizes keep its construction visible.", body, top=286)
+                 "Clear space keeps the mark legible; minimum sizes keep its construction visible.", body, top=270)
 
 
 # ------------------------------------------------------------------ 6 variants
@@ -782,13 +890,16 @@ def page_variants() -> str:
          tile(inline(brand.doc_badge(k, raster=True), 200, 200), NIGHT)),
         ("Premium shaded", "Hero use on light backgrounds: covers, packaging, signage.",
          tile(inline(brand.doc_mark(k, style="dimensional", artboard="tight"), h=hm), "#FFFFFF", border=True)),
-        ("Tech icon", "App and product icon. At 64 px and below use its small version.",
+        ("Tech icon", f"App and product icon. At {TECH_SMALL_MAX} px and below use its small version.",
          tile(inline(brand.doc_tech(k), 200, 200), SURFACE)),
-        ("One colour, black", "Single-ink print, engraving, forms. The gaps keep the construction.",
+        ("One colour, black", f"Single-ink print, engraving, forms. The gaps keep the construction: "
+                              f"from {GAPPED_MIN_PX} px or {GAPPED_MIN_MM} mm high.",
          tile(m_({n: NEUTRAL["black"] for n in FACETS}, gaps=True), "#FFFFFF", border=True)),
-        ("One colour, white", "Reversed out of dark colour where full colour cannot print.",
+        ("One colour, white", f"Reversed out of dark colour where full colour cannot print. Gapped, so "
+                              f"from {GAPPED_MIN_PX} px or {GAPPED_MIN_MM} mm high.",
          tile(m_({n: WHITE for n in FACETS}, gaps=True), NIGHT)),
-        ("One colour, solid", "Stamps, embroidery, die-cuts, and any one-colour use below 32 px.",
+        ("One colour, solid", f"Stamps, embroidery, die-cuts, and any one-colour mark under "
+                              f"{GAPPED_MIN_PX} px or {GAPPED_MIN_MM} mm.",
          tile(split, "#FFFFFF", border=True, style="padding:0;overflow:hidden")),
         ("Greyscale", "Black-only print that can hold tints, e.g. newsprint.",
          tile(m_(brand.grey_colours()), "#FFFFFF", border=True)),
@@ -841,8 +952,8 @@ def page_colour(CS) -> str:
     body = (f'<div class="grid4 colours">{"".join(cards)}</div>'
             f'<div class="neutrals">{"".join(neut)}{note}</div>')
     return slide(7, "Colour", "Four colours, three neutrals",
-                 "The client’s own colours, deepened and moved away from Google’s hues. Defined in OKLCH.",
-                 body, top=286)
+                 f"{PALETTE_CLAIM[0].upper()}{PALETTE_CLAIM[1:]}. Defined in OKLCH.",
+                 body, top=286, cls="wide-lead")
 
 
 # ------------------------------------------------------------------ 8 backgrounds
@@ -880,7 +991,8 @@ def page_backgrounds() -> str:
     k = brand.master()
     vb = tight_vb(k)
 
-    def mk(colours=None, gaps=False, h=120):
+    def mk(colours=None, gaps=False, h=GAPPED_MIN_PX):
+        """Every mark on this page at the gapped mark's minimum height, so the white gapped one obeys it."""
         return inline(doc(mark(k, colours, gaps), vb), h=h)
 
     TH = 250                                               # tile height
@@ -972,22 +1084,25 @@ def page_icons() -> str:
     tech_sq = inline(brand.doc_tech(k, shape="square"), 200, 200)
     small = "".join(f'<figure class="sz"><div class="sz-art" style="height:64px">{inline(brand.doc_tech(k, detail="small"), n, n)}</div>'
                     f'<figcaption>{n}</figcaption></figure>' for n in (64, 48, 32, 24))
-    # Android adaptive: 108 dp canvas, 72 dp visible, 66 dp safe circle
+    # Android adaptive: 108 dp canvas, 72 dp visible, 66 dp safe circle. The layers are brand.py's
+    # own documents: the background (plate, grid, ambient light) under the foreground (traces, lit
+    # K, node), both the tech icon at brand.ANDROID_SCALE = 72 / 108.
     u = 1024 / 108
-    bg = brand.doc_android_background(k)
-    fg = brand.doc_android_foreground(k)
-    inner = lambda s: re.sub(r"^<svg\b[^>]*>|</svg>$", "", re.sub(r"<title>.*?</title>", "", s))
-    layers = inner(bg) + inner(fg)
-    ad = Draw((-8, -8, 1040, 1040), width=236)
+    layers = merged_layers(brand.doc_android_background(k), brand.doc_android_foreground(k))
+    ad = Draw((-8, -8, 1040, 1040), width=236, name="p10 adaptive")
     ad.add(layers)
     ad.add(f'<rect x="{fmt(18 * u)}" y="{fmt(18 * u)}" width="{fmt(72 * u)}" height="{fmt(72 * u)}" fill="none" stroke="#FFFFFF" '
            f'stroke-opacity="0.75" stroke-width="{fmt(ad.px(1.2))}" stroke-dasharray="{fmt(ad.px(5))} {fmt(ad.px(4))}"/>')
-    ad.add(f'<circle cx="512" cy="512" r="{fmt(33 * u)}" fill="none" stroke="#FFFFFF" stroke-width="{fmt(ad.px(1.4))}"/>')
+    ad.guide(shapely_box(18 * u, 18 * u, 90 * u, 90 * u).exterior.buffer(ad.px(0.6)), "72 dp frame")
+    ad.circle((512, 512), 33 * u, "#FFFFFF", 1.4, what="66 dp circle")
     ad.add(f'<rect x="0" y="0" width="1024" height="1024" fill="none" stroke="{RULE2}" stroke-width="{fmt(ad.px(1))}"/>')
+    ad.guide(shapely_box(0, 0, 1024, 1024).exterior.buffer(ad.px(0.5)), "108 dp frame")
     lab = _grey(0.86)
     ad.text((ad.px(9), ad.px(17)), "108 dp", 11, 500, lab, halo=None)
-    ad.text((18 * u + ad.px(6), 18 * u + ad.px(15)), "72 dp", 11, 500, lab, halo=None)
-    ad.text((512, 512 + 33 * u - ad.px(7)), "66 dp", 11, 500, lab, anchor="middle", halo=None)
+    # the 72 dp label in the band between the two frames, the 66 dp one inside the circle above its
+    # bottom: neither touches a frame, the circle or the K
+    ad.text((18 * u + ad.px(2), 18 * u - ad.px(7)), "72 dp", 11, 500, lab, halo=None)
+    ad.text((512, 512 + 33 * u - ad.px(12)), "66 dp", 11, 500, lab, anchor="middle", halo=None)
     masks = []
     c, r = 512, 36 * u
     sq = 2 * r
@@ -1003,6 +1118,11 @@ def page_icons() -> str:
         dd = f'<clipPath id="m">{shp}</clipPath>'
         art = inline(doc(f'<g clip-path="url(#m)">{layers}</g>', (c - r, c - r, sq, sq), dd), 96, 96)
         masks.append(f'<figure class="sz"><div class="sz-art" style="height:96px">{art}</div><figcaption>{name}</figcaption></figure>')
+    # Android 13+ themed icon: the launcher tints the monochrome layer, the solid one-colour K at
+    # the same scale, on a tonal disc (neutral tones here: the colours are the launcher's)
+    mono = brand.mark_group(brand.scaled_about_centre(k, brand.ANDROID_SCALE), colours=brand.mono_colours(INK), gid="mono")
+    art = inline(doc(f'<circle cx="512" cy="512" r="{fmt(r)}" fill="{_grey(0.87, 0.02)}"/>{mono}', (c - r, c - r, sq, sq)), 96, 96)
+    masks.append(f'<figure class="sz"><div class="sz-art" style="height:96px">{art}</div><figcaption>Themed</figcaption></figure>')
     fav16, fav32 = favicon_pixels(16), favicon_pixels(32)
     fav = (f'<div class="favs"><div class="fav1x">'
            f'<div class="chip" style="background:#FFFFFF;border:1px solid {RULE}">{pixel_art(fav16, 1)}{pixel_art(fav32, 1)}</div>'
@@ -1018,18 +1138,19 @@ def page_icons() -> str:
         cc = f' class="{cap_cls}"' if cap_cls else ""
         return "".join(f'<figure class="sz"><div class="sz-art" style="height:96px">{inline(badge, n, n)}</div>'
                        f'<figcaption{cc}>{n}</figcaption></figure>' for n in (96, 64, 40, 24))
-    up = Draw((-40, -40, 1104, 1104), width=150)
+    up = Draw((-40, -40, 1104, 1104), width=150, name="p10 upload")
     up.add(f'<rect x="0" y="0" width="1024" height="1024" fill="{SURFACE2}"/>')
     up.add(re.sub(r"^<svg\b[^>]*>|</svg>$", "", re.sub(r"<title>.*?</title>", "", badge)))
     up.add(f'<rect x="0" y="0" width="1024" height="1024" fill="none" stroke="{INK}" stroke-width="{fmt(up.px(1.1))}" '
            f'stroke-dasharray="{fmt(up.px(5))} {fmt(up.px(4))}"/>')
     quads = [
         ("Tech icon", "Rounded tile for apps and docks; the full-bleed square for stores, which apply their own mask. "
-                      "At 64 px and below, the small version: no grid, traces or node.",
+                      f"At {TECH_SMALL_MAX} px and below, the small version: no grid, traces or node.",
          f'<div class="qrow">{tile(tech_tile, SURFACE, 228, style="width:228px")}{tile(tech_sq, SURFACE, 228, style="width:228px")}'
          f'<div class="smalls"><div class="strip">{small}</div><p>Small version, px</p></div></div>'),
-        ("Android adaptive", "Foreground and background layers on the 108 dp canvas. The K stays inside the 66 dp "
-                             "safe circle (solid), so every launcher mask of the 72 dp view (dashed) keeps it whole.",
+        ("Android adaptive", "The tech icon at 2/3 scale, so the 72 dp view (dashed) frames it like the 1024 icon. "
+                             "Background: plate, grid, light; foreground: traces, lit K, node, the K inside the 66 dp "
+                             "circle (solid). Themed: the solid K.",
          f'<div class="qrow"><div class="adap">{ad.html()}</div><div class="strip masks">{"".join(masks)}</div></div>'),
         ("Favicon", "Grid-fitted: cap and base on pixel rows, stem on whole pixels. Shown at 1× and enlarged, "
                     "pixel for pixel as shipped.", fav),
@@ -1045,31 +1166,75 @@ def page_icons() -> str:
                  "The tech icon for apps, the badge for avatars and the bare, grid-fitted K for favicons.", body, top=282)
 
 
+def merged_layers(*svgs) -> str:
+    """The bodies of several brand documents as one drawing, each gradient defined once (the
+    adaptive icon's two documents both carry the tech icon's full defs list)."""
+    defs, body = {}, []
+    for s in svgs:
+        s = re.sub(r"<title>.*?</title>", "", s, flags=re.S)
+        for m in re.finditer(r'<(linearGradient|radialGradient) id="([^"]+)".*?</\1>', s, flags=re.S):
+            if defs.setdefault(m.group(2), m.group(0)) != m.group(0):
+                raise ValueError(f"gradient {m.group(2)} differs between the layers")
+        s = re.sub(r"<defs>.*?</defs>", "", s, flags=re.S)
+        body.append(re.sub(r"^<svg\b[^>]*>|</svg>$", "", s.strip()))
+    return (f"<defs>{''.join(defs.values())}</defs>" if defs else "") + "".join(body)
+
+
 # ------------------------------------------------------------------ 11 file guide
-FILES = [
-    ("logo/svg", "SVG", "The editable masters: 17 variants with named groups. The source for web, code and every other format."),
-    ("logo/ai", "AI (PDF-compatible)", "Illustrator. It opens as one layer holding named groups. To rebuild natively, with layers "
-                                       "and global swatches, run the scripts in logo/scripts/*.jsx inside Illustrator."),
-    ("logo/psd", "PSD", "Photoshop: editable vector shape layers, one per facet, grouped by variant."),
-    ("logo/eps", "EPS", "Vendors that ask for EPS: sign makers, embroidery, promotional print."),
-    ("logo/pdf", "PDF", "Vector print artwork, RGB and CMYK, for printers and documents."),
-    ("logo/png", "PNG, 256–4096 px", "Transparent rasters for slides, office documents and quick use."),
-    ("icons/", "PNG, ICO, ICNS, XML, SVG", "App and web icons: iOS, macOS, Android adaptive, favicons and touch icons."),
-    ("social/", "PNG", "Avatars and banners sized for social platforms, plus the Open Graph image."),
-    ("web/", "SVG, TSX, JS, CSS, JSON", "Developer kit: optimised SVGs, React and web components, design tokens."),
-    ("tools/", "Python", "The reproducible build. Every file above is generated from brand.py."),
-    ("guidelines/", "HTML, PDF", "This document."),
-]
+def _source_names():
+    """(original image, trace SVG) as they are named in source/ (looked up, not assumed)."""
+    jpgs = sorted(glob.glob(os.path.join(ROOT, "source", "*.jpg")))
+    return (os.path.basename(jpgs[0]) if jpgs else "original-logo.jpg"), os.path.basename(TRACE_SVG)
+
+
+def files_rows():
+    """Page 11. `name` is set in mono: a path from the kit root, or a file in the row's folder.
+    verify() checks that every one of them exists."""
+    orig, trace = _source_names()
+    return [
+        ("logo/svg", "SVG", "The editable masters: 17 variants with named groups. The source for web, code and every other format."),
+        ("logo/ai", "AI (PDF-compatible)",
+         "PDF-compatible Illustrator files — the same file as the matching PDF; Illustrator opens them as editable "
+         "vector artwork (one layer). For native Illustrator layers and global swatches, run "
+         "`logo/scripts/K-Logo_Illustrator.jsx` inside Illustrator (File > Scripts > Other Script…)."),
+        ("logo/psd", "PSD, 4096 px",
+         "Flat variants: every facet and the disc is an editable vector shape layer (facets overlap by a hair under "
+         "each other, so joins never show a seam). Shaded and tech variants: the lit facets and lighting are pixel "
+         "layers at 4096 px (their exact vector paths are in the .ai/.pdf/.svg). All in one: `K-Logo_All_Variants.psd`."),
+        ("logo/scripts", "JSX (ExtendScript)",
+         "`K-Logo_Illustrator.jsx`, see logo/ai. `K-Logo_Photoshop.jsx` does the same in Photoshop for the flat "
+         "variants (File > Scripts > Browse…)."),
+        ("logo/eps", "EPS", "Vendors that ask for EPS: sign makers, embroidery, promotional print."),
+        ("logo/pdf", "PDF", "Vector print artwork, RGB and CMYK, for printers and documents."),
+        ("logo/png", "PNG, 256–4096 px", "Transparent rasters for slides, office documents and quick use."),
+        ("icons/", "PNG, ICO, ICNS, XML, SVG",
+         "App and web icons: iOS (all sizes), macOS, Android adaptive with its themed icon, favicons and touch icons."),
+        ("social/", "PNG", "Avatars and banners sized for social platforms, plus the Open Graph image."),
+        ("web/", "SVG, TSX, JS, CSS, JSON", "Developer kit: optimised SVGs, React and web components, design tokens."),
+        ("source/", "JPG, SVG, AI, PDF, EPS, PSD, PNG",
+         f"The original (`{orig}`) and its exact trace, in the original colours, for reference: "
+         f"`{trace}`, `K-Logo_Trace.ai` / .pdf / .eps / .psd, `K-Logo_Trace_1024.png` / _4096.png."),
+        ("tools/", "Python", "The reproducible build. Every file above but the original JPEG is generated from brand.py."),
+        ("guidelines/", "HTML, PDF", "This document."),
+    ]
+
+
+def rich(text: str) -> str:
+    """Escaped text with `name` set in the mono face."""
+    return re.sub(r"`([^`]+)`", r'<span class="mono">\1</span>', esc(text))
 
 
 def page_files() -> str:
-    rows = "".join(f'<tr><td class="mono">{esc(a)}</td><td>{esc(b)}</td><td>{esc(c)}</td></tr>' for a, b, c in FILES)
+    rows = "".join(f'<tr><td class="mono">{esc(a)}</td><td>{esc(b)}</td><td>{rich(c)}</td></tr>' for a, b, c in files_rows())
     body = (f'<table class="files"><thead><tr><th>Folder</th><th>Formats</th><th>Use it for</th></tr></thead>'
             f'<tbody>{rows}</tbody></table>'
-            f'<div class="cmd"><span>Rebuild the whole kit</span><code>python3 brand/tools/build.py all</code></div>')
+            f'<div class="cmd"><span>Rebuild the whole kit</span><code>{esc(REBUILD)}</code></div>')
     return slide(11, "File guide", "What’s in the kit",
                  "Pick the folder by the program you work in. Never redraw the artwork: change brand.py and rebuild.",
-                 body, top=290)
+                 body, top=266)
+
+
+REBUILD = "python3 brand/tools/build.py all"
 
 
 # ------------------------------------------------------------------ fonts
@@ -1143,6 +1308,7 @@ figure{{display:block}}
 h1{{margin-top:18px;font-size:54px;line-height:1.08;font-weight:600;letter-spacing:-.024em;text-wrap:balance}}
 .lead{{margin-top:18px;font-size:21px;line-height:1.55;color:var(--t2);max-width:1100px;text-wrap:balance}}
 .lead.small{{font-size:18px;max-width:none}}
+.wide-lead .lead{{max-width:none}}             /* one line across the slide (page 7's palette sentence) */
 .body{{position:absolute;left:{MX}px;width:{W - 2 * MX}px;bottom:118px}}
 .foot{{position:absolute;left:{MX}px;right:{MX}px;bottom:46px;display:grid;grid-template-columns:1fr auto 1fr;font-size:13px;
   color:var(--t3);letter-spacing:.01em}}
@@ -1274,11 +1440,12 @@ table{{border-collapse:collapse;font-variant-numeric:tabular-nums}}
 .crops{{gap:16px;padding:14px 16px}}
 /* 11 files */
 .files{{width:100%}}
-.files th,.files td{{text-align:left;padding:11px 24px 11px 0;border-bottom:1px solid var(--rule);font-size:16.5px;line-height:1.45;vertical-align:baseline}}
+.files th,.files td{{text-align:left;padding:8px 24px 8px 0;border-bottom:1px solid var(--rule);font-size:15.5px;line-height:1.42;vertical-align:baseline}}
 .files thead th{{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--t3);font-weight:600;padding-top:0}}
-.files td:first-child{{width:220px;font-weight:500}}
-.files td:nth-child(2){{width:300px;color:var(--t2)}}
-.cmd{{display:flex;gap:24px;align-items:baseline;margin-top:34px}}
+.files td:first-child{{width:180px;font-weight:500}}
+.files td:nth-child(2){{width:280px;color:var(--t2)}}
+.files td .mono{{font-size:.9em;color:var(--ink);white-space:nowrap}}
+.cmd{{display:flex;gap:24px;align-items:baseline;margin-top:24px}}
 .cmd span{{font-size:15px;color:var(--t3)}}
 .cmd code{{font-family:'JetBrains Mono',monospace;font-size:16px;padding:10px 16px;border-radius:8px;background:var(--surface2)}}
 /* screen: fit the deck to the window */
@@ -1298,6 +1465,8 @@ FIT_JS = ("(function(){function f(){var s=Math.min(1,(window.innerWidth-48)/%d);
 def build_html() -> str:
     global _uid
     _uid = itertools.count(1)                               # same ids on every build, in any process
+    COLLISIONS.clear()
+    LABELS_CHECKED[0] = 0
     M = measure()
     CS = colour_specs()
     pages = [page_cover(), page_idea(M), page_construction(M), page_refinement(M), page_clearspace(M), page_variants(),
@@ -1526,6 +1695,49 @@ def verify(root: str = ROOT, png_dir: str = None) -> bool:
     except ImportError:
         pass
     check("Pantone" not in "".join(texts), "no Pantone numbers claimed")
+
+    # ---- minimum sizes: the gap measured on brand.gapped(), then the rule on pages 5 and 6
+    print("\n== minimum sizes, palette wording, file guide")
+    pieces = brand.gapped(k)
+    gaps = [pieces[a].distance(pieces[b]) for a, b in itertools.combinations(FACETS, 2)]
+    gap = min(g for g in gaps if g > 1e-6)
+    cap = max(ys) - min(ys)
+    check(abs(100 * gap / cap - GAP_PCT) < 0.01 and gap / cap * GAPPED_MIN_PX >= 1 > gap / cap * (GAPPED_MIN_PX / 2),
+          f"gapped mark: gap {gap:.3f} = {100 * gap / cap:.2f}% of the mark height, {gap / cap * GAPPED_MIN_PX:.2f} px "
+          f"at {GAPPED_MIN_PX} px")
+    find(5, [f"{MIN_PX}px", f"{MIN_MM}mm", f"{GAPPED_MIN_PX}px", f"{GAPPED_MIN_MM}mm", f"{GAP_PCT:g}%"], "minimum sizes")
+    find(6, [f"{GAPPED_MIN_PX}px", f"{GAPPED_MIN_MM}mm", f"{TECH_SMALL_MAX}px"], "variant minimums")
+    old = [f"p{i + 1}: {m.group(0)}" for i, t in enumerate(texts)
+           for m in re.finditer(r"(?:from|below|under|≥|>=)32px(?:up)?|32pxgapped|48pxgapped", t)]
+    check(not old, "no 32 px gapped minimum left" + (f": {old}" if old else ""))
+    # ---- palette wording: the lead's sentence, never 'moved away' / 'far from' Google
+    claim = PALETTE_CLAIM.replace(" ", "").lower()
+    check(claim in texts[6].lower(), f"p7 states the palette as decided: “{PALETTE_CLAIM[0].upper()}{PALETTE_CLAIM[1:]}”")
+    over = [f"p{i + 1}: {w}" for i, t in enumerate(texts) for w in ("movedaway", "ofitsown", "farfromGoogle", "furtherfrom")
+            if w.lower() in t.lower()]
+    check(not over, "no overclaim of distance from Google's palette" + (f": {over}" if over else ""))
+    # ---- Android adaptive (page 10): brand.py's layers at ANDROID_SCALE, the K inside the 66 dp circle
+    ka = brand.scaled_about_centre(k, brand.ANDROID_SCALE)
+    reach = max(math.dist(q, (512, 512)) for q in kmark.silhouette(ka))
+    check(abs(brand.ANDROID_SCALE - 72 / 108) < 1e-12 and reach < 33 * 1024 / 108,
+          f"adaptive K at scale {brand.ANDROID_SCALE:.4f}: farthest corner {reach * 108 / 1024:.1f} dp from the centre < 33 dp")
+    find(10, ["2/3", "66dp", "72dp", "Themed"], "Android adaptive")
+    # ---- file guide: the names it gives exist, the wording and the rebuild command
+    names = []
+    for folder, _f, text in files_rows():
+        for tok in re.findall(r"`([^`]+)`", text):
+            names.append(tok if "/" in tok else os.path.join(folder, tok))       # root- or folder-relative
+    missing = [n for n in names if not os.path.exists(os.path.join(root, n))]
+    check(not missing, f"page 11 names {len(names)} files, all present" + (f"; MISSING {missing}" if missing else ""))
+    find(11, ["K-Logo_All_Variants.psd", "K-Logo_Illustrator.jsx", "K-Logo_Photoshop.jsx", "PDF-compatible",
+              "thesamefileasthematchingPDF", "File>Scripts>OtherScript", "iOS(allsizes)", "source/", "logo/scripts",
+              REBUILD.replace(" ", "")], "file guide")
+    check(not any("All-Variants" in t for t in texts), "no old 'All-Variants' file name")
+    # ---- drawings: no guide runs through or touches a label
+    if LABELS_CHECKED[0]:
+        check(not COLLISIONS, f"{LABELS_CHECKED[0]} drawing labels: {len(COLLISIONS)} touched by a guide or another label")
+        for c in COLLISIONS:
+            print("       ", c)
 
     if png_dir:
         os.makedirs(png_dir, exist_ok=True)

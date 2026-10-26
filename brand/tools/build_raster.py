@@ -5,8 +5,10 @@
 
 Outputs (under brand/):
   logo/png/                       K-Logo_<Variant>_<px>.png, 256 ... 4096 px wide, transparent
+                                  (Tight and ClearSpace keep their aspect: px = width)
   icons/web/                      favicons, touch / PWA icons, site.webmanifest, head-snippet.html
-  icons/ios/AppIcon.appiconset/   single-size universal 1024 app icon (Xcode 14+) + Contents.json
+  icons/ios/AppIcon.appiconset/   "All Sizes" app icon set: iPhone, iPad and ios-marketing slots in
+                                  Xcode's Contents.json format, one opaque PNG per pixel size
   icons/macos/                    1024 master, AppIcon.iconset (16 ... 512@2x) and K-Logo.icns
   icons/android/                  adaptive icon (anydpi-v26 XML + mipmaps), legacy icons, Play Store icon
   social/                         avatars, Open Graph image, X / LinkedIn / YouTube banners
@@ -32,11 +34,25 @@ Production decisions
                   No prefers-color-scheme rule: the K's large facets measure 3.3-4.2:1 on a white
                   tab and 2.9-4.9:1 on dark tab strips (#202124 ... #35363A) - it reads the same on
                   both, and the only possible dark rule would recolour or outline the facets.
-  * Safe zones  - maskable: K within 0.35 of the side (safe circle 0.40); Android: K within the
-                  66 dp circle of the 108 dp canvas; social: see SOCIAL below.
+  * App icons   - one treatment everywhere: the tech icon with the K at 58.7 % of the visible tile
+                  (iOS, macOS, PWA, Play Store and the installed Android icon). The full detail
+                  (grid, traces, pads, node) needs a visible tile of at least FULL_MIN_TILE =
+                  120 px; below that the 0.11-unit traces are sub-pixel whiskers and the node one
+                  pixel, so the icon uses detail="small" (plate + flat K): iOS 20 ... 87 px,
+                  macOS 16 ... 128 px (103 px tile), Android legacy mdpi ... xhdpi.
+  * Android     - brand.doc_android_background (full-bleed plate, grid, ambient light) and
+                  brand.doc_android_foreground (traces, lit K, node) at brand.ANDROID_SCALE = 2/3:
+                  the 1024 icon composition on the 72 dp visible area. The monochrome (themed)
+                  layer is the solid one-colour K at the same scale. Legacy icons are that
+                  composition pre-masked on Material keylines.
+  * Safe zones  - maskable: K within 0.35 of the side (safe circle 0.40); Android: K, traces,
+                  pads and node within the 66 dp circle of the 108 dp canvas; social: see SOCIAL.
   * Web         - safari-pinned-tab.svg is the solid mark as one path (no internal edges for Safari
                   to anti-alias), mask colour ink; manifest theme / background are night, the
                   app tile's colour. apple-touch, iOS, maskable and Play icons are opaque RGB.
+  * One colour  - Mark_Black / Mark_White are the gapped marks (gap 0.8 % of the mark height:
+                  >= 1 px from a 128 px mark height); Mark_Black_Solid / Mark_White_Solid are the
+                  single-outline marks for anything smaller.
 """
 from __future__ import annotations
 
@@ -66,25 +82,52 @@ from kmark import FACETS, fmt, poly_d, svg_doc  # noqa: E402
 from okcolor import contrast, oklch_to_hex, tone  # noqa: E402
 
 LOGO_SIZES = (256, 512, 1024, 2048, 4096)
-SMALL = 64                      # at or below this many px the tech icon uses detail="small"
-FG_SCALE = 0.78                 # brand.doc_android_foreground's scale (K inside the 66 dp circle)
+SMALL = 64                      # brand rule: at or below this many px the tech icon is always "small"
+FULL_MIN_TILE = 120             # app icons: full detail from a 120 px visible tile, "small" below it
+MACOS_TILE = 824.0 / 1024.0     # macOS icon grid: the tile's share of the canvas
 MASKABLE_SCALE = 0.90           # PWA maskable icon: K reaches 0.35 of the side, safe circle is 0.40
 DENSITIES = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
 
 # raster variants of the editable masters (names follow build.VARIANTS) as fn(w, h) -> SVG for a
 # w x h px render: flat marks use trapped facets (flat_doc), the rest are brand's documents as-is
+# (the solid one-colour marks are a single outline, so there is nothing to trap)
 LOGO_PNG = {
     "K-Logo_Mark_Color": lambda w, h: flat_doc(w, h),
     "K-Logo_Mark_Color_Tight": lambda w, h: flat_doc(w, h, artboard="tight"),
+    "K-Logo_Mark_Color_ClearSpace": lambda w, h: flat_doc(w, h, artboard="clearspace"),
     "K-Logo_Badge_Color": lambda w, h: flat_doc(w, h, badge=True),
     "K-Logo_Mark_Dimensional": lambda w, h: brand.doc_mark(style="dimensional"),
     "K-Logo_Badge_Dimensional": lambda w, h: brand.doc_badge(style="dimensional"),
     "K-Logo_Mark_Black": lambda w, h: brand.doc_mark(style="black-gapped", raster=True),
     "K-Logo_Mark_White": lambda w, h: brand.doc_mark(style="white-gapped", raster=True),
+    "K-Logo_Mark_Black_Solid": lambda w, h: brand.doc_mark(style="black"),
+    "K-Logo_Mark_White_Solid": lambda w, h: brand.doc_mark(style="white"),
     "K-Logo_Mark_Greyscale": lambda w, h: flat_doc(w, h, colours=brand.grey_colours()),
     "K-Logo_Tech_Icon": lambda w, h: brand.doc_tech(),
 }
 TIGHT_ASPECT = 1.25             # cap height : width of the mark's bounds (4:5)
+
+
+def artboard_box(artboard: str, k=None):
+    """(x, y, w, h) of brand.doc_mark's artboard: square | tight | clearspace (one stem width
+    of clear space around the bounds)."""
+    k = k or brand.master()
+    if artboard == "square":
+        return (0.0, 0.0, k.size, k.size)
+    x0, y0, x1, y1 = kmark.bbox(k)
+    m = k.w if artboard == "clearspace" else 0.0
+    return (x0 - m, y0 - m, x1 - x0 + 2 * m, y1 - y0 + 2 * m)
+
+
+def png_size(name: str, n: int):
+    """(w, h) in px of a logo PNG n px wide. Tight is exactly 4:5. ClearSpace's height is rounded
+    up, so the clear space never shrinks; the extra fraction of a pixel is split top / bottom."""
+    if name.endswith("_Tight"):
+        return n, round(n * TIGHT_ASPECT)
+    if name.endswith("_ClearSpace"):
+        _, _, w, h = artboard_box("clearspace")
+        return n, math.ceil(n * h / w - 1e-9)
+    return n, n
 
 FONT_DIR = "/usr/share/fonts/opentype/inter"
 
@@ -151,9 +194,14 @@ def save_text(text: str, path: str) -> str:
     return path
 
 
+def detail_for(tile_px: float) -> str:
+    """Tech-icon detail for a visible tile (or disc) this many px across (see App icons above)."""
+    return "full" if tile_px >= FULL_MIN_TILE else "small"
+
+
 def tech(n: int, shape="tile", k=None) -> str:
-    """Tech icon document for an n px render: the simplified detail at <= 64 px."""
-    return brand.doc_tech(k, detail="small" if n <= SMALL else "full", shape=shape)
+    """Tech icon document for an n px render; the detail follows the visible tile's size."""
+    return brand.doc_tech(k, detail=detail_for(n * (MACOS_TILE if shape == "macos" else 1.0)), shape=shape)
 
 
 def trapped_group(k, t: float, colours=None, gid="K") -> str:
@@ -176,13 +224,15 @@ def trap_for(w: int, h: int = None, units: float = 1024.0) -> float:
 
 def flat_doc(w: int, h: int = None, k=None, colours=None, badge=False, artboard="square") -> str:
     """brand.doc_mark / doc_badge with raster=True, for a w x h px render: the same trapped facets
-    with the trap matched to the render (trap_for). artboard: square | tight."""
+    with the trap matched to the render (trap_for). artboard: square | tight | clearspace; the
+    scale is the artboard's width -> w px, and the view box's height is fitted to h at that
+    same scale (centred), so a rounded-up height never stretches the mark."""
     k = k or brand.master()
-    if artboard == "tight":
-        x0, y0, x1, y1 = kmark.bbox(k)
-        vb = (x0, y0, x1 - x0, y1 - y0)
-    else:
-        vb = (0.0, 0.0, k.size, k.size)
+    h = h or w
+    vb = artboard_box(artboard, k)
+    if artboard != "square":
+        vh = vb[2] * h / w
+        vb = (vb[0], vb[1] - (vh - vb[3]) / 2, vb[2], vh)
     body = trapped_group(k, trap_for(w, h, vb[2]), colours)
     if badge:
         body = f'<g id="badge" data-name="Badge">{brand.disc(k)}{body}</g>'
@@ -202,8 +252,8 @@ def stage_logo_png(root):
     assert abs((y1 - y0) / (x1 - x0) - TIGHT_ASPECT) < 1e-5
     for name, fn in LOGO_PNG.items():
         for n in LOGO_SIZES:
-            h = round(n * TIGHT_ASPECT) if name.endswith("_Tight") else n      # px = width, aspect kept
-            out.append(save_png(px(fn(n, h), n, h), os.path.join(root, "logo", "png", f"{name}_{n}.png")))
+            w, h = png_size(name, n)                                            # px = width, aspect kept
+            out.append(save_png(px(fn(w, h), w, h), os.path.join(root, "logo", "png", f"{name}_{n}.png")))
     return out
 
 
@@ -294,12 +344,45 @@ def stage_web(root):
 
 
 # ------------------------------------------------------------------ 3 iOS
+IOS_SLOTS = (  # Xcode "All Sizes" app icon slots: (idiom, size in pt, scale)
+    ("iphone", "20x20", 2), ("iphone", "20x20", 3),          # notifications
+    ("iphone", "29x29", 2), ("iphone", "29x29", 3),          # Settings
+    ("iphone", "40x40", 2), ("iphone", "40x40", 3),          # Spotlight
+    ("iphone", "60x60", 2), ("iphone", "60x60", 3),          # home screen
+    ("ipad", "20x20", 1), ("ipad", "20x20", 2),
+    ("ipad", "29x29", 1), ("ipad", "29x29", 2),
+    ("ipad", "40x40", 1), ("ipad", "40x40", 2),
+    ("ipad", "76x76", 1), ("ipad", "76x76", 2),
+    ("ipad", "83.5x83.5", 2),                                # iPad Pro home screen
+    ("ios-marketing", "1024x1024", 1),                       # App Store
+)
+
+
+def ios_px(size: str, scale: int) -> int:
+    return round(float(size.split("x")[0]) * scale)
+
+
+def ios_file(n: int) -> str:
+    return f"AppIcon-{n}.png"
+
+
+def ios_contents() -> dict:
+    """Contents.json as Xcode writes it (keys sorted); slots of the same pixel size share a file."""
+    images = [{"filename": ios_file(ios_px(s, sc)), "idiom": idiom, "scale": f"{sc}x", "size": s} for idiom, s, sc in IOS_SLOTS]
+    return {"images": images, "info": {"author": "xcode", "version": 1}}
+
+
 def stage_ios(root):
+    """Every iOS size rendered from the vector (no downsampling by Xcode): the full-bleed tech
+    square, full detail from 120 px, the small detail at 20 ... 87 px. Opaque RGB, no alpha."""
     d = os.path.join(root, "icons", "ios", "AppIcon.appiconset")
-    out = [save_png(px(brand.doc_tech(shape="square"), 1024), os.path.join(d, "AppIcon-1024.png"), opaque=True)]
-    contents = {"images": [{"filename": "AppIcon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024"}],
-                "info": {"author": "xcode", "version": 1}}
-    out.append(save_text(json.dumps(contents, indent=2) + "\n", os.path.join(d, "Contents.json")))
+    sizes = sorted({ios_px(s, sc) for _, s, sc in IOS_SLOTS})
+    os.makedirs(d, exist_ok=True)
+    for f in os.listdir(d):                                    # drop renditions of an older slot list
+        if f.endswith(".png") and f not in {ios_file(n) for n in sizes}:
+            os.remove(os.path.join(d, f))
+    out = [save_png(px(tech(n, "square"), n), os.path.join(d, ios_file(n)), opaque=True) for n in sizes]
+    out.append(save_text(json.dumps(ios_contents(), indent=2) + "\n", os.path.join(d, "Contents.json")))
     return out
 
 
@@ -325,6 +408,7 @@ def write_icns(path, entries):
 
 
 def stage_macos(root):
+    """The iconset follows the tile rule: 16 ... 128 px (tile <= 103 px) small, 256 px up full."""
     d = os.path.join(root, "icons", "macos")
     out = [save_png(px(brand.doc_tech(shape="macos"), 1024), os.path.join(d, "K-Logo_macOS_1024.png"))]
     entries = []
@@ -338,22 +422,25 @@ def stage_macos(root):
 
 
 # ------------------------------------------------------------------ 5 Android
-def android_fg_k():
-    return brand.scaled_about_centre(brand.master(), FG_SCALE)
-
-
-def android_fg_svg(t: float) -> str:
-    """brand.doc_android_foreground with trapped facets (trap t) for raster output."""
-    k = android_fg_k()
-    return svg_doc(trapped_group(k, t), size=k.size, title=f"{brand.NAME} - Android adaptive foreground")
+def android_k():
+    """The K of the adaptive icon: brand.ANDROID_SCALE (72 / 108) about the canvas centre."""
+    return brand.scaled_about_centre(brand.master(), brand.ANDROID_SCALE)
 
 
 def android_mono_svg() -> str:
     """Themed-icon layer (Android 13+): the solid one-colour K at the foreground's scale. Only the
     alpha is used by the system, which tints it."""
-    k = android_fg_k()
+    k = android_k()
     return svg_doc(f'<path id="K" data-name="K mark - solid" fill="{NEUTRAL["white"]}" d="{solid_d(k)}"/>',
                    size=k.size, title=f"{brand.NAME} - Android monochrome")
+
+
+def android_composite_svg(detail: str = "full") -> str:
+    """Background and foreground as one document, as a launcher stacks them (the 108 dp canvas).
+    detail="full" is exactly brand.doc_android_background's groups under doc_android_foreground's;
+    detail="small" is the same composition with the small tech detail (plate + flat K)."""
+    defs, groups = brand._tech_layers(android_k(), detail, "square")
+    return svg_doc("".join(groups), "".join(defs), size=brand.SIZE, title=f"{brand.NAME} - Android adaptive icon ({detail})")
 
 
 def _inner(svg: str) -> str:
@@ -377,14 +464,15 @@ def mask_d(shape: str, x: float, y: float, s: float) -> str:
     return brand._rrect_d(x, y, s, s, r * s)
 
 
-def adaptive_svg(shape: str, n: int, inset: float = 0.0, size: float = 1024.0) -> str:
-    """The adaptive icon as a launcher draws it, for an n px render: the 72 dp viewport of the
-    108 dp background and foreground, filling a `shape` mask inset by `inset` (fraction)."""
+def adaptive_svg(shape: str, inset: float = 0.0, detail: str = "full", size: float = 1024.0) -> str:
+    """The adaptive icon as a launcher draws it: the 72 dp viewport of the 108 dp background and
+    foreground, filling a `shape` mask inset by `inset` (fraction)."""
     c = 1024.0
     vb = (c / 6, c / 6, c * 2 / 3, c * 2 / 3)                 # 72 dp of 108 dp
     m = inset * size
-    layers = _inner(brand.doc_android_background()) + _inner(android_fg_svg(trap_for(n, units=vb[2] / (1 - 2 * inset))))
-    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {fmt(size)} {fmt(size)}" width="{fmt(size)}" height="{fmt(size)}">'
+    layers = _inner(android_composite_svg(detail))
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" '
+            f'viewBox="0 0 {fmt(size)} {fmt(size)}" width="{fmt(size)}" height="{fmt(size)}">'
             f'<defs><clipPath id="launcher-mask"><path d="{mask_d(shape, m, m, size - 2 * m)}"/></clipPath></defs>'
             f'<g clip-path="url(#launcher-mask)"><svg x="{fmt(m)}" y="{fmt(m)}" width="{fmt(size - 2 * m)}" height="{fmt(size - 2 * m)}" '
             f'viewBox="{" ".join(fmt(v) for v in vb)}">{layers}</svg></g></svg>')
@@ -400,24 +488,32 @@ ANDROID_XML = """<?xml version="1.0" encoding="utf-8"?>
 """
 
 
+# legacy (API < 26): the adaptive icon pre-masked on Material keylines - a 40 dp brand tile or a
+# 44 dp circle in the 48 dp canvas (equal visual area), each filled by the 72 dp viewport exactly
+# as a launcher fills its mask
+LEGACY = {"ic_launcher": ("tile", 4 / 48), "ic_launcher_round": ("circle", 2 / 48)}
+
+
+def legacy_detail(name: str, n: int) -> str:
+    """Detail of a legacy icon n px square: by the size of its visible tile / disc (48, 72 and
+    96 px small; 144 and 192 px full)."""
+    return detail_for(n * (1 - 2 * LEGACY[name][1]))
+
+
 def stage_android(root):
     d = os.path.join(root, "icons", "android")
     res = os.path.join(d, "res")
     out = [save_text(ANDROID_XML, os.path.join(res, "mipmap-anydpi-v26", f"{n}.xml")) for n in ("ic_launcher", "ic_launcher_round")]
-    mono, bg = android_mono_svg(), brand.doc_android_background()
-    # legacy (API < 26): the adaptive icon pre-masked on Material keylines - a 44 dp circle or a
-    # 40 dp brand tile in the 48 dp canvas (equal visual area), each filled by the 72 dp viewport
-    # exactly as a launcher fills its mask
-    legacy = {"ic_launcher": ("tile", 4 / 48), "ic_launcher_round": ("circle", 2 / 48)}
+    fg, bg, mono = brand.doc_android_foreground(), brand.doc_android_background(), android_mono_svg()
     for dens, sc in DENSITIES.items():
         m = os.path.join(res, f"mipmap-{dens}")
         n = round(108 * sc)
-        out.append(save_png(px(android_fg_svg(trap_for(n)), n), os.path.join(m, "ic_launcher_foreground.png")))
+        out.append(save_png(px(fg, n), os.path.join(m, "ic_launcher_foreground.png")))
         out.append(save_png(px(bg, n), os.path.join(m, "ic_launcher_background.png"), opaque=True))
         out.append(save_png(px(mono, n), os.path.join(m, "ic_launcher_monochrome.png")))
         n = round(48 * sc)
-        for name, (shape, inset) in legacy.items():
-            out.append(save_png(px(adaptive_svg(shape, n, inset), n), os.path.join(m, f"{name}.png")))
+        for name, (shape, inset) in LEGACY.items():
+            out.append(save_png(px(adaptive_svg(shape, inset, legacy_detail(name, n)), n), os.path.join(m, f"{name}.png")))
     out.append(save_png(px(brand.doc_tech(shape="square"), 512), os.path.join(d, "play-store-512.png"), opaque=True))
     return out
 
@@ -748,8 +844,8 @@ def phone(root, kind, dark, w=535, h=900):
     xs = [round(gap + i * (n + gap)) for i in range(cols)]
     ys = [92 + r * 156 for r in range(4 if kind == "ios" else 3)]             # Android: 3 rows + hotseat
     dr = ImageDraw.Draw(p)
-    if kind == "ios":
-        ours = [masked(fit(Image.open(os.path.join(root, "icons", "ios", "AppIcon.appiconset", "AppIcon-1024.png")).convert("RGBA"), n), "tile")]
+    if kind == "ios":                                                            # the 60 pt @3x home-screen file
+        ours = [masked(fit(Image.open(os.path.join(root, "icons", "ios", "AppIcon.appiconset", ios_file(180))).convert("RGBA"), n), "tile")]
         holder = rrect(n, n, round(TILE_R * n), ph)
     else:
         tint = ((oklch_to_hex(0.30, 0.05, 264.5), oklch_to_hex(0.88, 0.06, 264.5)) if dark else
@@ -791,7 +887,8 @@ def desktop(root, dark, w=1105, h=340):
         caption(dr, (x + n // 2, 160), f"{n}", fnt, fill=fill, anchor="ma")
         x += n + 34
     caption(dr, (x + 10, 70), "iconset at actual pixels", _font(18), fill=fill)
-    caption(dr, (x + 10, 96), "detail='small' at 64 px and below", _font(18), fill=fill)
+    caption(dr, (x + 10, 96), "small detail up to 128 px (103 px tile)", _font(18), fill=fill)
+    caption(dr, (x + 10, 122), "full detail from 256 px", _font(18), fill=fill)
     slot, cnt = 92, 6
     dw = cnt * slot + 7 * 12
     dx, dy = (w - dw) // 2, h - slot - 34
@@ -833,9 +930,9 @@ def stage_overview(root):
         dr.text((M, y), title, font=h2, fill=INK)
         dr.text((M + dr.textlength(title, font=h2) + 24, y + 9), note, font=lab, fill=MUTED)
 
-    dr.text((M, 56), "K logo - icons and social kit", font=h1, fill=INK)
-    dr.text((M, 130), "Every raster deliverable in context, on light and dark  |  generated by tools/build_raster.py",
-            font=lab, fill=MUTED)
+    dr.text((M, 56), "K logo – icons and social kit", font=h1, fill=INK)
+    dr.text((M, 130), "Every raster deliverable in context, on light and dark  ·  one app icon everywhere: the tech K "
+                      "at 58.7 % of the visible tile  ·  generated by tools/build_raster.py", font=lab, fill=MUTED)
 
     # 1 browser ---------------------------------------------------------------
     y = 210
@@ -866,7 +963,8 @@ def stage_overview(root):
 
     # 2 home screens ----------------------------------------------------------
     y = 980
-    section(y, "Home screens", "iOS app icon under the system mask; Android adaptive icon under launcher masks and as a themed icon")
+    section(y, "Home screens", "iOS AppIcon-180 under the system mask; Android adaptive icon (same tech K, same size in the "
+                               "visible tile) under launcher masks and as a themed icon")
     for i, (kind, dark) in enumerate((("ios", False), ("ios", True), ("android", False), ("android", True))):
         sheet.alpha_composite(phone(root, kind, dark), (M + i * 575, y + 60))
 
@@ -886,8 +984,8 @@ def stage_overview(root):
     mk.alpha_composite(overlay((240, 240), lambda d, s: dashed_circle(d, (120, 120), 96, s, (255, 255, 255, 220))))
     items.append(("maskable 512, 40 % safe circle", mk))
     items.append(("Play Store 512", masked(fit(load(root, "icons", "android", "play-store-512.png"), 192), "play")))
-    items.append(("legacy ic_launcher", load(root, "icons", "android", "res", "mipmap-xxxhdpi", "ic_launcher.png")))
-    items.append(("legacy round", load(root, "icons", "android", "res", "mipmap-xxxhdpi", "ic_launcher_round.png")))
+    items.append(("legacy ic_launcher 192", load(root, "icons", "android", "res", "mipmap-xxxhdpi", "ic_launcher.png")))
+    items.append(("legacy round 192", load(root, "icons", "android", "res", "mipmap-xxxhdpi", "ic_launcher_round.png")))
     for label, im in items:
         sheet.alpha_composite(im, (x, top + (240 - im.height) // 2))
         caption(dr, (x + im.width // 2, top + 256), label, small, anchor="ma")
@@ -906,8 +1004,30 @@ def stage_overview(root):
         sheet.alpha_composite(px(f.read(), 128), (x, top + 56))
     caption(dr, (x + 64, top + 256), "favicon.svg", small, anchor="ma")
 
+    # app icon sizes at actual pixels: where the small detail takes over
+    yy += 330 + 30
+    sheet.alpha_composite(rrect(W - 2 * M, 300, 18, (255, 255, 255, 255)), (M, yy))
+    base = yy + 34 + 180                                                           # icons sit on one baseline
+    x = M + 40
+    ios = os.path.join(root, "icons", "ios", "AppIcon.appiconset")
+    for n in sorted({ios_px(s, sc) for _, s, sc in IOS_SLOTS} - {1024}):
+        sheet.alpha_composite(masked(load(ios, ios_file(n)), "tile"), (x, base - n))
+        caption(dr, (x + n // 2, base + 12), f"{n}", _mono(15), anchor="ma")
+        x += n + (14 if n < 100 else 20)
+    caption(dr, (M + 40, base + 40), f"iOS AppIcon.appiconset at actual pixels (under the system mask): small detail at "
+                                     f"20–87 px, full detail from {FULL_MIN_TILE} px", small)
+    x += 40
+    dr.line([(x - 20, yy + 34), (x - 20, base + 60)], fill=(222, 225, 232, 255), width=2)
+    x0 = x
+    for dens, sc in DENSITIES.items():
+        n = round(48 * sc)
+        sheet.alpha_composite(load(root, "icons", "android", "res", f"mipmap-{dens}", "ic_launcher.png"), (x, base - n))
+        caption(dr, (x + n // 2, base + 12), f"{n}", _mono(15), anchor="ma")
+        x += n + 20
+    caption(dr, (x0, base + 40), "Android legacy ic_launcher, mdpi–xxxhdpi: small detail up to 96 px", small)
+
     # 4 social ----------------------------------------------------------------
-    y = yy + 330 + 60
+    y = yy + 300 + 60
     section(y, "Social", "avatars survive circular crops; banners keep the mark out of each platform's overlay zones (dashed)")
     top = y + 60
     og = load(soc, "og-image-1200x630.png")
@@ -1043,9 +1163,19 @@ def _coverage(k, n, h=None, viewbox=None):
 
 
 def _seams(a, cov):
-    """(interior pixels, interior pixels below 255, worst interior alpha, max |alpha - coverage|)."""
+    """(interior pixels, seam pixels, worst interior alpha, max |alpha - coverage|). Interior =
+    the outline's coverage rounds to 255. A seam pixel is an interior pixel below 255 - or below
+    254 on the interior's one-pixel rim along the outline, whose exact coverage can be 254.5:
+    there the trapped facets' outline and the single outline differ by a 1-level rounding."""
     inside = cov == 255
-    return int(inside.sum()), int((a[inside] < 255).sum()), int(a[inside].min()), int(np.abs(a - cov).max())
+    core = inside.copy()
+    core[1:, :] &= inside[:-1, :]
+    core[:-1, :] &= inside[1:, :]
+    core[:, 1:] &= inside[:, :-1]
+    core[:, :-1] &= inside[:, 1:]
+    rim = inside & ~core
+    bad = int((a[core] < 255).sum()) + int((a[rim] < 254).sum())
+    return int(inside.sum()), bad, int(a[inside].min()), int(np.abs(a - cov).max())
 
 
 def verify(root=ROOT):
@@ -1076,19 +1206,30 @@ def verify(root=ROOT):
     for name, fn in LOGO_PNG.items():
         for n in LOGO_SIZES:
             im = Image.open(os.path.join(root, "logo", "png", f"{name}_{n}.png"))
-            want = (n, round(n * TIGHT_ASPECT)) if name.endswith("_Tight") else (n, n)
+            want = png_size(name, n)
             if im.size != want or im.mode != "RGBA" or im.getextrema()[3][0] != 0:
                 check(False, f"{name}_{n}: {im.size} {im.mode} (want {want} RGBA, transparent)")
-    check(True, f"logo/png: {len(LOGO_PNG) * len(LOGO_SIZES)} files, RGBA, transparent corners, widths {LOGO_SIZES}")
+    check(True, f"logo/png: {len(LOGO_PNG) * len(LOGO_SIZES)} files ({len(LOGO_PNG)} variants), RGBA, transparent corners, "
+                f"widths {LOGO_SIZES}; Tight {[png_size('_Tight', n)[1] for n in LOGO_SIZES]} and ClearSpace "
+                f"{[png_size('_ClearSpace', n)[1] for n in LOGO_SIZES]} px high")
+    have = {f.rsplit("_", 1)[0] for f in os.listdir(os.path.join(root, "logo", "png")) if f.endswith(".png")}
+    check(have == set(LOGO_PNG), f"logo/png holds exactly the {len(LOGO_PNG)} variants (extra {sorted(have - set(LOGO_PNG))})")
 
     print("\n== opaque deliverables (no alpha channel)")
     web, soc = os.path.join(root, "icons", "web"), os.path.join(root, "social")
     android = os.path.join(root, "icons", "android")
+    ios = os.path.join(root, "icons", "ios", "AppIcon.appiconset")
     for p in (os.path.join(web, "apple-touch-icon.png"), os.path.join(web, "icon-maskable-512x512.png"),
-              os.path.join(root, "icons", "ios", "AppIcon.appiconset", "AppIcon-1024.png"),
               os.path.join(android, "play-store-512.png")) + tuple(os.path.join(soc, f"{n}.png") for n in list(SOCIAL) + ["avatar-1080", "avatar-400"]):
         im = Image.open(p)
         check(im.mode == "RGB", f"{rel(p)}: {im.size[0]}x{im.size[1]} {im.mode}")
+    for d in DENSITIES:
+        p = os.path.join(android, "res", f"mipmap-{d}", "ic_launcher_background.png")
+        im = Image.open(p)
+        check(im.mode == "RGB", f"{rel(p)}: {im.size[0]}x{im.size[1]} {im.mode}")
+    ios_pngs = sorted((f for f in os.listdir(ios) if f.endswith(".png")), key=lambda f: int(re.findall(r"\d+", f)[0]))
+    modes = {f: Image.open(os.path.join(ios, f)).mode for f in ios_pngs}
+    check(all(m == "RGB" for m in modes.values()), f"iOS: {len(ios_pngs)} PNGs, all RGB (no alpha): {sorted(set(modes.values()))}")
 
     print("\n== favicon.ico")
     ico = Image.open(os.path.join(web, "favicon.ico"))
@@ -1113,13 +1254,35 @@ def verify(root=ROOT):
     with open(os.path.join(web, "head-snippet.html")) as f:
         hrefs = re.findall(r'href="/([^"]+)"', f.read())
     check(all(os.path.exists(os.path.join(web, h)) for h in hrefs), f"head-snippet.html: {len(hrefs)} hrefs all exist")
-    ios = os.path.join(root, "icons", "ios", "AppIcon.appiconset")
+    print("\n== iOS AppIcon.appiconset (Contents.json <-> files)")
     with open(os.path.join(ios, "Contents.json")) as f:
         cj = json.load(f)
-    img = cj["images"][0]
-    im = Image.open(os.path.join(ios, img["filename"]))
-    check(len(cj["images"]) == 1 and img["idiom"] == "universal" and img["platform"] == "ios" and img["size"] == "1024x1024"
-          and im.size == (1024, 1024) and im.mode == "RGB", f"Contents.json single-size universal -> {img['filename']} {im.size} {im.mode}")
+    check(cj.get("info") == {"author": "xcode", "version": 1}, f"Contents.json info {cj.get('info')}")
+    slots = {(i["idiom"], i["size"], i["scale"]) for i in cj["images"]}
+    want_slots = {(idiom, s, f"{sc}x") for idiom, s, sc in IOS_SLOTS}
+    check(slots == want_slots and len(cj["images"]) == len(IOS_SLOTS),
+          f"{len(cj['images'])} slots: iphone {sum(i['idiom'] == 'iphone' for i in cj['images'])}, "
+          f"ipad {sum(i['idiom'] == 'ipad' for i in cj['images'])}, ios-marketing "
+          f"{sum(i['idiom'] == 'ios-marketing' for i in cj['images'])} (every iPhone / iPad / marketing slot, no duplicates)")
+    referenced = set()
+    for i in cj["images"]:
+        n = ios_px(i["size"], int(i["scale"][:-1]))
+        p = os.path.join(ios, i["filename"])
+        ok = set(i) == {"filename", "idiom", "scale", "size"} and os.path.exists(p) and Image.open(p).size == (n, n)
+        if not ok:
+            check(False, f"{i}: file missing or not {n} x {n} px")
+        referenced.add(i["filename"])
+    check(referenced == set(ios_pngs), f"every slot's file exists at size x scale px; every PNG is referenced: "
+                                       f"{[int(re.findall(r'[0-9]+', f)[0]) for f in ios_pngs]}")
+    for f in ios_pngs:
+        n = int(re.findall(r"\d+", f)[0])
+        got = np.asarray(Image.open(os.path.join(ios, f)).convert("RGB")).astype(int)
+        diff = {det: float(np.abs(got - np.asarray(px(brand.doc_tech(detail=det, shape="square"), n).convert("RGB")).astype(int)).mean())
+                for det in ("full", "small")}
+        want = "full" if n >= FULL_MIN_TILE else "small"
+        other = "small" if want == "full" else "full"
+        check(diff[want] == 0 and diff[other] > 0 and (n <= 87) == (want == "small"),
+              f"{f:18s} {n:4d} px  detail {want:5s} (mean diff to {want} render {diff[want]:.3f}, to {other} {diff[other]:.2f})")
     ns = "{http://schemas.android.com/apk/res/android}"
     for x in ("ic_launcher", "ic_launcher_round"):
         tree = ET.parse(os.path.join(android, "res", "mipmap-anydpi-v26", f"{x}.xml")).getroot()
@@ -1143,65 +1306,150 @@ def verify(root=ROOT):
         b = np.asarray(Image.open(os.path.join(root, "icons", "macos", "AppIcon.iconset", name)).convert("RGBA"))
         if not np.array_equal(a, b):
             check(False, f"icns {t} != {name}")
-    check(True, "every icns entry == its iconset PNG (16 / 32 / 32@2x / 64 rendered with detail='small')")
+    check(True, "every icns entry == its iconset PNG")
+    for t, name, n in ICONSET:
+        got = np.asarray(Image.open(os.path.join(root, "icons", "macos", "AppIcon.iconset", name)).convert("RGBA")).astype(int)
+        want = detail_for(n * MACOS_TILE)
+        same = np.array_equal(got, np.asarray(px(brand.doc_tech(detail=want, shape="macos"), n)).astype(int))
+        if not same or (want == "small") != (n <= 128):
+            check(False, f"{name}: not the {want} detail")
+    check(True, "iconset detail: small at 16 / 32 / 32@2x / 64 / 128 px (tile <= 103 px), full from 256 px")
+
+    print("\n== Android adaptive icon: same treatment and K size as iOS / macOS / PWA")
+    k = android_k()
+    ids = lambda gs: [re.match(r'<g id="([^"]+)"', g).group(1) for g in gs]          # noqa: E731
+    bg_g, fg_g = brand._android_layers(brand.master(), "background")[1], brand._android_layers(brand.master(), "foreground")[1]
+    all_g = brand._tech_layers(k, "full", "square")[1]
+    check(bg_g + fg_g == all_g, f"background {ids(bg_g)} + foreground {ids(fg_g)} == the full tech square's groups "
+                                f"{ids(all_g)} at ANDROID_SCALE {brand.ANDROID_SCALE:.4f}")
+    check('<g id="K"' in brand.doc_android_foreground() and 'id="tile-plate"' not in brand.doc_android_foreground()
+          and 'id="tile-plate"' in brand.doc_android_background(), "foreground has no plate; the plate is in the background")
+    cap_a = (k.yB - k.yT) / 1024 * 108 / 72
+    km = brand.master()
+    cap_i = (km.yB - km.yT) / 1024
+    check(abs(cap_a - cap_i) < 1e-9, f"K cap height {cap_a * 100:.2f} % of the 72 dp view == {cap_i * 100:.2f} % of the iOS / Play tile")
+    # measured on the pixels: the saturated K in the xxxhdpi composite (viewport 288 px) vs AppIcon-1024
+    comp = Image.open(os.path.join(android, "res", "mipmap-xxxhdpi", "ic_launcher_background.png")).convert("RGBA")
+    comp.alpha_composite(Image.open(os.path.join(android, "res", "mipmap-xxxhdpi", "ic_launcher_foreground.png")).convert("RGBA"))
+
+    def k_frac(im, x0, y0, s):
+        hsv = np.asarray(im.convert("RGB").convert("HSV")).astype(int)
+        ys_, xs_ = np.nonzero((hsv[..., 1] > 150) & (hsv[..., 2] > 120))
+        return (ys_.max() - ys_.min() + 1) / s, ((xs_.min() - x0) / s, (ys_.min() - y0) / s)
+    fa, oa = k_frac(comp.crop((72, 72, 360, 360)), 0, 0, 288)
+    fi, oi = k_frac(Image.open(os.path.join(ios, ios_file(1024))), 0, 0, 1024)
+    check(abs(fa - fi) < 0.01 and max(abs(oa[0] - oi[0]), abs(oa[1] - oi[1])) < 0.01,
+          f"pixels: K height {fa:.3f} of the visible tile (Android xxxhdpi) vs {fi:.3f} (iOS 1024); "
+          f"top-left at ({oa[0]:.3f}, {oa[1]:.3f}) vs ({oi[0]:.3f}, {oi[1]:.3f})")
 
     print("\n== Android safe circle (66 dp of the 108 dp canvas)")
-    k = android_fg_k()
-    r_geo = max(math.dist((512, 512), q) for q in kmark.silhouette(k)) / 1024 * 108
-    check(r_geo <= 33.0, f"K outline reaches {r_geo:.2f} dp from the centre (limit 33 dp)")
+    p = kmark.points(k)
+    u = (k.yB - k.yT) / 20.0
+    reach = {"K outline": max(math.dist((512, 512), q) for q in kmark.silhouette(k))}
+    for i, (a_, b_, L) in enumerate(((p["foldL"], p["P"], 2.4), (p["P"], p["J"], 2.2), (p["innerL"], p["J"], 2.4))):
+        d_ = (a_[0] - b_[0], a_[1] - b_[1])
+        n_ = math.hypot(*d_)
+        reach[f"trace {i + 1} + pad"] = math.dist((512, 512), (a_[0] + d_[0] / n_ * (L + 0.32) * u, a_[1] + d_[1] / n_ * (L + 0.32) * u))
+    reach["node bloom"] = math.dist((512, 512), p["J"]) + 1.4 * u
+    reach = {n: v / 1024 * 108 for n, v in reach.items()}
+    check(max(reach.values()) <= 33.0, "geometry reaches " + ", ".join(f"{n} {v:.2f}" for n, v in reach.items()) + " dp (limit 33 dp)")
     for f in ("ic_launcher_foreground.png", "ic_launcher_monochrome.png"):
         a = _alpha(Image.open(os.path.join(android, "res", "mipmap-xxxhdpi", f)))
         ys, xs = np.nonzero(a > 0)
         r_px = np.sqrt((xs + 0.5 - 216) ** 2 + (ys + 0.5 - 216) ** 2).max() / 4       # 4 px per dp
         check(r_px <= 33.0, f"{f} (xxxhdpi): farthest painted pixel centre {r_px:.2f} dp")
-    same = brand.doc_android_foreground() == svg_doc(brand.mark_group(android_fg_k()), size=1024,
-                                                     title=f"{brand.NAME} - Android adaptive foreground")
-    check(same, f"FG_SCALE {FG_SCALE} reproduces brand.doc_android_foreground exactly (same SVG document)")
     for d, sc in DENSITIES.items():
         n = round(108 * sc)
-        a = _alpha(Image.open(os.path.join(android, "res", f"mipmap-{d}", "ic_launcher_foreground.png")))
-        tot, bad, lo, edge = _seams(a, _coverage(android_fg_k(), n))
-        check(bad == 0, f"mipmap-{d} foreground ({n} px): {tot} interior px, {bad} below 255; edge max |a - cov| {edge}")
+        m = os.path.join(android, "res", f"mipmap-{d}")
+        cov = _coverage(k, n)
+        a = _alpha(Image.open(os.path.join(m, "ic_launcher_foreground.png")))
+        tot, bad, lo, _ = _seams(a, cov)
+        check(bad == 0, f"mipmap-{d} foreground ({n} px): {tot} px inside the K, {bad} seam px (min {lo})")
+        mono = np.asarray(Image.open(os.path.join(m, "ic_launcher_monochrome.png")).convert("RGBA")).astype(int)
+        tot, bad, lo, edge = _seams(mono[..., 3], cov)
+        solid = mono[mono[..., 3] >= 64][:, :3]
+        check(bad == 0 and edge <= 1 and int(np.abs(solid - 255).max()) <= 1,
+              f"mipmap-{d} monochrome: solid K at ANDROID_SCALE, {tot} interior px all 255, alpha vs outline coverage "
+              f"max {edge}, colour white (max deviation {int(np.abs(solid - 255).max())})")
+        for name in LEGACY:
+            nl = round(48 * sc)
+            det = legacy_detail(name, nl)
+            got = np.asarray(Image.open(os.path.join(m, f"{name}.png")).convert("RGBA")).astype(int)
+            diff = {dt: float(np.abs(got - np.asarray(px(adaptive_svg(LEGACY[name][0], LEGACY[name][1], dt), nl)).astype(int)).mean())
+                    for dt in ("full", "small")}
+            other = "small" if det == "full" else "full"
+            check(diff[det] == 0 and diff[other] > 0 and (det == "small") == (nl <= 96) and (nl > SMALL or det == "small"),
+                  f"mipmap-{d} {name}.png ({nl} px): detail {det} (mean diff to {other} {diff[other]:.2f})")
+    for name in LEGACY:
+        a = _alpha(Image.open(os.path.join(android, "res", "mipmap-xxxhdpi", f"{name}.png")))
+        corner = int(a[0, 0]), int(a[96, 96])
+        check(corner[0] == 0 and corner[1] == 255, f"{name}.png (xxxhdpi): transparent corner, opaque centre {corner}")
     km = brand.scaled_about_centre(brand.master(), MASKABLE_SCALE)
     r_m = max(math.dist((512, 512), q) for q in kmark.silhouette(km)) / 1024
     check(r_m <= 0.40, f"maskable: K reaches {r_m:.3f} of the side (safe circle 0.400)")
     r_b = max(math.dist((512, 512), q) for q in kmark.silhouette(brand.master())) / 1024
     check(r_b < 0.5, f"avatar badge: K reaches {r_b:.3f} of the side (inscribed crop circle 0.500)")
 
-    print("\n== seams: alpha inside the K's outline must be 255")
+    print("\n== seams: alpha inside the K's outline must be 255 (254 on its one-pixel rim)")
     k = brand.master()
     for n in (16, 32, 64, 1024):
         a = _alpha(px(flat_doc(n), n))
         tot, bad, lo, edge = _seams(a, _coverage(k, n))
-        check(bad == 0, f"Mark_Color at {n:4d} px: {tot} interior px, {bad} below 255 (min {lo}); edge max |alpha - coverage| {edge}")
-    for name in ("K-Logo_Mark_Color", "K-Logo_Mark_Greyscale", "K-Logo_Mark_Dimensional"):
+        check(bad == 0, f"Mark_Color at {n:4d} px: {tot} interior px, {bad} seam px (min {lo}); edge max |alpha - coverage| {edge}")
+    SQUARE_MARKS = ("K-Logo_Mark_Color", "K-Logo_Mark_Greyscale", "K-Logo_Mark_Dimensional",
+                    "K-Logo_Mark_Black_Solid", "K-Logo_Mark_White_Solid")
+    for name in SQUARE_MARKS:
         for n in LOGO_SIZES:
             a = _alpha(Image.open(os.path.join(root, "logo", "png", f"{name}_{n}.png")))
             cov = _coverage(k, n)
             tot, bad, lo, edge = _seams(a, cov)
-            check(bad == 0, f"{name}_{n}.png: {tot} interior px, {bad} below 255 (min {lo}); "
+            check(bad == 0, f"{name}_{n}.png: {tot} interior px, {bad} seam px (min {lo}); "
+                            f"edge px off coverage by > 8: {int((np.abs(a - cov) > 8).sum())}")
+    x0, y0, x1, y1 = kmark.bbox(k)
+
+    def logo_view(name, n):
+        """(w, h, viewBox) of a logo PNG, as flat_doc lays it out."""
+        w, h = png_size(name, n)
+        art = "tight" if name.endswith("_Tight") else "clearspace" if name.endswith("_ClearSpace") else "square"
+        vb = artboard_box(art, k)
+        if art != "square":
+            vh = vb[2] * h / w
+            vb = (vb[0], vb[1] - (vh - vb[3]) / 2, vb[2], vh)
+        return w, h, vb
+    for name in ("K-Logo_Mark_Color_Tight", "K-Logo_Mark_Color_ClearSpace"):
+        for n in LOGO_SIZES:
+            w, h, vb = logo_view(name, n)
+            a = _alpha(Image.open(os.path.join(root, "logo", "png", f"{name}_{n}.png")))
+            cov = _coverage(k, w, h, vb)
+            tot, bad, lo, edge = _seams(a, cov)
+            check(bad == 0, f"{name}_{n}.png ({w}x{h}): {tot} interior px, {bad} seam px (min {lo}); "
                             f"edge px off coverage by > 8: {int((np.abs(a - cov) > 8).sum())}")
     C = kmark.points(k)["C"]                                                       # sharp concave crotch
-    covs = {n: _coverage(k, n) for n in (2048, 4096)}
-    for name in ("K-Logo_Mark_Color", "K-Logo_Mark_Greyscale", "K-Logo_Mark_Dimensional"):
-        for n, cov in covs.items():
+    for name in SQUARE_MARKS + ("K-Logo_Mark_Color_Tight", "K-Logo_Mark_Color_ClearSpace"):
+        for n in (2048, 4096):
+            w, h, vb = logo_view(name, n)
+            cov = _coverage(k, w, h, vb) if vb[:2] != (0.0, 0.0) else _coverage(k, n)
             a = _alpha(Image.open(os.path.join(root, "logo", "png", f"{name}_{n}.png")))
-            i, j = int(C[0] * n / 1024), int(C[1] * n / 1024)
-            w = np.s_[j - 4:j + 5, i - 4:i + 5]
-            dev = int(np.abs(a[w] - cov[w]).max())
+            s = w / vb[2]
+            i, j = int((C[0] - vb[0]) * s), int((C[1] - vb[1]) * s)
+            win = np.s_[j - 4:j + 5, i - 4:i + 5]
+            dev = int(np.abs(a[win] - cov[win]).max())
             check(dev <= 8, f"{name}_{n}.png: crotch C (concave, one facet) 9 x 9 px max |alpha - coverage| {dev}")
-    x0, y0, x1, y1 = kmark.bbox(k)
+    m_cs = k.w
     for n in LOGO_SIZES:
-        h = round(n * TIGHT_ASPECT)
-        a = _alpha(Image.open(os.path.join(root, "logo", "png", f"K-Logo_Mark_Color_Tight_{n}.png")))
-        cov = _coverage(k, n, h, (x0, y0, x1 - x0, y1 - y0))
-        tot, bad, lo, edge = _seams(a, cov)
-        check(bad == 0, f"K-Logo_Mark_Color_Tight_{n}.png ({n}x{h}): {tot} interior px, {bad} below 255; "
-                        f"edge px off coverage by > 8: {int((np.abs(a - cov) > 8).sum())}")
+        w, h, vb = logo_view("K-Logo_Mark_Color_ClearSpace", n)
+        a = _alpha(Image.open(os.path.join(root, "logo", "png", f"K-Logo_Mark_Color_ClearSpace_{n}.png")))
+        ys, xs = np.nonzero(a > 0)
+        s = w / vb[2]
+        empty = (int(xs.min()), int(ys.min()), int(w - 1 - xs.max()), int(h - 1 - ys.max()))
+        exact = ((x0 - vb[0]) * s, (y0 - vb[1]) * s, (vb[0] + vb[2] - x1) * s, (vb[1] + vb[3] - y1) * s)
+        check(min(exact) >= m_cs * s - 1e-6 and all(abs(e - math.floor(x)) <= 1 for e, x in zip(empty, exact)),
+              f"K-Logo_Mark_Color_ClearSpace_{n}.png ({w}x{h}): art edges l/t/r/b {', '.join(f'{x:.2f}' for x in exact)} px "
+              f"from the sides >= one stem ({m_cs * s:.2f} px); empty px {empty}")
     for n in (16, 32, 48):
         kf, lay = grid_fit(n)
         tot, bad, lo, edge = _seams(_alpha(Image.open(os.path.join(web, f"favicon-{n}x{n}.png"))), _coverage(kf, n))
-        check(bad == 0, f"favicon-{n}x{n}.png: {tot} interior px, {bad} below 255; edge max |alpha - coverage| {edge}")
+        check(bad == 0, f"favicon-{n}x{n}.png: {tot} interior px, {bad} seam px; edge max |alpha - coverage| {edge}")
 
     print("\n== favicon grid fit: stem columns and cap / base rows")
     for n in (16, 32, 48):
@@ -1226,7 +1474,7 @@ def verify(root=ROOT):
         for n in (16, 32, 48):
             a = _alpha(Image.open(io.BytesIO(base64.b64decode(shots[str(n)]))))
             tot, bad, lo, edge = _seams(a, _coverage(kf, n))
-            check(bad <= 1 and lo >= 250, f"favicon.svg drawn by Chromium at {n} px: {tot} interior px, {bad} below 255 (min {lo})")
+            check(bad <= 1 and lo >= 250, f"favicon.svg drawn by Chromium at {n} px: {tot} interior px, {bad} seam px (min {lo})")
     except Exception as e:                                                          # noqa: BLE001
         print(f"  skip Chromium check of favicon.svg ({type(e).__name__})")
 
@@ -1234,20 +1482,30 @@ def verify(root=ROOT):
     k = brand.master()
     f = kmark.facets(k)
     centres = {n: polylabel(Polygon(f[n]), 0.5) for n in FACETS}
-    expect = {"K-Logo_Mark_Color": {n: PALETTE[n] for n in FACETS}, "K-Logo_Badge_Color": {n: PALETTE[n] for n in FACETS},
-              "K-Logo_Mark_Color_Tight": {n: PALETTE[n] for n in FACETS}, "K-Logo_Mark_Black": {n: NEUTRAL["black"] for n in FACETS},
-              "K-Logo_Mark_White": {n: NEUTRAL["white"] for n in FACETS}, "K-Logo_Mark_Greyscale": brand.grey_colours()}
+    pal = {n: PALETTE[n] for n in FACETS}
+    expect = {"K-Logo_Mark_Color": pal, "K-Logo_Badge_Color": pal, "K-Logo_Mark_Color_Tight": pal,
+              "K-Logo_Mark_Color_ClearSpace": pal, "K-Logo_Mark_Black": brand.mono_colours(NEUTRAL["black"]),
+              "K-Logo_Mark_White": brand.mono_colours(NEUTRAL["white"]), "K-Logo_Mark_Black_Solid": brand.mono_colours(NEUTRAL["black"]),
+              "K-Logo_Mark_White_Solid": brand.mono_colours(NEUTRAL["white"]), "K-Logo_Mark_Greyscale": brand.grey_colours()}
     for name, cols in expect.items():
         im = np.asarray(Image.open(os.path.join(root, "logo", "png", f"{name}_1024.png")).convert("RGBA")).astype(int)
+        w, h, vb = logo_view(name, 1024)
         worst, got = 0, {}
         for n, c in centres.items():
-            x, y = (c.x, c.y) if not name.endswith("_Tight") else ((c.x - x0) * 1024 / (x1 - x0), (c.y - y0) * 1024 / (x1 - x0))
+            x, y = (c.x - vb[0]) * w / vb[2], (c.y - vb[1]) * w / vb[2]
             v = im[int(y), int(x)]
             want = np.array(_rgba(cols[n]))
             worst = max(worst, int(np.abs(v - want).max()))
             got[n] = "#%02X%02X%02X" % tuple(v[:3])
         check(worst <= 1, f"{name}_1024: {got} max deviation {worst}/255")
-    for n in (32, 48):                                                              # favicons where a facet holds a whole pixel
+    for name, hexc in (("K-Logo_Mark_Black_Solid", NEUTRAL["black"]), ("K-Logo_Mark_White_Solid", NEUTRAL["white"])):
+        dev = {}
+        for n in LOGO_SIZES:
+            im = np.asarray(Image.open(os.path.join(root, "logo", "png", f"{name}_{n}.png")).convert("RGBA")).astype(int)
+            dev[n] = int(np.abs(im[im[..., 3] >= 64][:, :3] - np.array(_rgba(hexc)[:3])).max())
+        check(max(dev.values()) <= 1, f"{name}: every pixel with alpha >= 64 is {hexc} (max deviation per width {dev}): "
+                                      "one outline, no internal edges")
+    for n in (32, 48):                                                            # favicons where a facet holds a whole pixel
         kf, _ = grid_fit(n)
         ff = kmark.facets(kf)
         im = np.asarray(Image.open(os.path.join(web, f"favicon-{n}x{n}.png")).convert("RGBA")).astype(int)
