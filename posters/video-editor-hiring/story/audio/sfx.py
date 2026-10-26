@@ -11,7 +11,7 @@ Shared contract (agrees with the music module):
     * every tuned element is taken from the F-minor scale (checked by
       ``verify_key()``), rhythmic subdivisions are locked to 120 BPM
     * each function returns a sound that is true-peak normalised to -3 dBTP
-      (sample peak about -3 dBFS), DC-free, with raised-cosine fades
+      (8x-oversampled estimate; sample peak about -3 dBFS), DC-free, with raised-cosine fades
       (>= 2 ms) at both ends.  Fully deterministic (fixed RNG seeds).
 
 Public API
@@ -28,11 +28,18 @@ Public API
     shimmer(dur=1.2)
     reverse_swell(dur=0.8)
     anchor(name, **kwargs)        # sync point (s) inside the returned array
+    over_music_hit(x, hp_hz=90)   # high-passed copy for an SFX landing ON a music hit
+    fx_duck_gain(n, spans)        # -6 dB gain curve for the music 'fx' stem under
+                                  # riser / reverse_swell / downlifter (MUSIC_FX_DUPLICATES)
     render_demo(out_dir=DEMO_DIR) # demo WAV + spectrogram + report
     verify_key()                  # asserts every tuned note is in F minor
+    SUGGESTED_GAIN_DB             # starting fader offsets (dB), from ROLE_LUFS_M
+    MIN_DUR                       # shortest renderable dur per sound (shorter
+                                  # requests are clamped with a warning)
 """
 from __future__ import annotations
 
+import functools
 import os
 import re
 import subprocess
@@ -158,6 +165,16 @@ def _bl_wave(freq, n: int, kind: str = "saw", max_h: int | None = None,
     return y * (2.0 / np.pi if kind == "saw" else 4.0 / np.pi)
 
 
+def _peq(x: np.ndarray, fc: float, gain_db: float, q: float = 1.0) -> np.ndarray:
+    """RBJ peaking-EQ biquad along axis 0 (gain_db < 0 = cut)."""
+    A = 10.0 ** (gain_db / 40.0)
+    w0 = 2.0 * np.pi * fc / SR
+    al = np.sin(w0) / (2.0 * q)
+    b = np.array([1.0 + al * A, -2.0 * np.cos(w0), 1.0 - al * A])
+    a = np.array([1.0 + al / A, -2.0 * np.cos(w0), 1.0 - al / A])
+    return signal.lfilter(b / a[0], a / a[0], x, axis=0)
+
+
 def _sos(kind: str, fc, order: int = 2):
     return signal.butter(order, fc, btype=kind, fs=SR, output="sos")
 
@@ -241,6 +258,13 @@ def _pinkish(x: np.ndarray) -> np.ndarray:
     return signal.lfilter(b, a, x, axis=0) * 8.0
 
 
+def _narrow(x: np.ndarray, side_gain: float) -> np.ndarray:
+    """Scale the side (L-R) component of a stereo signal by side_gain."""
+    mid = 0.5 * (x[:, 0] + x[:, 1])
+    side = 0.5 * (x[:, 0] - x[:, 1]) * side_gain
+    return np.stack([mid + side, mid - side], axis=1)
+
+
 def _mono_low(x: np.ndarray, fc: float = 140.0) -> np.ndarray:
     """Collapse everything below fc to mono (keeps phones / mono sum solid)."""
     mid = 0.5 * (x[:, 0] + x[:, 1])
@@ -250,8 +274,32 @@ def _mono_low(x: np.ndarray, fc: float = 140.0) -> np.ndarray:
 
 
 def _sat(x: np.ndarray, drive: float) -> np.ndarray:
-    """Symmetric soft clip (adds odd harmonics so sub energy reads on phones)."""
+    """Symmetric soft clip (adds odd harmonics: 3rd, 5th, ...)."""
     return np.tanh(drive * x) / np.tanh(drive)
+
+
+def _sat_asym(x: np.ndarray, drive: float, bias: float = 0.2) -> np.ndarray:
+    """Biased soft clip: tanh with an input offset adds even (2nd, 4th) as well
+    as odd harmonics.  The slow envelope-following offset it creates must be
+    removed by a high-pass after it."""
+    b = np.tanh(bias)
+    return (np.tanh(drive * x + bias) - b) / (np.tanh(drive + bias) - b)
+
+
+def _soft_ceiling(x: np.ndarray, knee: float = 0.6) -> np.ndarray:
+    """Transient soft clip, 2x oversampled.  Scales x to unit sample peak,
+    leaves |x| < knee untouched and rounds the few samples above it into a
+    tanh shoulder (max ~0.88), then restores the original scale.  It shaves
+    the coincident first-cycle peaks of layered hits by about 1 dB, so the
+    true-peak normaliser can lift the body of the sound."""
+    pk = float(np.max(np.abs(x)))
+    if pk <= 0:
+        return x
+    up = signal.resample_poly(x / pk, 2, 1, axis=0)
+    a = np.abs(up)
+    shoulder = knee + (1.0 - knee) * np.tanh((a - knee) / (1.0 - knee))
+    up = np.where(a > knee, np.sign(up) * shoulder, up)
+    return signal.resample_poly(up, 1, 2, axis=0)[: len(x)] * pk
 
 
 _IR_CACHE: dict = {}
@@ -335,14 +383,35 @@ def _unit(x: np.ndarray) -> np.ndarray:
     return x / (np.sqrt(np.mean(np.asarray(x, float) ** 2)) + 1e-20)
 
 
+TP_OVERSAMPLE = 8
+
+
 def true_peak(x: np.ndarray) -> float:
-    """Linear true-peak estimate (4x oversampled, as BS.1770 / ffmpeg)."""
+    """Linear true-peak estimate, 8x oversampled (stricter than the 4x of
+    BS.1770 / ffmpeg ebur128, which read up to 0.1 dB low on bright,
+    transient sounds such as slash() and reverse_swell())."""
     x = np.asarray(x, dtype=float)
     if x.ndim == 1:
         x = x[:, None]
-    pad = np.zeros((64, x.shape[1]))
-    up = signal.resample_poly(np.concatenate([pad, x, pad]), 4, 1, axis=0)
+    pad = np.zeros((128, x.shape[1]))
+    up = signal.resample_poly(np.concatenate([pad, x, pad]), TP_OVERSAMPLE, 1, axis=0)
     return float(max(np.max(np.abs(up)), np.max(np.abs(x))))
+
+
+# Shortest length each variable-length sound can render.  A shorter request
+# is clamped to this and a warning is issued (the 'exactly dur' contract only
+# holds for dur >= MIN_DUR[name]).
+MIN_DUR = {"whoosh": 0.08, "slash": 0.15, "scrub": 0.03, "riser": 0.3,
+           "downlifter": 0.2, "shimmer": 0.4, "reverse_swell": 0.2}
+
+
+def _min_dur(name: str, dur: float, lo: float) -> float:
+    dur = float(dur)
+    if not np.isfinite(dur) or dur < lo:
+        warnings.warn(f"{name}(dur={dur!r}): shorter than the minimum {lo} s; "
+                      f"rendering {lo} s instead", stacklevel=3)
+        return lo
+    return dur
 
 
 def _fade(x: np.ndarray, fin: float, fout: float) -> np.ndarray:
@@ -428,10 +497,14 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
     'up': rising sweep, builds to a late peak; 'down': early peak, falling.
     intensity (0.2-2): brightness, low 'whomp' body and air hiss.  Output is
     always normalised to -3 dBTP; intensity changes character, not level.
-    Length is exactly `dur` seconds; sync point = anchor('whoosh', ...)."""
+    A -3 dB (Q 1) presence cut at 2.2 kHz (deeper above intensity 1) keeps
+    the swish from peaking in the ear's most sensitive band.
+    Length is exactly `dur` seconds (minimum 0.08 s; shorter requests are
+    clamped with a warning); sync point = anchor('whoosh', dur=, direction=,
+    intensity=), the measured envelope peak of this exact render."""
     if direction not in _WHOOSH_PEAK:
         raise ValueError("direction must be 'lr', 'rl', 'up' or 'down'")
-    dur = max(0.08, float(dur))
+    dur = _min_dur("whoosh", dur, MIN_DUR["whoosh"])
     I = float(np.clip(intensity, 0.2, 2.0))
     n = _n(dur)
     u = np.arange(n) / n
@@ -456,8 +529,9 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
         # doppler-like: opens on approach, closes as it leaves
         bright = prox
         fc_body = 250.0 * (1.0 + (12.0 + 6.0 * I) * bright ** 1.2)   # ~250 -> 4.7k
-        fc_swish = 320.0 * (1.0 + (3.0 + 1.0 * I) * bright ** 1.1)   # ~320 -> 1.6k
-        q_swish = 1.6
+        fc_body = np.minimum(fc_body, 3500.0 * max(I, 1.0) ** 0.5)   # cap 3.5 kHz at I <= 1
+        fc_swish = 320.0 * (1.0 + (2.6 + 0.9 * I) * bright ** 1.1)   # ~320 -> 1.45k
+        q_swish = 1.2
     else:
         # continuous resonant sweep: 'up' 280 Hz -> ~3 kHz, 'down' the reverse
         v = u if direction == "up" else 1.0 - u
@@ -483,7 +557,11 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
     low = _filt(_filt(_pinkish(rng.standard_normal(n)), "lowpass", 170.0, 4), "highpass", 40.0, 2)
     low = _center(low * prox ** 2 * 0.3 * I ** 1.5)
 
-    sig = (body + swish) * amp[:, None] + air * taper[:, None]
+    # gentle presence cut: the swish/body sum otherwise peaks in the 2 kHz
+    # third-octave, the ear's most sensitive (and phones' hissiest) band
+    # (deeper for the brighter intensity > 1 variants)
+    cut_db = -3.0 - 1.5 * max(I - 1.0, 0.0)
+    sig = _peq(body + swish, 2200.0, cut_db, 1.0) * amp[:, None] + air * taper[:, None]
     # equal-power pan applied on mid; keep some of the side for width
     mid = 0.5 * (sig[:, 0] + sig[:, 1])
     side = 0.5 * (sig[:, 0] - sig[:, 1])
@@ -505,8 +583,9 @@ _SLASH_HIT = 0.065
 def slash(dur: float = 0.35) -> np.ndarray:
     """Sharp diagonal blade swipe: fast rising bright swish panned L->R that
     culminates in a cut transient + a short metallic 'shing' tuned to F minor
-    (F6 C7 C8 F8 Ab8 C9 partials).  Exact length `dur`; sync at 0.065 s."""
-    dur = max(0.15, float(dur))
+    (F6 C7 C8 F8 Ab8 C9 partials).  Exact length `dur` (minimum 0.15 s);
+    sync at 0.065 s."""
+    dur = _min_dur("slash", dur, MIN_DUR["slash"])
     n = _n(dur)
     t = _t(n)
     rng = _rng(f"slash|{dur:.4f}")
@@ -560,27 +639,44 @@ def slash(dur: float = 0.35) -> np.ndarray:
 # 3. impact
 # ----------------------------------------------------------------------------
 _IMPACT = {
-    "big": dict(f0=120.0, f1=38.0, glide=0.11, sub_tau=0.22, sub_amp=1.0, drive=1.6,
-                body="F2", body_tau=0.16, body_amp=0.8, punch_tau=0.045, punch=0.27,
-                crack_tau=0.028, crack_tail=0.15, crack=0.17, click=0.22,
+    "big": dict(f0=120.0, sub="F1", glide=0.11, sub_tau=0.22, sub_amp=1.0, drive=1.6,
+                harm=1.1, harm_drive=4.0,
+                body="F2", body_tau=0.16, body_amp=0.8, body_drive=3.0, oct_amp=1.0, oct_tau=0.11,
+                thump=0.75, thump_tau=0.075, punch_tau=0.045, punch=0.27,
+                crack_tau=0.045, crack_tail=0.15, crack=0.34, click=0.44,
                 rt=1.5, wet=0.38, length=1.8),
-    "medium": dict(f0=140.0, f1=48.0, glide=0.07, sub_tau=0.14, sub_amp=0.85, drive=1.5,
-                   body="C3", body_tau=0.11, body_amp=0.8, punch_tau=0.032, punch=0.24,
-                   crack_tau=0.020, crack_tail=0.10, crack=0.16, click=0.20,
+    "medium": dict(f0=140.0, sub="F1", glide=0.07, sub_tau=0.14, sub_amp=0.85, drive=1.5,
+                   harm=0.8, harm_drive=3.5,
+                   body="C3", body_tau=0.11, body_amp=0.8, body_drive=3.0, oct_amp=1.0, oct_tau=0.08,
+                   thump=0.75, thump_tau=0.065, punch_tau=0.032, punch=0.24,
+                   crack_tau=0.026, crack_tail=0.10, crack=0.22, click=0.28,
                    rt=0.9, wet=0.32, length=1.1),
-    "small": dict(f0=190.0, f1=70.0, glide=0.035, sub_tau=0.07, sub_amp=0.6, drive=1.3,
-                  body="F3", body_tau=0.06, body_amp=0.85, punch_tau=0.018, punch=0.18,
+    "small": dict(f0=190.0, sub="Db2", glide=0.035, sub_tau=0.07, sub_amp=0.6, drive=1.3,
+                  harm=0.4, harm_drive=3.0,
+                  body="F3", body_tau=0.06, body_amp=0.85, body_drive=2.5, oct_amp=0.5, oct_tau=0.05,
+                  thump=0.35, thump_tau=0.06, punch_tau=0.018, punch=0.18,
                   crack_tau=0.012, crack_tail=0.05, crack=0.15, click=0.18,
                   rt=0.5, wet=0.24, length=0.6),
 }
 
 
 def impact(size: str = "big") -> np.ndarray:
-    """Slam: sub drop (sine 120->38 Hz for 'big'), tuned punchy body (F2 / C3 /
-    F3 + octave), low-mid punch, transient click (~3-5 kHz), short noise
-    crack, and a reverb tail on everything except the (dry, mono) sub.  The
-    sub and body are soft-saturated so the hit still reads on phone speakers.
-    Hit is at t=0; natural length (big ~1.2 s, medium ~0.8 s, small ~0.4 s)."""
+    """Slam: sub drop (sine 120 Hz -> F1 43.65 Hz for 'big', 140 -> F1 for
+    'medium', 190 -> Db2 69.3 Hz for 'small'), tuned punchy body (F2 / C3 /
+    F3 + octave), low-mid punch, transient click (~3-5 kHz), noise crack and
+    a reverb tail on everything except the (dry, mono) sub.
+    The sub settles on F1, the pitch of the music modules' kicks and booms,
+    so a standalone slam agrees with the bed instead of beating against it
+    (the old 38 Hz end beat at ~5.6 Hz against F1).  When the slam lands ON
+    a music hit (drop, end hit, any kick), pass it through over_music_hit()
+    so the music owns the sub; see that function.
+    Phone-speaker layer (everything a 150 Hz-cutoff speaker can play): a
+    parallel saturated copy of the sub kept only above 150 Hz (its harmonic
+    series implies the pitch drop), a strong octave partial and drive-3
+    saturation on the body (2nd/3rd harmonics), and a 150-400 Hz band-passed
+    noise thump with a 60-75 ms decay.  Peaks are rounded by a 2x-oversampled
+    transient soft clip.
+    Hit is at t=0; natural length (big ~1.2 s, medium ~0.75 s, small ~0.43 s)."""
     if size not in _IMPACT:
         raise ValueError("size must be 'big', 'medium' or 'small'")
     c = _IMPACT[size]
@@ -588,17 +684,30 @@ def impact(size: str = "big") -> np.ndarray:
     t = _t(n)
     rng = _rng(f"impact|{size}")
 
-    # sub drop
-    f_sub = c["f1"] + (c["f0"] - c["f1"]) * np.exp(-t / c["glide"])
-    sub = _sine(f_sub, n) * _decay(n, c["sub_tau"], 0.0015)
-    sub = _sat(sub * 0.95, c["drive"]) * c["sub_amp"]
+    # sub drop (dry, mono), settling on an F-minor note (F1 = the music's kick/boom pitch)
+    f1 = _note(c["sub"], "impact")
+    f_sub = f1 + (c["f0"] - f1) * np.exp(-t / c["glide"])
+    sub_lin = _sine(f_sub, n) * _decay(n, c["sub_tau"], 0.0015)
+    sub = _sat(sub_lin * 0.95, c["drive"]) * c["sub_amp"]
+    # parallel saturated copy of the sub, kept only above 150 Hz: its harmonic
+    # series (2f, 3f, 4f, ...) carries the pitch drop on small speakers that
+    # cannot reproduce the fundamental (missing-fundamental bass enhancement)
+    harm = _sat_asym(sub_lin, c["harm_drive"], 0.2)
+    harm = _filt(_filt(harm, "highpass", 150.0, 4), "lowpass", 1200.0, 2) * c["harm"]
 
-    # tuned body ("tom" with fast pitch drop) + octave partial for small speakers
+    # tuned body ("tom" with fast pitch drop) + strong octave partial; driven
+    # harder (3rd harmonic) so F2 -> F3 C4 F4 land in the phone band
     fb = _note(c["body"], "impact")
     NOTES_USED["impact"].add(midi_name(note_midi(c["body"]) + 12))
     f_body = fb * (1.0 + 0.9 * np.exp(-t / 0.012))
-    body = _sine(f_body, n) + 0.5 * _sine(2.0 * f_body, n) * np.exp(-t / 0.07)
-    body = _sat(body * _decay(n, c["body_tau"], 0.001) * 0.85, 1.5) * c["body_amp"]
+    body = _sine(f_body, n) + c["oct_amp"] * _sine(2.0 * f_body, n) * np.exp(-t / c["oct_tau"])
+    body /= 1.0 + 0.5 * c["oct_amp"]
+    body = _sat(body * _decay(n, c["body_tau"], 0.001) * 0.85, c["body_drive"]) * c["body_amp"]
+    body = _filt(body, "highpass", 45.0, 2)       # sub owns < 45 Hz; also offsets the peaks
+
+    # 150-400 Hz thump: the weight of the slam that a phone speaker can play
+    thump = _unit(_filt(rng.standard_normal(n), "bandpass", [150.0, 400.0], 2))
+    thump *= _decay(n, c["thump_tau"], 0.001) * c["thump"]
 
     # low-mid punch (noise 90-700 Hz)
     punch = _unit(_filt(rng.standard_normal(n), "bandpass", [90.0, 700.0], 2))
@@ -615,10 +724,11 @@ def impact(size: str = "big") -> np.ndarray:
     click_st = np.zeros((n, 2))
     _place(click_st, _center(click), 0)
 
-    verb_in = _center(body * 0.5 + punch) + crack + click_st
+    verb_in = _center(body * 0.5 + punch + thump + 0.5 * harm) + crack + click_st
     wet = _reverb(verb_in, rt=c["rt"], hp=220, lp=6000, predelay=0.012)
-    out = _center(sub + body + punch) + crack + click_st + c["wet"] * wet
+    out = _center(sub + harm + body + thump + punch) + crack + click_st + c["wet"] * wet
     out = _mono_low(out, 150)
+    out = _soft_ceiling(out, 0.6)
     return _finish(out, fade_in=0.002, trim_db=-50.0)
 
 
@@ -626,37 +736,44 @@ def impact(size: str = "big") -> np.ndarray:
 # 4. reject
 # ----------------------------------------------------------------------------
 def reject() -> np.ndarray:
-    """'Rejected clip' X-stamp: heavy low thud + rubber-stamp slap at t=0,
-    then two short, muted square-ish blips C3 -> Ab2 (descending major third,
-    both chord tones of F minor) a 16th note apart at 120 BPM."""
+    """'Rejected clip' X-stamp: heavy low thud (plus its saturated harmonics
+    above 150 Hz, so it still reads on phones), F3 knock and rubber-stamp slap
+    at t=0, then two short, muted square-ish blips C4 -> Ab3 (descending
+    major third, both chord tones of F minor) a 16th note apart at 120 BPM,
+    low-passed at 2 kHz."""
     n = _n(0.75)
     t = _t(n)
     rng = _rng("reject")
 
     f = 52.0 + 48.0 * np.exp(-t / 0.028)
-    thud = _sat(_sine(f, n) * _decay(n, 0.085, 0.0015) * 0.95, 2.2)
+    thud_lin = _sine(f, n) * _decay(n, 0.085, 0.0015)
+    thud = _sat(thud_lin * 0.95, 2.2)
+    harm = _sat_asym(thud_lin, 4.0, 0.2)
+    harm = _filt(_filt(harm, "highpass", 150.0, 4), "lowpass", 1200.0, 2) * 0.4
     fk = _note("F3", "reject")
-    knock = _sine(fk * (1.0 + 0.5 * np.exp(-t / 0.008)), n) * _decay(n, 0.03, 0.001) * 0.45
+    knock = _sine(fk * (1.0 + 0.5 * np.exp(-t / 0.008)), n) * _decay(n, 0.03, 0.001) * 0.85
     lowmid = _unit(_filt(rng.standard_normal(n), "bandpass", [120.0, 500.0], 2))
     lowmid *= _decay(n, 0.03, 0.001) * 0.22
     slap = _unit(_filt(rng.standard_normal(n), "bandpass", [800.0, 2600.0], 2))
-    slap *= _decay(n, 0.008, 0.0005) * 0.16
-    out = _center(thud + knock + lowmid + slap)
+    slap *= _decay(n, 0.008, 0.0005) * 0.30
+    out = _center(thud + harm + knock + lowmid + slap)
 
-    # muted error blips
+    # muted error blips (an octave above the old C3/Ab2, so the fundamentals
+    # are inside a phone speaker's range; 2 kHz low-pass keeps them soft)
     blip_len = 0.085
     bn = _n(blip_len)
     tb = _t(bn)
     benv = _ramp_in(bn, 0.004) * np.clip((blip_len - tb) / 0.022, 0, 1) ** 1.5
-    for i, (nm, start, pan) in enumerate((("C3", 0.055, -0.12), ("Ab2", 0.055 + SIXTEENTH, 0.12))):
+    for i, (nm, start, pan) in enumerate((("C4", 0.055, -0.12), ("Ab3", 0.055 + SIXTEENTH, 0.12))):
         fr = _note(nm, "reject")
         sq = _bl_wave(fr, bn, "square", max_h=31) + 0.7 * _bl_wave(fr * 2 ** (9 / 1200), bn, "square", max_h=31, phase0=0.4)
-        sq = _filt(_filt(sq, "lowpass", 1300.0, 4), "highpass", 80.0, 2)
+        sq = _filt(_filt(sq, "lowpass", 2000.0, 4), "highpass", 80.0, 2)
         sq *= benv * (0.42 if i == 0 else 0.40)
         _place(out, _pan(sq, pan), _n(start))
 
     out += 0.18 * _reverb(out, rt=0.35, hp=250, lp=5000)
     out = _mono_low(out, 150)
+    out = _soft_ceiling(out, 0.6)
     return _finish(out, fade_in=0.002, trim_db=-58.0)
 
 
@@ -754,8 +871,8 @@ def scrub(dur: float) -> np.ndarray:
     """Playhead scrub bed: soft rapid ruler ticks locked to 32nd notes at
     120 BPM (16 / s, accent every 4th = 8th notes) moving L->R, over a faint
     'tape-scrub' texture (band-passed noise whose pitch/level follow a
-    wandering scrub speed).  Exact length `dur`."""
-    dur = max(0.03, float(dur))
+    wandering scrub speed).  Exact length `dur` (minimum 0.03 s)."""
+    dur = _min_dur("scrub", dur, MIN_DUR["scrub"])
     n = _n(dur)
     t = _t(n)
     rng = _rng(f"scrub|{dur:.4f}")
@@ -796,20 +913,36 @@ def scrub(dur: float) -> np.ndarray:
 # ----------------------------------------------------------------------------
 # 9. riser
 # ----------------------------------------------------------------------------
+def _riser_trem(n: int) -> np.ndarray:
+    """Tremolo gain for riser(): rate steps 4 -> 8 -> 16 Hz (8th -> 16th ->
+    32nd notes at 120 BPM) at 1.0 s and 0.5 s before the end, and the phase
+    is counted back from the last sample, so every gain peak sits on the grid
+    measured from the hit and the last sample is a peak (gain 1.0).  The
+    steps fall on peaks, so the curve stays smooth.  Depth grows 0.15 -> 0.55."""
+    u = np.arange(n) / n
+    rem = (n - 1 - np.arange(n)) / SR                       # seconds before the end
+    rate = np.where(rem > 2 * BEAT, 2.0 / BEAT, np.where(rem > BEAT, 4.0 / BEAT, 8.0 / BEAT))
+    ph = np.cumsum(rate) / SR
+    ph -= ph[-1]
+    depth = 0.15 + 0.4 * u
+    return 1.0 - depth * (0.5 - 0.5 * np.cos(2 * np.pi * ph))
+
+
 def riser(dur: float = 1.5) -> np.ndarray:
     """Tension riser ending exactly at the last sample (align array end with
     the hit).  Layers: noise through an opening low-pass (220 Hz -> 10 kHz) +
     resonant whistle; an F power-fifth (F3+C4 -> F5+C6, 3 detuned saws per
-    note, spread L/R) gliding up two octaves; tremolo accelerating 4 -> 16 Hz
-    (8th -> 32nd notes at 120 BPM); widening stereo; reverb."""
-    dur = max(0.3, float(dur))
+    note, spread up to +/-0.4) gliding up two octaves; grid-locked tremolo
+    (8ths -> 16ths -> 32nds at 120 BPM, counted back from the end, peak on the
+    last sample); stereo widening (mono-safe, L/R correlation >= 0.35); reverb.
+    Minimum length 0.3 s (shorter requests are clamped with a warning)."""
+    dur = _min_dur("riser", dur, MIN_DUR["riser"])
     n = _n(dur)
     u = np.arange(n) / n
-    t = _t(n)
     rng = _rng(f"riser|{dur:.4f}")
 
-    # noise layer
-    nz = _stereo_noise(n, rng, 0.2 + 0.7 * u)
+    # noise layer (width capped at 0.6 so the mono sum holds up)
+    nz = _stereo_noise(n, rng, 0.2 + 0.4 * u)
     fc = 220.0 * 45.0 ** (u ** 1.35)
     noise = _svf(_pinkish(nz), fc, 0.9, "lp")
     whistle = _svf(nz, 300.0 * 20.0 ** (u ** 1.2), 6.0, "bp") * 0.35
@@ -823,16 +956,13 @@ def riser(dur: float = 1.5) -> np.ndarray:
     semis = 24.0 * np.minimum(u / 0.88, 1.0) ** 1.15
     tone = np.zeros((n, 2))
     for ratio, lvl in ((1.0, 1.0), (1.5, 0.7)):
-        for cents, pan in ((-9.0, -0.6), (0.0, 0.0), (9.0, 0.6)):
+        for cents, pan in ((-9.0, -0.4), (0.0, 0.0), (9.0, 0.4)):
             f = F3 * ratio * 2 ** ((semis + cents / 100.0) / 12.0)
             ph0 = rng.uniform(0, 2 * np.pi)
             v = _bl_wave(f, n, "saw", max_h=24, phase0=ph0) * lvl / 3.0
             tone += _pan(v, pan * (0.3 + 0.7 * u))
     tone = _svf(tone, 450.0 * 15.0 ** u, 1.0, "lp")
-    trate = 4.0 * 4.0 ** u                                 # 4 -> 16 Hz
-    tph = 2 * np.pi * np.cumsum(trate) / SR
-    trem = 1.0 - (0.15 + 0.4 * u) * (0.5 + 0.5 * np.sin(tph))
-    tone *= (u ** 1.8 * trem * 0.55)[:, None]
+    tone *= (u ** 1.8 * _riser_trem(n) * 0.55)[:, None]
 
     out = noise + tone
     out += 0.30 * _reverb(out, rt=1.2, hp=300, lp=9000)
@@ -847,8 +977,8 @@ def riser(dur: float = 1.5) -> np.ndarray:
 def downlifter(dur: float = 1.0) -> np.ndarray:
     """Falling sweep/tail (place at a hit): wide noise through a closing
     low-pass (9 kHz -> 150 Hz) + an F4/C5 fifth gliding down two octaves
-    (-> F2/C3), narrowing stereo, reverb.  Exact length `dur`."""
-    dur = max(0.2, float(dur))
+    (-> F2/C3), narrowing stereo, reverb.  Exact length `dur` (minimum 0.2 s)."""
+    dur = _min_dur("downlifter", dur, MIN_DUR["downlifter"])
     n = _n(dur)
     u = np.arange(n) / n
     rng = _rng(f"downlifter|{dur:.4f}")
@@ -882,8 +1012,8 @@ def shimmer(dur: float = 1.2) -> np.ndarray:
     """Sparkly logo-reveal texture: a cloud of glassy bell grains drawn from
     F-minor(add9) chord tones (C6..F7, rising pool), soft F5/C6/F6 bell pad,
     glittering >8 kHz air, 16th / dotted-16th cross echoes and a bright room.
-    Exact length `dur`; densest around 0.1-0.4 s."""
-    dur = max(0.4, float(dur))
+    Exact length `dur` (minimum 0.4 s); densest around 0.1-0.4 s."""
+    dur = _min_dur("shimmer", dur, MIN_DUR["shimmer"])
     n = _n(dur)
     t = _t(n)
     u = t / dur
@@ -977,21 +1107,28 @@ def reverse_swell(dur: float = 0.8) -> np.ndarray:
     """Reverse-cymbal swell into a hit, ending exactly at the array end.
     A synthetic crash (inharmonic square cluster + HF noise) and a soft F-minor
     triad (F4 Ab4 C5) are reverberated forward, then reversed so the reverb
-    blooms *into* the hit.  Length exactly `dur`."""
-    dur = max(0.2, float(dur))
+    blooms *into* the hit.  Mono-safe (L/R correlation ~0.66): the metal
+    cluster is shared mid with a detuned copy on the side only, the noise is
+    narrow (width 0.45) and the reverb return is at 0.45 with its side x0.6.
+    Length exactly `dur` (minimum 0.2 s)."""
+    dur = _min_dur("reverse_swell", dur, MIN_DUR["reverse_swell"])
     n = _n(dur)
     t = _t(n)
     rng = _rng(f"reverse_swell|{dur:.4f}")
 
-    # forward crash
-    metal = np.zeros((n, 2))
-    for ch, det in ((0, 1.0), (1, 1.0035)):
+    # forward crash.  Mono-safe: the inharmonic square cluster is a shared
+    # (mid) component; a slightly detuned copy goes to the side only, at
+    # half level, so it shimmers in stereo without cancelling in mono.
+    cl = []
+    for det in (1.0, 1.0035):
+        c = np.zeros(n)
         for r in _CYM_RATIOS:
-            metal[:, ch] += _bl_wave(337.0 * r * det, n, "square", max_h=41,
-                                     phase0=rng.uniform(0, 6.28))
+            c += _bl_wave(337.0 * r * det, n, "square", max_h=41, phase0=rng.uniform(0, 6.28))
+        cl.append(c)
+    metal = np.stack([cl[0] + 0.5 * cl[1], cl[0] - 0.5 * cl[1]], axis=1)
     metal = _filt(_filt(metal, "highpass", 4000.0, 4), "lowpass", 13000.0, 2) * 0.35
-    hiss = _filt(_filt(_stereo_noise(n, rng, 0.85), "highpass", 6000.0, 4), "lowpass", 12000.0, 2) * 0.8
-    mid = _filt(_stereo_noise(n, rng, 0.7), "bandpass", [900.0, 2600.0], 2) * 0.30
+    hiss = _filt(_filt(_stereo_noise(n, rng, 0.45), "highpass", 6000.0, 4), "lowpass", 12000.0, 2) * 0.8
+    mid = _filt(_stereo_noise(n, rng, 0.45), "bandpass", [900.0, 2600.0], 2) * 0.30
     e_hi = np.exp(-t / (0.22 * dur))
     e_mid = np.exp(-t / (0.32 * dur))
     crash = (metal + hiss) * e_hi[:, None] + mid * e_mid[:, None]
@@ -1005,7 +1142,8 @@ def reverse_swell(dur: float = 0.8) -> np.ndarray:
     chord *= 0.07
 
     fwd = crash + chord
-    fwd = fwd + 0.7 * _reverb(fwd, rt=1.4, hp=300, lp=11000)[:n]
+    # the synthetic IR is fully decorrelated L/R: narrow its return (side x0.6)
+    fwd = fwd + 0.45 * _narrow(_reverb(fwd, rt=1.4, hp=300, lp=11000)[:n], 0.6)
     rev = fwd[::-1].copy()
     # make the very start of the swell silent and smooth
     rev *= (np.sin(0.5 * np.pi * np.clip(t / (0.35 * dur), 0, 1)) ** 2)[:, None]
@@ -1016,33 +1154,160 @@ def reverse_swell(dur: float = 0.8) -> np.ndarray:
 # ----------------------------------------------------------------------------
 # mixing hints + sync points
 # ----------------------------------------------------------------------------
-# Starting fader offsets (dB) for the SFX bus, derived from measured max
-# momentary loudness so each sound lands at a role-appropriate level
-# (big slam -14 LUFS-M ... scrub bed -27 LUFS-M) before music is added.
-# Never positive, so every sound keeps <= -3 dBTP.
-SUGGESTED_GAIN_DB = {
-    "tick": -4.0, "scrub": -6.0, "whoosh": -2.0, "slash": 0.0,
-    "impact_small": -1.5, "impact_medium": -1.5, "impact_big": 0.0,
-    "reject": -2.5, "check": -8.5, "pop": -3.0, "riser": -6.5,
-    "downlifter": -7.0, "shimmer": -8.5, "reverse_swell": -6.5,
+# Starting fader offsets (dB) for the SFX bus.  Derived by render_demo()'s
+# measurement: gain = ROLE_LUFS_M[k] - (max momentary loudness at 0 dB),
+# rounded to 0.5 dB and never positive (so every sound keeps <= -3 dBTP).
+# The targets put each sound at a role-appropriate level before music is
+# added, and were chosen so the slams stay ordered big > medium > small
+# both full-band and on a phone-speaker model (4th-order 150 Hz high-pass),
+# where the big slam is also the loudest SFX.  The report re-checks this.
+# impact_big moved from -14.7 to -14.3 when its sub was retuned from 38 Hz to
+# F1 (43.65 Hz): K-weighting counts F1 about 0.35 LU louder, while the phone
+# band did not change, so its fader stays at 0 dB and it stays loudest there.
+ROLE_LUFS_M = {
+    "impact_big": -14.3, "impact_medium": -16.5, "impact_small": -18.7,
+    "reject": -17.0, "whoosh": -18.5, "slash": -18.8, "check": -18.0,
+    "riser": -18.6, "reverse_swell": -18.8, "shimmer": -19.7, "pop": -20.0,
+    "downlifter": -20.2, "tick": -26.0, "scrub": -27.0,
 }
+SUGGESTED_GAIN_DB = {
+    "tick": -4.0, "scrub": -6.0, "whoosh": -2.5, "slash": 0.0,
+    "impact_small": -4.0, "impact_medium": -0.5, "impact_big": 0.0,
+    "reject": -4.0, "check": -8.5, "pop": -3.0, "riser": -6.0,
+    "downlifter": -7.0, "shimmer": -8.5, "reverse_swell": -5.0,
+}
+
+
+@functools.lru_cache(maxsize=256)
+def _whoosh_anchor(dur: float, direction: str, intensity: float) -> float:
+    """Envelope peak of the actual rendered whoosh: argmax of its 20 ms
+    moving-average energy (L+R).  The synthesis centre (_WHOOSH_PEAK) is only
+    the nominal pass-by point; filter sweep and noise move the audible peak
+    (for 'down' it lands at 0.28-0.35 x dur, not 0.30), so measure it."""
+    x = whoosh(dur, direction, intensity).astype(np.float64)
+    w = _n(0.02)
+    env = np.convolve(np.sum(x * x, axis=1), np.ones(w) / w, "same")
+    return float(np.argmax(env) / SR)
+
 
 def anchor(name: str, **kw) -> float:
     """Seconds into the returned array where the sound 'lands' (align this
-    with the visual event).  e.g. start = event_time - anchor('whoosh', dur=.45)."""
+    with the visual event).  e.g. start = event_time - anchor('whoosh', dur=.45).
+    whoosh: pass the same dur / direction / intensity as the whoosh() call;
+    the value is measured on that exact (deterministic) render and cached."""
     if name == "whoosh":
-        return _WHOOSH_PEAK[kw.get("direction", "lr")] * kw.get("dur", 0.45)
+        return _whoosh_anchor(float(kw.get("dur", 0.45)), str(kw.get("direction", "lr")),
+                              float(kw.get("intensity", 1.0)))
     if name == "slash":
         return _SLASH_HIT
-    if name == "riser":
-        return kw.get("dur", 1.5)
-    if name == "reverse_swell":
-        return kw.get("dur", 0.8)
+    if name in ("riser", "reverse_swell"):           # the end of the array
+        d = float(kw.get("dur", 1.5 if name == "riser" else 0.8))
+        return _n(max(d, MIN_DUR[name])) / SR
     if name == "check":
         return 0.0              # second (higher) note at +0.125 s
     if name == "shimmer":
         return 0.0
     return 0.0                  # impact, reject, pop, tick, scrub, downlifter
+
+
+# ----------------------------------------------------------------------------
+# layering with the music stems (music_techhouse / music_cinematic)
+# ----------------------------------------------------------------------------
+# Both music modules already put a kick + F1 sub boom on the drop and on the
+# end hit (and a kick on every beat of the groove), and their 'fx' stem
+# already carries a riser, reverse cymbal and downlifter at those moments.
+LAYER_HP_HZ = 90.0              # over_music_hit() zero-phase high-pass corner (-6 dB)
+MUSIC_FX_DUCK_DB = -6.0         # fx_duck_gain() depth under a duplicating SFX
+# SFX that duplicate a transition the music 'fx' stem already plays at the
+# drop and the end hit: per transition use EITHER the music fx stem OR these
+# (or duck the fx stem with fx_duck_gain() while they play), never both at
+# full level.
+MUSIC_FX_DUPLICATES = ("riser", "reverse_swell", "downlifter")
+
+
+def over_music_hit(x: np.ndarray, hp_hz: float = LAYER_HP_HZ) -> np.ndarray:
+    """Prepare an SFX (made for impact()) to sit ON a music hit: the drop,
+    the end hit or any groove kick.  A zero-phase high-pass at `hp_hz`
+    (default 90 Hz) removes the SFX sub and most of its F2 body, so the
+    music's kick, F1 boom and (cinematic) F2 taiko own the low end.  Two
+    low layers that are not phase-locked otherwise beat or partly cancel.
+    Measured below 90 Hz with impact('big') on the demo drop (1.8 s) and end
+    hit (14.3 s) of both music modules: the old 38 Hz sub gave r = -0.10 /
+    -0.14 on the tech-house drop / hit (-0.34 / -0.45 dB).  The F1-tuned sub
+    alone only moved the cancellation, to -1.03 dB on the cinematic end hit.
+    A 65 Hz corner left the F2 body cancelling against the taiko there
+    (-0.66 dB).  With 90 Hz the worst case is r = -0.14 / -0.18 dB on those
+    four hits and on six groove-kick placements per module.
+    Everything a phone plays (> 150 Hz) is unchanged (-0.1 LU).  Full-band
+    loudness drops about 2.5 LU (big) / 1.2 LU (medium), which the music hit
+    replaces.
+    Forward-backward filtering keeps the transient intact, so the peak does
+    not grow.  The magnitude is |Butterworth-4|^2: -6 dB at hp_hz, 48 dB/oct.
+    It then re-applies fades of 2 ms (start) and 3 ms (end) and removes DC.
+    The result is never louder than the input (true peak) and gets no
+    make-up gain, so SUGGESTED_GAIN_DB still applies.
+    Returns float32 (N, 2), same length and sync point as x."""
+    hp_hz = float(hp_hz)
+    if not (20.0 <= hp_hz <= 200.0):
+        raise ValueError("hp_hz must be between 20 and 200 Hz")
+    x = np.nan_to_num(np.asarray(x, dtype=float), nan=0.0, posinf=0.0, neginf=0.0)
+    if x.ndim == 1:
+        x = _center(x)
+    # zero-phase (forward-backward) so the transient keeps its shape: a causal
+    # 4th-order high-pass rotated the 120 Hz sub start against the click and
+    # body and raised the true peak 1.0-1.35 dB.  Bringing the peak back cost
+    # 1.0-1.4 LU on a phone.
+    y = signal.sosfiltfilt(_sos("highpass", hp_hz, 4), x, axis=0)
+    y = _fade(y, 0.002, 0.003)
+    n = len(y)
+    if n > 16:
+        w = np.hanning(n)
+        w *= n / w.sum()
+        y = y - np.mean(y, axis=0)[None, :] * w[:, None]
+    tp_in, tp = true_peak(x), true_peak(y)
+    if tp > tp_in > 0:
+        y *= tp_in / tp
+    return y.astype(np.float32)
+
+
+def fx_duck_gain(n: int, spans, depth_db: float = MUSIC_FX_DUCK_DB,
+                 attack: float = 0.05, release: float = 0.03) -> np.ndarray:
+    """Gain curve, float32 (n, 1), for the music 'fx' stem while an SFX from
+    MUSIC_FX_DUPLICATES plays over the same transition:
+        st['fx'] = st['fx'] * sfx.fx_duck_gain(len(st['fx']), spans)
+    spans = [(start_s, end_s), ...] in seconds of the stem.  These are the
+    positions of the SFX arrays: riser / reverse_swell -> (hit - dur, hit),
+    downlifter -> (t, t + dur).
+    Only samples inside a span are touched.  The gain ramps down over
+    `attack` from the span start, holds `depth_db` and comes back to exactly
+    0 dB at the span end over `release`, with raised-cosine ramps in the dB
+    domain.  So a riser span that ends on the hit leaves the music's own
+    boom at the hit untouched.  A downlifter span that starts on the hit
+    ducks the boom gradually: about -2.5 dB over its first 50 ms.  To keep
+    the boom whole, start that span about 0.15 s after the hit, or use the
+    music's own downlifter there instead.  Overlapping spans take the
+    deeper duck.  Measured on both music modules' demo stems: the fx stem
+    drops 5.1-6.0 dB inside each span, and samples outside the spans are
+    bit-identical."""
+    n = int(n)
+    depth_db = float(depth_db)
+    if depth_db > 0:
+        raise ValueError("depth_db must be <= 0")
+    t = np.arange(n) / SR
+    d = np.zeros(n)
+    for s, e in spans:
+        s, e = float(s), float(e)
+        if not (np.isfinite(s) and np.isfinite(e)) or e <= s:
+            raise ValueError(f"bad span ({s}, {e})")
+        a = max(min(float(attack), 0.5 * (e - s)), 1.0 / SR)
+        r = max(min(float(release), 0.5 * (e - s)), 1.0 / SR)
+        m = (t >= s) & (t < e)
+        tt = t[m]
+        up = np.clip((tt - s) / a, 0.0, 1.0)
+        dn = np.clip((e - tt) / r, 0.0, 1.0)
+        dm = np.minimum(np.sin(0.5 * np.pi * up) ** 2, np.sin(0.5 * np.pi * dn) ** 2)
+        d[m] = np.maximum(d[m], dm)
+    return (10.0 ** (depth_db * d / 20.0))[:, None].astype(np.float32)
 
 
 # ----------------------------------------------------------------------------
@@ -1129,6 +1394,47 @@ def demo_sequence():
     ]
 
 
+def _settled_hz(x: np.ndarray, lp: float, w0: float, w1: float) -> float:
+    """Pitch of the low band in [w0, w1] s: median rising-zero-crossing
+    period of the zero-phase low-passed mid signal."""
+    m = np.asarray(x, float).mean(axis=1)
+    y = signal.sosfiltfilt(_sos("lowpass", lp, 4), m)[_n(w0):_n(w1)]
+    s = np.signbit(y)
+    i = np.nonzero(s[:-1] & ~s[1:])[0]
+    tz = i + (-y[i]) / (y[i + 1] - y[i])
+    return float(SR / np.median(np.diff(tz)))
+
+
+def _band_energy(x: np.ndarray, lp: float) -> float:
+    m = np.asarray(x, float).mean(axis=1)
+    return float(np.sum(signal.sosfiltfilt(_sos("lowpass", lp, 4), m) ** 2)) + 1e-30
+
+
+_PHONE_SOS = None
+
+
+def phone_model(x: np.ndarray) -> np.ndarray:
+    """Crude phone-speaker model: 4th-order Butterworth high-pass at 150 Hz."""
+    global _PHONE_SOS
+    if _PHONE_SOS is None:
+        _PHONE_SOS = _sos("highpass", 150.0, 4)
+    return signal.sosfilt(_PHONE_SOS, np.asarray(x, dtype=np.float64), axis=0)
+
+
+def _gain_key(label: str) -> str:
+    """Demo label -> SUGGESTED_GAIN_DB key ("impact('big')" -> 'impact_big')."""
+    name = label.split("(")[0]
+    if name == "impact":
+        return "impact_" + label.split("'")[1]
+    return name
+
+
+# the demo entry whose loudness defines each SUGGESTED_GAIN_DB key
+_GAIN_REF_LABELS = ("tick()", "scrub(1.0)", "whoosh(0.45,'lr')", "slash(0.35)", "impact('small')",
+                    "impact('medium')", "impact('big')", "reject()", "check()", "pop(0)",
+                    "riser(1.5)", "downlifter(1.0)", "shimmer(1.2)", "reverse_swell(0.8)")
+
+
 def analyse(x: np.ndarray) -> dict:
     x = np.asarray(x, dtype=np.float64)
     pk = float(np.max(np.abs(x)))
@@ -1143,6 +1449,7 @@ def analyse(x: np.ndarray) -> dict:
         peak_db=20 * np.log10(pk + 1e-12),
         tp_db=20 * np.log10(tp + 1e-12),
         lufs_m=lufs_momentary_max(x),
+        lufs_m_phone=lufs_momentary_max(phone_model(x)),
         dc=float(np.max(np.abs(np.mean(x, axis=0)))),
         edge=float(max(np.max(np.abs(x[0])), np.max(np.abs(x[-1])))),
         finite=bool(np.all(np.isfinite(x))),
@@ -1168,6 +1475,8 @@ def render_demo(out_dir: str = DEMO_DIR, gap: float = 0.4) -> str:
         a = analyse(x)
         a["label"] = label
         a["start"] = t0
+        a["key"] = _gain_key(label)
+        a["gain"] = SUGGESTED_GAIN_DB[a["key"]]
         if label.startswith(("pop", "check", "tick")):
             a["pitch"] = _dominant_note(x, seconds=0.12 if label.startswith("check") else 0.25)
         rows.append(a)
@@ -1191,10 +1500,34 @@ def render_demo(out_dir: str = DEMO_DIR, gap: float = 0.4) -> str:
             f"{a['tp_db']:7.2f} {a['lufs_m']:7.1f} {a['dc']:8.1e} {a['edge']:8.1e} "
             f"{a['corr']:6.2f} {a['side_db']:6.1f}")
     lines.append("")
-    lines.append("units: start/dur s; peak dBFS (sample); TP dBTP (4x oversampled); "
+    lines.append(f"units: start/dur s; peak dBFS (sample); TP dBTP ({TP_OVERSAMPLE}x oversampled); "
                  "LUFS-M = max momentary loudness (400 ms);")
     lines.append("       DC = max |channel mean|; edge = max |first/last sample|; "
                  "L/R r = channel correlation; S/M = side/mid energy dB")
+    lines.append("")
+    lines.append("Mix levels at SUGGESTED_GAIN_DB (max LUFS-M; 'phone' = after a 4th-order 150 Hz high-pass):")
+    hdr2 = (f"{'sound':24s} {'gain':>5s} {'full':>6s} {'phone':>6s} {'diff':>5s} "
+            f"{'target':>6s} {'derived':>7s}")
+    lines.append(hdr2)
+    lines.append("-" * len(hdr2))
+    gain_ok = True
+    for a in rows:
+        g = a["gain"]
+        full, ph = a["lufs_m"] + g, a["lufs_m_phone"] + g
+        a["mix_full"], a["mix_phone"] = full, ph
+        tgt = ROLE_LUFS_M[a["key"]]
+        derived = min(0.0, round(2.0 * (tgt - a["lufs_m"])) / 2.0)
+        if a["label"] in _GAIN_REF_LABELS:
+            gain_ok &= abs(derived - g) < 1e-9
+        ref = "*" if a["label"] in _GAIN_REF_LABELS else " "
+        lines.append(f"{a['label'] + ref:24s} {g:5.1f} {full:6.1f} {ph:6.1f} {full - ph:5.1f} "
+                     f"{tgt:6.1f} {derived:7.1f}")
+    by = {a["label"]: a for a in rows}
+    slam = [by["impact('big')"], by["impact('medium')"], by["impact('small')"]]
+    lines.append("  * = the entry that defines the gain for its key ('derived' = target - LUFS-M "
+                 "at 0 dB, rounded to 0.5 dB, <= 0)")
+    slam_order = all(slam[i][k] >= slam[i + 1][k] for i in range(2) for k in ("mix_full", "mix_phone"))
+    slam_phone = all(slam[0]["mix_phone"] >= a["mix_phone"] for a in rows)
     lines.append("")
     lines.append("Octave-band energy, dB relative to total (centre Hz):")
     lines.append(f"{'sound':24s} " + " ".join(f"{fc:>6d}" for fc in _OCT))
@@ -1209,11 +1542,74 @@ def render_demo(out_dir: str = DEMO_DIR, gap: float = 0.4) -> str:
     lines.append(f"Tuned notes declared per sound (all asserted in {KEY_NAME}):")
     for snd, notes in verify_key().items():
         lines.append(f"  {snd:14s} {' '.join(notes)}")
+
+    # extra checks on lengths / variants outside the demo sequence
+    lines.append("")
+    lines.append("Extra checks:")
+    extra_corr = []
+    for lab, fn in (("riser(3.0)", lambda: riser(3.0)), ("reverse_swell(1.5)", lambda: reverse_swell(1.5)),
+                    ("whoosh(0.45,'lr',2.0)", lambda: whoosh(0.45, "lr", 2.0))):
+        a = analyse(fn())
+        extra_corr.append(a["corr"])
+        lines.append(f"  {lab:24s} L/R r {a['corr']:.2f}, TP {a['tp_db']:.2f} dBTP")
+    trem_end = [float(_riser_trem(_n(d))[-1]) for d in (0.3, 1.0, 1.2, 1.5, 2.0, 3.0)]
+    lines.append("  riser tremolo gain at the last sample (dur 0.3/1.0/1.2/1.5/2.0/3.0 s): "
+                 + " ".join(f"{20 * np.log10(g):+.2f}" for g in trem_end) + " dB")
+    an = {f"{d}:{dr}": anchor("whoosh", dur=d, direction=dr)
+          for d, dr in ((0.45, "lr"), (0.45, "rl"), (0.6, "up"), (0.6, "down"))}
+    lines.append("  whoosh anchors (s, measured envelope peak): "
+                 + ", ".join(f"{k} -> {v:.3f} ({v / float(k.split(':')[0]):.2f}*dur)" for k, v in an.items()))
+    # impact subs settle on in-key notes (F1 = the music modules' kick / boom pitch)
+    sub_ok = True
+    for sz, lp, w0, w1 in (("big", 70.0, 0.6, 1.0), ("medium", 70.0, 0.4, 0.65), ("small", 100.0, 0.18, 0.3)):
+        nm = _IMPACT[sz]["sub"]
+        f = _settled_hz(impact(sz), lp, w0, w1)
+        cents = 1200.0 * np.log2(f / midi_hz(note_midi(nm)))
+        sub_ok &= abs(cents) <= 15.0
+        lines.append(f"  impact('{sz}') sub settles at {f:.2f} Hz = {nm}{cents:+.0f}c "
+                     f"(zero crossings {w0}-{w1} s after LP {lp:.0f} Hz)")
+    # over_music_hit(): the music owns the sub, the phone band is unchanged
+    lay_ok = True
+    for sz in ("big", "medium"):
+        x = impact(sz)
+        y = over_music_hit(x)
+        e60 = 10 * np.log10(_band_energy(y, 60.0) / _band_energy(x, 60.0))
+        dph = lufs_momentary_max(phone_model(y)) - lufs_momentary_max(phone_model(x))
+        dfull = lufs_momentary_max(y) - lufs_momentary_max(x)
+        ya = analyse(y)
+        lay_ok &= (e60 <= -10.0 and abs(dph) < 0.15 and ya["tp_db"] <= PEAK_DB + 1e-6
+                   and ya["dc"] < 1e-4 and ya["edge"] < 1e-3 and ya["finite"] and len(y) == len(x))
+        lines.append(f"  over_music_hit(impact('{sz}')): energy < 60 Hz {e60:+.1f} dB, LUFS-M {dfull:+.2f} LU, "
+                     f"phone {dph:+.2f} LU, TP {ya['tp_db']:.2f} dBTP, DC {ya['dc']:.0e}, edge {ya['edge']:.0e}")
+    g = fx_duck_gain(_n(3.0), [(0.5, 1.5), (2.0, 2.6)])
+    gdb = 20 * np.log10(g[:, 0].astype(float))
+    duck_ok = (g.shape == (_n(3.0), 1) and abs(gdb[_n(1.0)] - MUSIC_FX_DUCK_DB) < 1e-3
+               and np.all(gdb[: _n(0.5)] == 0) and np.all(gdb[_n(1.5):_n(2.0)] == 0)
+               and np.all(gdb[_n(2.6):] == 0) and float(np.max(np.abs(np.diff(gdb)))) < 0.01)
+    lines.append(f"  fx_duck_gain: {MUSIC_FX_DUCK_DB:+.1f} dB inside spans, 0 dB outside, max step "
+                 f"{float(np.max(np.abs(np.diff(gdb)))):.4f} dB/sample")
+    with warnings.catch_warnings(record=True) as wrec:
+        warnings.simplefilter("always")
+        short_len = len(riser(0.1)) / SR
+    clamp_warn = any("minimum" in str(w.message) for w in wrec)
+    lines.append(f"  riser(0.1) -> {short_len:.3f} s with warning: {clamp_warn} "
+                 f"(minimum durations: {', '.join(f'{k} {v}' for k, v in MIN_DUR.items())})")
     checks = [
         ("all finite", all(a["finite"] for a in rows)),
         ("true peak <= -1 dBTP", all(a["tp_db"] <= -1.0 for a in rows)),
         ("|DC| < 1e-4", all(a["dc"] < 1e-4 for a in rows)),
         ("edges ~0 (fades)", all(a["edge"] < 1e-3 for a in rows)),
+        ("L/R r >= 0.35 (mono-safe)", all(a["corr"] >= 0.35 for a in rows) and min(extra_corr) >= 0.35),
+        ("riser ends on a tremolo peak", min(trem_end) > 0.999),
+        ("short durations warn", clamp_warn),
+        ("impacts phone within 4 LU of full", all(a["lufs_m"] - a["lufs_m_phone"] <= 4.0
+                                                  for a in rows if a["key"].startswith(("impact", "reject")))),
+        ("slams big>=medium>=small (full+phone)", slam_order),
+        ("big slam loudest on phone", slam_phone),
+        ("SUGGESTED_GAIN_DB = derived", gain_ok),
+        ("impact subs on F1/F1/Db2 (+-15 c)", sub_ok),
+        ("over_music_hit clean (<60 Hz <= -10 dB, phone +-0.15 LU)", lay_ok),
+        ("fx_duck_gain", duck_ok),
     ]
     lines.append("")
     lines.append("Checks: " + ", ".join(f"{k}: {'PASS' if v else 'FAIL'}" for k, v in checks))
@@ -1245,8 +1641,10 @@ def render_demo(out_dir: str = DEMO_DIR, gap: float = 0.4) -> str:
 
 __all__ = ["whoosh", "slash", "impact", "reject", "check", "pop", "tick", "scrub",
            "riser", "downlifter", "shimmer", "reverse_swell", "anchor",
-           "render_demo", "verify_key", "true_peak", "lufs_momentary_max",
-           "SUGGESTED_GAIN_DB", "SIXTEENTH", "BEAT",
+           "render_demo", "verify_key", "true_peak", "lufs_momentary_max", "phone_model",
+           "over_music_hit", "fx_duck_gain", "LAYER_HP_HZ", "MUSIC_FX_DUCK_DB",
+           "MUSIC_FX_DUPLICATES",
+           "SUGGESTED_GAIN_DB", "ROLE_LUFS_M", "MIN_DUR", "SIXTEENTH", "BEAT",
            "SR", "BPM", "KEY_NAME", "NOTES_USED"]
 
 if __name__ == "__main__":

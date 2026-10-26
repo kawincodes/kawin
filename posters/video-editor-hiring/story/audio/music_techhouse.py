@@ -19,7 +19,8 @@ API
     check_arrangement(...)  -> list of musical-rule violations (render() raises if any)
     render_demo()           -> writes demo/music_techhouse_demo.wav + spectrogram PNG + stem report
 
-Run:  python3 -I music_techhouse.py      (renders the demo)
+Run:  python3 -I music_techhouse.py               (renders the demo + report)
+      python3 -I music_techhouse.py --selftest    (renders the edge cases in SELF_TEST_CASES and asserts)
 """
 from __future__ import annotations
 
@@ -29,6 +30,7 @@ import os
 import re
 import subprocess
 import tempfile
+import warnings
 
 import numpy as np
 import soundfile as sf
@@ -110,20 +112,45 @@ BASS_TURN = (                                                    # walk-up over 
 # Hats: per 16th position in a beat: closed-hat velocity, 'open' = offbeat open hat.
 HAT_GROOVE = (0.60, 0.36, "open", 0.46)
 
+# Snare body pitch: F-minor degrees above G3 (G3 Ab3 Bb3 C4 Db4), as semitones; the build steps up through
+# them one per beat (Db4 on the last 8th), fills climb Ab3-Bb3-C4.
+SNARE_STEPS = (0, 1, 3, 5, 6)
+
+
+def snare_ratio(step: int) -> float:
+    return 2.0 ** (SNARE_STEPS[max(0, min(step, len(SNARE_STEPS) - 1))] / 12.0)
+
 
 # ----------------------------------------------------------------------------------------------
 # beat grid
 # ----------------------------------------------------------------------------------------------
 def beat_grid(duration: float, drop_time: float, end_hit_time: float) -> dict:
-    """Beat k is at drop_time + k*BEAT; k = 0 is the drop downbeat, k % 4 == 0 are bar lines."""
-    k_first = -int(math.floor(drop_time / BEAT + 1e-9))                    # first beat >= 0 s
-    k_last = int(math.ceil((duration - drop_time) / BEAT - 1e-9)) - 1     # last beat < duration
-    hk = int(math.floor((end_hit_time - drop_time) / BEAT + 0.5))          # nearest beat (ties up)
-    hk_max = int(math.floor((duration - 1.0 - drop_time) / BEAT))          # leave >= 1 s of tail
-    hk = max(3, min(hk, hk_max))
-    beats = [drop_time + k * BEAT for k in range(k_first, k_last + 1)]
-    return dict(k_first=k_first, k_last=k_last, hk=hk, beats=beats,
-                t_hit=drop_time + hk * BEAT, drop=drop_time, duration=duration)
+    """Beat k is at drop_time + k*BEAT; k = 0 is the drop downbeat, k % 4 == 0 are bar lines.
+
+    drop_time is clamped to 0 .. duration-3 s (warnings.warn, the clamped value is reported in meta), so
+    there is always room for >= 3 beats of groove before the end hit and >= 1 s of tail after it.
+    k0 is the intro start: the last bar line at or before 0 s (always inside the PRE pre-roll), so the
+    intro pad/arp are already sounding at t=0 whatever the drop time."""
+    duration, drop, end_hit_time = float(duration), float(drop_time), float(end_hit_time)
+    if not all(math.isfinite(v) for v in (duration, drop, end_hit_time)):
+        raise ValueError(f"non-finite timing: duration={duration}, drop_time={drop}, end_hit_time={end_hit_time}")
+    if duration < 3.0:
+        raise ValueError(f"duration must be >= 3 s (got {duration})")
+    lim = duration - 3.0
+    if not 0.0 <= drop <= lim:
+        clamped = min(max(drop, 0.0), lim)
+        warnings.warn(f"music_techhouse: drop_time {drop:g} s clamped to {clamped:g} s "
+                      f"(must lie in 0 .. duration-3 = {lim:g} s)", stacklevel=3)
+        drop = clamped
+    k_first = -int(math.floor(drop / BEAT + 1e-9))                         # first beat >= 0 s
+    k_last = int(math.ceil((duration - drop) / BEAT - 1e-9)) - 1          # last beat < duration
+    hk = int(math.floor((end_hit_time - drop) / BEAT + 0.5))               # nearest beat (ties up)
+    hk_max = int(math.floor((duration - 1.0 - drop) / BEAT + 1e-9))        # leave >= 1 s of tail (>= 4)
+    hk = min(max(3, hk), hk_max)
+    k0 = 4 * int(math.floor(-drop / BAR - 1e-9))                           # intro bar line <= 0 s
+    beats = [drop + k * BEAT for k in range(k_first, k_last + 1)]
+    return dict(k_first=k_first, k_last=k_last, k0=k0, hk=hk, beats=beats,
+                t_hit=drop + hk * BEAT, drop=drop, duration=duration)
 
 
 def chord_of_beat(k: int, hk: int) -> str:
@@ -135,9 +162,8 @@ def chord_of_beat(k: int, hk: int) -> str:
 
 
 def chord_segments(g: dict) -> list:
-    """[(t0, t1, chord)] -- merges beats with the same chord; starts at the intro bar line (< 0 s)."""
-    drop, hk = g["drop"], g["hk"]
-    k0 = (g["k_first"] // 4) * 4 if g["k_first"] < 0 else 0
+    """[(t0, t1, chord)] -- merges beats with the same chord; starts at the intro bar line (<= 0 s)."""
+    drop, hk, k0 = g["drop"], g["hk"], g["k0"]
     segs = []
     for k in range(k0, hk + 1):
         ch = chord_of_beat(k, hk)
@@ -160,8 +186,7 @@ def _swing(pos16: int) -> float:
 
 def arrange(g: dict, rng) -> list:
     """Build every note / hit as data.  t = performed time (with swing), tn = nominal grid time."""
-    drop, hk, t_hit = g["drop"], g["hk"], g["t_hit"]
-    k0 = (g["k_first"] // 4) * 4 if g["k_first"] < 0 else 0
+    drop, hk, t_hit, k0 = g["drop"], g["hk"], g["t_hit"], g["k0"]
     ev = []
 
     def jit(v, amt=0.05):
@@ -261,24 +286,26 @@ def arrange(g: dict, rng) -> list:
             continue
         rolls.append((tn, (b + 4.0) / 4.0))
     for tn, p in rolls:
-        ev.append(dict(inst="snare", t=tn, tn=tn, vel=0.30 + 0.70 * p ** 1.3, pitch=1.0 + 0.45 * p,
-                       hp=250 + 900 * p))
+        step = 4 if p >= 0.875 else int(p * 4.0 + 1e-9)                # one degree per beat, Db4 last 8th
+        ev.append(dict(inst="snare", t=tn, tn=tn, vel=(0.30 + 0.70 * p ** 1.3) * (1.0 - 0.2 * p),   # top x0.8
+                       pitch=snare_ratio(step), hp=250 + 900 * p))
     # small fill at the end of every 4th bar (not inside the turnaround)
     for k in range(15, hk - 2, 16):
         for s, v in ((1, 0.45), (2, 0.6), (3, 0.8)):
             tn = drop + k * BEAT + s * S16
-            ev.append(dict(inst="snare", t=tn + _swing(s), tn=tn, vel=v, pitch=1.0 + 0.1 * s, hp=300))
+            ev.append(dict(inst="snare", t=tn + _swing(s), tn=tn, vel=v, pitch=snare_ratio(s), hp=300))
         ev.append(dict(inst="crash", t=drop + (k + 1) * BEAT, tn=drop + (k + 1) * BEAT, vel=0.55))
     # turnaround fill: beat hk-2 = 16ths on the 2nd half, beat hk-1 = 32nds crescendo (no kick)
     for s in (2, 3):
         tn = drop + (hk - 2) * BEAT + s * S16
-        ev.append(dict(inst="snare", t=tn + _swing(s), tn=tn, vel=0.45 + 0.1 * s, pitch=1.05, hp=300))
+        ev.append(dict(inst="snare", t=tn + _swing(s), tn=tn, vel=0.45 + 0.1 * s, pitch=snare_ratio(1), hp=300))
     for i in range(8):
         tn = drop + (hk - 1) * BEAT + i * S16 / 2
         if tn >= t_hit - GAP:
             continue
         p = i / 7.0
-        ev.append(dict(inst="snare", t=tn, tn=tn, vel=0.55 + 0.45 * p, pitch=1.1 + 0.35 * p, hp=400 + 800 * p))
+        ev.append(dict(inst="snare", t=tn, tn=tn, vel=0.55 + 0.45 * p, pitch=snare_ratio(1 + min(3, int(p * 4.0))),
+                       hp=400 + 800 * p))
     ev.append(dict(inst="crash", t=drop, tn=drop, vel=1.0))
     ev.append(dict(inst="crash", t=t_hit, tn=t_hit, vel=1.0))
 
@@ -333,6 +360,10 @@ def check_arrangement(events: list, g: dict) -> list:
                 issues.append(f"{e['inst']} @ {e['t']:.3f}s: MIDI {m} out of key")
             if e["inst"] in ("arp", "pad", "stab") and m % 12 not in pcs(ch):
                 issues.append(f"{e['inst']} @ {e['t']:.3f}s: MIDI {m} not in chord {ch}")
+        if e["inst"] == "snare":                                     # tuned snare body (G3 x pitch)
+            sm = nm("G3") + 12.0 * math.log2(e["pitch"])
+            if abs(sm - round(sm)) > 1e-6 or round(sm) % 12 not in SCALE_PCS:
+                issues.append(f"snare @ {e['t']:.3f}s: body pitch MIDI {sm:.2f} not an F-minor note")
         if e["inst"] == "bass":
             root = PC[CHORDS[ch]["root"]]
             want = {"root": root, "oct": root, "fifth": (root + 7) % 12}.get(e["role"])
@@ -422,26 +453,34 @@ def _polyblep_saw_glide(freqs: np.ndarray, sr: float, phase0: float = 0.0) -> np
     return y
 
 
-def _additive(f0, n, amps, fc, q=0.8, poles=4, fmax=19000.0, block=16384):
+def _additive(f0, n, amps, fc, q=0.8, poles=4, fmax=19000.0, block=2048):
     """Band-limited oscillator with a (time-varying) resonant low-pass applied per harmonic.
-    amps[k-1] = amplitude of harmonic k; fc = cutoff (scalar or per-sample array). Alias-free."""
+    amps[k-1] = amplitude of harmonic k; fc = cutoff (scalar or per-sample array). Alias-free.
+    Harmonics beyond 14x the block's highest cutoff (< -90 dB for 24 dB/oct) are skipped per block.
+    sin(k*th) comes from the recurrence sin((k+1)th) = 2cos(th) sin(k th) - sin((k-1)th): one sin/cos per
+    sample instead of one per harmonic (~5x faster, identical to direct evaluation within -240 dB)."""
     K = int(min(len(amps), fmax // f0))
     fc = np.broadcast_to(np.asarray(fc, dtype=np.float64), (n,))
-    kmax = int(min(K, (fc.max() * 14.0) // f0))      # beyond 14x cutoff a 24 dB/oct LP is < -90 dB
-    if kmax < 1:
-        return np.zeros(n)
-    k = np.arange(1, kmax + 1, dtype=np.float64)[:, None]
-    a = np.asarray(amps[:kmax], dtype=np.float64)
-    out = np.empty(n)
+    out = np.zeros(n)
+    iq2 = 1.0 / (q * q)
     for i0 in range(0, n, block):
         i1 = min(n, i0 + block)
-        t = np.arange(i0, i1) / SR
-        r2 = (k * f0 / fc[None, i0:i1]) ** 2
-        H = 1.0 / np.sqrt((1.0 - r2) ** 2 + r2 / (q * q))
-        if poles == 4:
-            H = H * H
-        ph = np.mod(2.0 * np.pi * f0 * k * t[None, :], 2.0 * np.pi)
-        out[i0:i1] = np.einsum("k,kn->n", a, H * np.sin(ph))
+        kmax = int(min(K, (fc[i0:i1].max() * 14.0) // f0))
+        if kmax < 1:
+            continue
+        th = np.mod(2.0 * np.pi * f0 * np.arange(i0, i1) / SR, 2.0 * np.pi)
+        c2 = 2.0 * np.cos(th)
+        x = f0 / fc[i0:i1]                                   # harmonic-1 frequency / cutoff
+        acc = np.zeros(i1 - i0)
+        s_prev, s_cur = np.zeros(i1 - i0), np.sin(th)
+        for k in range(1, kmax + 1):
+            a = float(amps[k - 1])
+            if a != 0.0:
+                r2 = (k * x) ** 2
+                H = 1.0 / ((1.0 - r2) ** 2 + r2 * iq2)       # |2-pole|^2 = 4-pole magnitude
+                acc += a * (H if poles == 4 else np.sqrt(H)) * s_cur
+            s_prev, s_cur = s_cur, c2 * s_cur - s_prev
+        out[i0:i1] = acc
     return out
 
 
@@ -450,7 +489,7 @@ SAW_AMPS = 1.0 / _K
 SQR_AMPS = np.where(_K % 2 == 1, 1.0 / _K, 0.0)
 
 
-def _ladder(x: np.ndarray, cutoff, mode="LPF24", res=0.1, drive=1.0, block=256) -> np.ndarray:
+def _ladder(x: np.ndarray, cutoff, mode="LPF24", res=0.1, drive=1.0, block=1024) -> np.ndarray:
     """Pedalboard Moog-ladder with per-block cutoff automation (state carried across blocks)."""
     st = x.ndim == 2
     xx = np.ascontiguousarray((x.T if st else x[None, :]).astype(np.float32))
@@ -484,8 +523,12 @@ def _delay(x: np.ndarray, d: float) -> np.ndarray:
     return y
 
 
+PP_NEAR, PP_FAR = 0.7 / math.hypot(0.7, 0.3), 0.3 / math.hypot(0.7, 0.3)   # 70/30 taps, constant power
+
+
 def _pingpong(x: np.ndarray, delay_s: float, fb: float, taps: int = 7) -> np.ndarray:
-    """Ping-pong echoes of the mono sum, each repeat a little darker; first repeat on the left."""
+    """Ping-pong echoes of the mono sum, each repeat a little darker; first repeat left-ish.  Taps are
+    placed 70/30 (not hard L/R) so the echoes survive a mono fold-down."""
     src = x.mean(axis=1)
     src = _filt(src, "highpass", 280.0)
     wet = np.zeros_like(x)
@@ -495,8 +538,18 @@ def _pingpong(x: np.ndarray, delay_s: float, fb: float, taps: int = 7) -> np.nda
     for i in range(1, taps + 1):
         g *= fb
         cur = sps.sosfilt(lp, cur)
-        wet[:, (i - 1) % 2] += g * _delay(cur[:, None], delay_s * i)[:, 0]
+        tap = g * _delay(cur[:, None], delay_s * i)[:, 0]
+        wet[:, (i - 1) % 2] += PP_NEAR * tap
+        wet[:, i % 2] += PP_FAR * tap
     return wet
+
+
+def _side_shelf(x: np.ndarray, fc: float = 1000.0, g: float = 0.7) -> np.ndarray:
+    """Scale the side (L-R) signal by ~g above fc (complementary split, mid untouched): mono safety."""
+    m = 0.5 * (x[:, 0] + x[:, 1])
+    sd = 0.5 * (x[:, 0] - x[:, 1])
+    sd = sd - (1.0 - g) * _filt(sd, "highpass", fc, 2)
+    return np.stack([m + sd, m - sd], axis=1)
 
 
 def _peak_limit(x: np.ndarray, ceiling: float, win_ms: float = 5.0, true_peak: bool = False) -> np.ndarray:
@@ -585,6 +638,8 @@ def lufs(x: np.ndarray) -> float:
 # instruments
 # ----------------------------------------------------------------------------------------------
 KICK_F_END = hz(nm("F1"))                                         # kick body tuned to the tonic, 43.7 Hz
+KNOCK_F = hz(nm("F3"))                                            # 120-300 Hz "knock" layer, settles on F3
+KICK_KNOCK, KICK_CLICK = 0.9, 0.75                                # layer levels re the body (phone speakers)
 
 
 def _kick_freq(t, big=False):
@@ -601,13 +656,22 @@ def _kick(vel, rng, big=False):
     dur = 1.0 if big else 0.42
     n = int(dur * SR)
     t = np.arange(n) / SR
-    body = np.sin(2 * np.pi * np.cumsum(_kick_freq(t, big)) / SR)
+    fk = _kick_freq(t, big)
     hold, tau = (0.05, 0.28) if big else (0.035, 0.17)
     amp = np.where(t < hold, 1.0, np.exp(-(t - hold) / tau))
-    body = np.tanh(1.7 * body * amp) / np.tanh(1.7)
+    # knock: the beater "thock" a phone speaker can reproduce (the F1 body is inaudible there).  It rides
+    # the body's own pitch sweep shifted up to settle on F3, so it starts in phase with the body and adds
+    # to it instead of cancelling; band-limited to 110-420 Hz and saturated together with the body, so it
+    # lifts the 120-300 Hz band ~3.5 dB without raising the kick's peak.
+    knock = np.sin(2 * np.pi * np.cumsum(KNOCK_F + (fk - KICK_F_END)) / SR) * (1.0 - np.exp(-t / 0.0007)) \
+        * np.exp(-t / (0.08 if big else 0.06))
+    knock = _filt(_filt(knock, "highpass", 110.0, 2), "lowpass", 420.0, 2)
+    knock /= np.max(np.abs(knock)) + 1e-9
+    body = np.sin(2 * np.pi * np.cumsum(fk) / SR) * amp
+    body = np.tanh(1.7 * (body + KICK_KNOCK * knock)) / np.tanh(1.7)
     click = _filt(rng.standard_normal(n), "bandpass", [3000.0, 5200.0], 2) * np.exp(-t / 0.0035)
     click /= np.max(np.abs(click[: int(0.01 * SR)])) + 1e-9
-    y = body + 0.5 * click
+    y = body + KICK_CLICK * click
     return vel * y * _fades(n, 0.002, 0.03 if not big else 0.25)
 
 
@@ -631,12 +695,26 @@ def _clap(vel, rng):
 _METAL = (205.3, 304.4, 369.6, 522.7, 540.0, 800.0)
 
 
-def _metal(n, rng, scale=1.0, os=4):
-    t = np.arange(n * os) / (SR * os)
-    x = np.zeros(n * os)
+def _bl_square(f, n, phase, fmax=20000.0):
+    """Band-limited square (odd harmonics 4/(pi k) up to fmax) -- additive, via the recurrence
+    sin((k+2)x) = 2 cos(2x) sin(kx) - sin((k-2)x), so no harmonic can fold back (alias-free)."""
+    th = 2 * np.pi * f * np.arange(n) / SR + phase
+    s_cur = np.sin(th)
+    c2 = 2.0 * np.cos(2.0 * th)
+    s_prev = -s_cur
+    out = s_cur.copy()
+    for k in range(3, int(fmax // f) + 1, 2):
+        s_prev, s_cur = s_cur, c2 * s_cur - s_prev
+        out += s_cur / k
+    return out * (4.0 / np.pi)
+
+
+def _metal(n, rng, scale=1.0):
+    """808-style metallic source: six band-limited squares at inharmonic ratios (alias-free)."""
+    x = np.zeros(n)
     for f in _METAL:
-        x += np.sign(np.sin(2 * np.pi * f * scale * t + rng.uniform(0, 2 * np.pi)))
-    return sps.resample_poly(x, 1, os)
+        x += _bl_square(f * scale, n, rng.uniform(0, 2 * np.pi))
+    return x
 
 
 def _hat(vel, rng, open_=False):
@@ -682,44 +760,53 @@ def _crash(vel, rng, dur=2.4):
     return vel * out * _fades(n, 0.002, 0.4)[:, None]
 
 
+PLUCK_SIDE = 0.5            # detuned +/- pair level re the centred saw (-6 dB): width without mono loss
+
+
 def _pluck(midi, dur, vel, base_fc, env_amt=3.2, env_tau=0.045, amp_tau=0.11, detune_c=7.0, cache=None):
-    key = (midi, round(dur, 3), round(vel, 2), int(base_fc / 25) * 25, round(env_amt, 2), round(amp_tau, 3))
-    if cache is not None and key in cache:
-        return cache[key]
-    n = int(dur * SR)
-    t = np.arange(n) / SR
-    f0 = hz(midi)
+    """Filtered saw+square pluck.  L = C + s*D(-detune), R = C + s*D(+detune): the centred oscillator C is
+    identical in both channels, the detuned pair only adds width (s = -6 dB) so the mono sum stays solid.
+    The timbre is cached on the velocity-scaled cutoff quantised to 1/12 octave (inaudible for a plucked
+    note) so most arp notes hit the cache; the velocity amplitude is applied exactly, outside the cache."""
     bfc = base_fc * (0.65 + 0.35 * vel)
-    fc = np.minimum(bfc * (1.0 + env_amt * np.exp(-t / env_tau)), 17000.0)
-    sq = _additive(f0, n, SQR_AMPS, fc, q=0.9) * 0.45
-    L = _additive(f0 * 2 ** (-detune_c / 1200), n, SAW_AMPS, fc, q=0.9) + sq
-    R = _additive(f0 * 2 ** (+detune_c / 1200), n, SAW_AMPS, fc, q=0.9) + sq
-    amp = np.exp(-t / amp_tau) * _fades(n, 0.002, min(0.06, dur * 0.3))
-    y = np.stack([L, R], axis=1) * (amp * vel ** 1.2)[:, None]
-    if cache is not None:
-        cache[key] = y
-    return y
+    qfc = int(round(12.0 * math.log2(bfc / 1000.0)))
+    key = (midi, round(dur, 3), qfc, round(env_amt, 2), round(env_tau, 3), round(amp_tau, 3), round(detune_c, 2))
+    y = cache.get(key) if cache is not None else None
+    if y is None:
+        n = int(dur * SR)
+        t = np.arange(n) / SR
+        f0 = hz(midi)
+        fc = np.minimum(1000.0 * 2.0 ** (qfc / 12.0) * (1.0 + env_amt * np.exp(-t / env_tau)), 17000.0)
+        c = _additive(f0, n, SAW_AMPS + 0.45 * SQR_AMPS, fc, q=0.9)
+        dl = _additive(f0 * 2 ** (-detune_c / 1200), n, SAW_AMPS, fc, q=0.9)
+        dr = _additive(f0 * 2 ** (+detune_c / 1200), n, SAW_AMPS, fc, q=0.9)
+        amp = np.exp(-t / amp_tau) * _fades(n, 0.002, min(0.06, dur * 0.3)) / math.sqrt(1.0 + PLUCK_SIDE ** 2)
+        y = np.stack([c + PLUCK_SIDE * dl, c + PLUCK_SIDE * dr], axis=1) * amp[:, None]
+        if cache is not None:
+            cache[key] = y
+    return y * vel ** 1.2
 
 
 def _bass_note(midi, dur, vel, cache, final=False, phase0=0.0):
-    key = (midi, round(dur, 3), round(vel, 2), final, round(phase0, 3))
-    if key in cache:
-        return cache[key]
+    """Returns (sub, mid, vel).  The filtered-saw mid layer is cached on a velocity quantised to 0.05 (it only
+    sets the filter-envelope depth); the sine sub is cheap and computed per note with its exact phase."""
     n = int(dur * SR)
     t = np.arange(n) / SR
     f0 = hz(midi)
     if final:                                     # the long tonic note under the end card
         amp = np.exp(-t / 1.1) * _fades(n, 0.003, 0.2)
-        fc = 160.0 + 900.0 * np.exp(-t / 0.08)
     else:
         amp = _fades(n, 0.003, 0.014) * (0.75 + 0.25 * np.exp(-t / 0.05))
-        fc = 420.0 + 2200.0 * np.exp(-t / 0.04) * vel
+    vq = round(round(vel / 0.05) * 0.05, 2)
+    key = (midi, round(dur, 3), vq, final)
+    mid = cache.get(key)
+    if mid is None:
+        fc = 160.0 + 900.0 * np.exp(-t / 0.08) if final else 420.0 + 2200.0 * np.exp(-t / 0.04) * vq
+        mid = _additive(f0, n, SAW_AMPS, fc, q=1.1) * amp
+        mid = sps.resample_poly(np.tanh(2.0 * sps.resample_poly(mid, 4, 1)) / 2.0, 1, 4)[:n]   # 4x-OS drive
+        cache[key] = mid
     sub = np.sin(2 * np.pi * f0 * t + phase0) * amp
-    mid = _additive(f0, n, SAW_AMPS, fc, q=1.1) * amp
-    mid = sps.resample_poly(np.tanh(2.0 * sps.resample_poly(mid, 4, 1)) / 2.0, 1, 4)[:n]   # 4x-oversampled drive
-    y = (sub, mid, vel)
-    cache[key] = y
-    return y
+    return sub, mid, vel
 
 
 def _supersaw_chord(midis, n, rng, voices=5, spread_c=15.0, os=2):
@@ -760,7 +847,7 @@ def _swept_noise(n, f0, f1, rng, bw_oct=0.6, stereo=True, curve=1.0):
 # ----------------------------------------------------------------------------------------------
 def _pad_cutoff(t, g):
     drop, t_hit, dur = g["drop"], g["t_hit"], g["duration"]
-    t0 = min(-0.2, drop - BAR)
+    t0 = drop + g["k0"] * BEAT                                    # intro start (<= 0 s)
     p = np.clip((t - t0) / max(drop - t0, 1e-3), 0, 1)
     intro = 520.0 * (2300.0 / 520.0) ** (p ** 1.6)
     lfo = 2000.0 * 2 ** (0.35 * np.sin(2 * np.pi * (t - drop) / (4 * BAR) - np.pi / 2))
@@ -774,7 +861,7 @@ def _pad_cutoff(t, g):
 
 def _arp_cutoff(t, g):
     drop, t_hit = g["drop"], g["t_hit"]
-    t0 = min(-0.2, drop - BAR)
+    t0 = drop + g["k0"] * BEAT                                    # intro start (<= 0 s)
     p = np.clip((t - t0) / max(drop - t0, 1e-3), 0, 1)
     intro = 650.0 * (2400.0 / 650.0) ** (p ** 1.4)
     phrase = ((t - drop) % (2 * BAR)) / (2 * BAR)                 # 2-bar filter ramps
@@ -801,6 +888,12 @@ def _pump(times, n_tot, depth, rel=0.18, hold=0.018):
         lo = max(a, 0)
         env[lo:b] = np.maximum(env[lo:b], seg[lo - a:])
     return 1.0 - depth * env
+
+
+def _step_gain(tl, t_step, g_before, g_after, ramp=0.02):
+    """Gain g_before until t_step, g_after from there (raised-cosine ramp of `ramp` s centred on t_step)."""
+    q = np.clip((tl - t_step) / ramp + 0.5, 0.0, 1.0)
+    return g_before + (g_after - g_before) * (0.5 - 0.5 * np.cos(np.pi * q))
 
 
 def _gap_gate(n_tot, times):
@@ -841,9 +934,12 @@ def _db2(g):
 
 
 # stem-internal levels (dB)
-LV = dict(kick=-5.5, clap=-13.0, clap_plate=-19.5, hat=-11.5, ohat=-13.0, snare=-15.5, crash=-18.5,
-          sub=-4.0, midbass=-3.0, pad=-9.4, arp=-11.5, lift=-12.0, stab=-8.0, delay=-18.0,
-          riser=-22.0, riser_tone=-27.0, boom=-12.0, downlifter=-27.0, revcym=-19.0, impact=-21.0)
+LV = dict(kick=-5.5, clap=-10.0, clap_plate=-19.5, hat=-11.5, ohat=-13.0, snare=-15.5, crash=-18.5,
+          sub=-6.0, midbass=-0.5, pad=-9.4, arp=-11.5, arp_intro=-3.0, lift=-12.0, stab=-8.0, stab_drop=-6.0, delay=-18.0,
+          riser=-25.0, riser_tone=-29.0, boom=-12.0, downlifter=-27.0, revcym=-19.0, impact=-21.0)
+MUSIC_SIDE_HI = 0.7                                # music-bus side gain above 1 kHz
+PUMP_PAD = 0.35                                    # pad sidechain depth on the kicks (drop on)
+STEM_HP = 30.0                                     # stems high-passed here (4th order): 22-30 Hz is headroom only
 
 
 def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
@@ -860,7 +956,7 @@ def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
     drop, t_hit = g["drop"], g["t_hit"]
     tl = np.arange(n_tot) / SR - PRE                   # video time of every buffer sample
     kicks = [e["t"] for e in events if e["inst"] == "kick"]
-    ghost = [drop + k * BEAT for k in range((g["k_first"] // 4) * 4 - 4, 0)]   # intro pulse, no kick
+    ghost = [drop + k * BEAT for k in range(g["k0"], 0)]               # intro pulse, no kick
 
     # ------------------------------------------------ DRUMS
     drums = _Bus(n_tot)
@@ -935,9 +1031,9 @@ def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
     P = _ladder(pad_bus.x, _pad_cutoff(tl, g), res=0.12)
     P = _filt(P, "highpass", 150.0, 4)
     P = _peq(P, 320.0, -2.0, 1.0)
-    P = _pb(Chorus(rate_hz=0.33, depth=0.22, centre_delay_ms=7.0, feedback=0.0, mix=0.45), P)
+    P = _pb(Chorus(rate_hz=0.33, depth=0.22, centre_delay_ms=7.0, feedback=0.0, mix=0.30), P)
     P = P + 0.40 * _reverb(P, 2.6, seed + 12, hp=150.0, lp=8000.0, predelay=0.02)
-    pump_pad = np.minimum(_pump(kicks, n_tot, 0.55, rel=0.2), _pump(ghost, n_tot, 0.4, rel=0.24))
+    pump_pad = np.minimum(_pump(kicks, n_tot, PUMP_PAD, rel=0.2), _pump(ghost, n_tot, 0.4, rel=0.24))
     P *= pump_pad[:, None]
 
     # ------------------------------------------------ MUSIC: arp + stabs
@@ -954,17 +1050,18 @@ def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
             for j, m in enumerate(e["midis"]):
                 y = _pluck(m, e["dur"], 0.95, 3200.0 if fin else 2800.0, env_amt=2.5, env_tau=0.08,
                            amp_tau=0.9 if fin else 0.28, cache=pcache)
-                arp_bus.add(e["t"] + 0.004 * j, y, _db2(LV["stab"]) / np.sqrt(len(e["midis"])))
+                arp_bus.add(e["t"] + 0.004 * j, y, _db2(LV["stab"] if fin else LV["stab_drop"]) / np.sqrt(len(e["midis"])))
     A = _filt(arp_bus.x, "highpass", 220.0, 2)
     a_rms = _db(np.sqrt(np.mean(A[int(PRE * SR):] ** 2)) + 1e-12)
     A = _pb(Compressor(threshold_db=a_rms + 5.0, ratio=4.0, attack_ms=1.5, release_ms=70.0), A)
     A = _peak_limit(A, _db2(a_rms + 9.0), win_ms=5.0)
     A = _peq(A, 2800.0, -2.5, 1.2)
+    A *= _step_gain(tl, drop - GAP / 2, _db2(LV["arp_intro"]), 1.0)[:, None]  # build arp sits under the drop
     A_d = _pingpong(A, 0.375, 0.42) * _db2(LV["delay"] - LV["arp"]) * 4.0
     A = A + A_d
     A = A + 0.135 * _reverb(A, 1.4, seed + 13, hp=250.0, lp=8000.0, predelay=0.015)
     A *= _pump(kicks, n_tot, 0.30, rel=0.16)[:, None]
-    M = P + A
+    M = _side_shelf(P + A, 1000.0, MUSIC_SIDE_HI)                       # mono-safe width above 1 kHz
     if _parts is not None:
         _parts.update(pad=P[int(PRE * SR):int(PRE * SR) + N].copy(), arp=A[int(PRE * SR):int(PRE * SR) + N].copy(),
                       sub=sub_x[int(PRE * SR):int(PRE * SR) + N].copy(), midbass=mid_x[int(PRE * SR):int(PRE * SR) + N].copy())
@@ -1031,7 +1128,7 @@ def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
     out_env[:int(0.005 * SR)] = 0.5 - 0.5 * np.cos(np.pi * np.arange(int(0.005 * SR)) / int(0.005 * SR))
     out_env[N - n_fade:] *= 0.5 + 0.5 * np.cos(np.pi * np.arange(1, n_fade + 1) / n_fade)
     for name, X in (("drums", D), ("bass", B), ("music", M), ("fx", F)):
-        X = _filt(X, "highpass", 22.0, 2)                               # DC / rumble
+        X = _filt(X, "highpass", STEM_HP, 4)                            # DC / rumble / sub headroom
         X = X[s0:s0 + N] * out_env[:, None]
         X = X - (np.mean(X, axis=0) * out_env[:, None])                 # residual DC, keeps the 0 ends
         stems[name] = X
@@ -1043,7 +1140,7 @@ def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
     beats = [round(float(b), 9) for b in g["beats"]]                    # drop_time stays exact
     segs = chord_segments(g)
     stems["meta"] = dict(
-        bpm=BPM, key=KEY, beat_times=beats, drop_time=float(drop_time),
+        bpm=BPM, key=KEY, beat_times=beats, drop_time=float(drop),             # clamped value if clamped
         end_hit_time_snapped=round(float(t_hit), 9),
         # extras
         downbeat_times=[round(float(drop + k * BEAT), 9) for k in range(g["k_first"], g["k_last"] + 1) if k % 4 == 0],
@@ -1053,7 +1150,8 @@ def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
         stem_scale_db=float(_db(scale)), sample_rate=SR, swing_s=SWING,
         n_events=len(events),
         musical_check=dict(violations=0, pitched_events=sum(1 for e in events if 'midi' in e or 'midis' in e),
-                           pitched_notes=sum(len(e.get('midis', [])) or ('midi' in e) for e in events)),
+                           pitched_notes=sum(len(e.get('midis', [])) or ('midi' in e) for e in events),
+                           tuned_snare_hits=sum(1 for e in events if e["inst"] == "snare")),
     )
     return stems
 
@@ -1097,9 +1195,62 @@ def stem_report(stems: dict) -> dict:
     return rep
 
 
+STEMS = ("drums", "bass", "music", "fx")
+
+
+def translation_report(mix: np.ndarray, drop: float) -> dict:
+    """Small-speaker check: loudness of the drop bar vs the last second of the build, full band and with
+    the lows removed (4th-order high-pass = phone-speaker model).  Positive LU = the drop is louder."""
+    out = {}
+    for name, f in (("full", None), ("HP150", 150.0), ("HP400", 400.0)):
+        y = mix if f is None else _filt(mix, "highpass", f, 4)
+        b = lufs(y[int(round(max(drop - 1.0, 0.0) * SR)):int(round(drop * SR))])
+        d = lufs(y[int(round(drop * SR)):int(round((drop + BAR) * SR))])
+        out[name] = dict(build_last_1s=round(b, 2), drop_bar=round(d, 2), drop_minus_build_LU=round(d - b, 2))
+    return out
+
+
+def stereo_report(x: np.ndarray, win: float = 0.5) -> dict:
+    """L/R correlation overall, per band and the worst `win`-second window (windows with signal only)."""
+    x = np.asarray(x, np.float64)
+
+    def corr(a):
+        return float(np.sum(a[:, 0] * a[:, 1]) / (math.sqrt(np.sum(a[:, 0] ** 2) * np.sum(a[:, 1] ** 2)) + 1e-30))
+    e_lr = 0.5 * np.sum(x ** 2)
+    e_m = np.sum((0.5 * (x[:, 0] + x[:, 1])) ** 2)
+    w = int(win * SR)
+    wins = [(i / SR, corr(x[i:i + w])) for i in range(0, len(x) - w + 1, w) if np.sum(x[i:i + w] ** 2) > 1e-7 * w]
+    worst = min(wins, key=lambda z: z[1]) if wins else (None, 1.0)
+    return dict(corr=round(corr(x), 3), mono_loss_dB=round(10 * math.log10((e_m + 1e-30) / (e_lr + 1e-30)), 2),
+                corr_1k_3k=round(corr(_filt(x, "bandpass", [1000.0, 3000.0], 4)), 3),
+                corr_3k_8k=round(corr(_filt(x, "bandpass", [3000.0, 8000.0], 4)), 3),
+                worst_window=dict(t=round(worst[0], 2) if worst[0] is not None else None, corr=round(worst[1], 3), win_s=win))
+
+
+def _glue_comp(x: np.ndarray, thr_rel_db=3.0, ratio=2.0, attack=0.015, release=0.15, sc_hp=150.0) -> np.ndarray:
+    """Bus 'glue' compressor whose detector is high-passed at `sc_hp` (so the kick/sub do not pump the
+    whole bus) with the threshold set relative to the detector's loudness.  10 ms RMS detector, gain
+    computed on a 1 ms grid with attack/release smoothing, then interpolated back to audio rate."""
+    sc = _filt(x, "highpass", sc_hp, 2)
+    hop = 48
+    lv = 10.0 * np.log10(uniform_filter1d(np.mean(sc ** 2, axis=1), int(0.010 * SR))[::hop] + 1e-20)
+    tgt = np.minimum(0.0, (lufs(sc) + thr_rel_db - lv) * (1.0 - 1.0 / ratio))
+    a_att, a_rel = math.exp(-hop / (attack * SR)), math.exp(-hop / (release * SR))
+    g = np.empty_like(tgt)
+    cur = 0.0
+    for i, v in enumerate(tgt.tolist()):
+        a = a_att if v < cur else a_rel
+        cur = a * cur + (1.0 - a) * v
+        g[i] = cur
+    gs = np.interp(np.arange(len(x)) / hop, np.arange(len(g)), g)
+    return x * _db2(gs)[:, None]
+
+
 def master_preview(mix: np.ndarray, target_lufs=-14.0, ceiling_dbtp=-1.0) -> np.ndarray:
-    """Quick preview master (NOT the final mixer): glue comp, gain to target, true-peak limiter."""
-    x = _pb(Compressor(threshold_db=-20.0, ratio=2.0, attack_ms=15.0, release_ms=150.0), mix)
+    """Quick preview master (NOT the final mixer): side-chain-HP150 glue comp, gain to target, true-peak
+    limiter.  (A full-band detector with a fixed -20 dBFS threshold let the kick pump the bus and flattened
+    the drop on phone speakers: HP150 drop-vs-build +2.4 LU in the stems became -0.5 LU after mastering.)"""
+    x = _glue_comp(mix)
     x = x * _db2(target_lufs - lufs(x))
     y = _peak_limit(x, _db2(ceiling_dbtp - 0.3), win_ms=8.0, true_peak=True)
     tp = _true_peak(y)
@@ -1109,9 +1260,12 @@ def master_preview(mix: np.ndarray, target_lufs=-14.0, ceiling_dbtp=-1.0) -> np.
 
 
 def render_demo(duration=17.5, drop_time=1.8, end_hit_time=14.5, seed=1, out_dir=DEMO_DIR):
+    import time
     os.makedirs(out_dir, exist_ok=True)
+    t0 = time.time()
     st = render(duration, drop_time, end_hit_time, seed=seed)
-    mix = sum(st[k].astype(np.float64) for k in ("drums", "bass", "music", "fx"))
+    render_s = time.time() - t0
+    mix = sum(st[k].astype(np.float64) for k in STEMS)
     y = master_preview(mix)
     y = (y - np.mean(y, axis=0) * _fades(len(y), 0.005, TAIL_FADE)[:, None])
     wav = os.path.join(out_dir, "music_techhouse_demo.wav")
@@ -1119,12 +1273,36 @@ def render_demo(duration=17.5, drop_time=1.8, end_hit_time=14.5, seed=1, out_dir
     png = os.path.join(out_dir, "music_techhouse_demo_spectrogram.png")
     subprocess.run(["ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", wav, "-lavfi",
                     "showspectrumpic=s=1600x600:legend=1", png], check=True)
-    rep = dict(params=dict(duration=duration, drop_time=drop_time, end_hit_time=end_hit_time, seed=seed),
-               meta={k: v for k, v in st["meta"].items() if k != "beat_times"},
-               n_beats=len(st["meta"]["beat_times"]),
-               stems=stem_report(st),
-               unmastered_sum=dict(lufs=round(lufs(mix), 2), true_peak_dBTP=round(_db(_true_peak(mix)), 2)),
-               demo=dict(ebur128=_ebur128(wav), python_lufs=round(lufs(y), 2),
+    meta = st["meta"]
+    sr_ = stem_report(st)
+    eb = _ebur128(wav)
+    tr = translation_report(mix, meta["drop_time"])
+    tr_demo = translation_report(y, meta["drop_time"])
+    mono = stereo_report(st["music"])
+    first100 = _db(np.sqrt(np.mean(mix[:int(0.1 * SR)] ** 2)))
+    checks = dict(
+        stems_true_peak_le_minus6=all(v["true_peak_dBTP"] <= -6.0 for v in sr_.values()),
+        stems_dc_lt_1e4=all(max(abs(d) for d in v["dc"]) < 1e-4 for v in sr_.values()),
+        stems_finite=all(v["finite"] for v in sr_.values()),
+        stems_start_end_zero=all(max(v["first_last_sample"]) < 1e-6 for v in sr_.values()),
+        demo_true_peak_le_minus1=eb["TP_dBTP"] <= -1.0,
+        notes_in_key=meta["musical_check"]["violations"] == 0,
+        audible_from_t0=first100 > -35.0,
+        drop_beats_build_on_HP150_by_2LU=tr["HP150"]["drop_minus_build_LU"] >= 2.0,
+        demo_drop_beats_build_on_HP150_by_2LU=tr_demo["HP150"]["drop_minus_build_LU"] >= 2.0,
+        music_mono_corr_ge_045=mono["corr"] >= 0.45,
+        music_no_window_corr_lt_02=mono["worst_window"]["corr"] >= 0.2)
+    rep = dict(checks=checks, all_checks_pass=all(checks.values()),
+               params=dict(duration=duration, drop_time=drop_time, end_hit_time=end_hit_time, seed=seed),
+               render_s=round(render_s, 1),
+               meta={k: v for k, v in meta.items() if k != "beat_times"},
+               n_beats=len(meta["beat_times"]),
+               stems=sr_,
+               unmastered_sum=dict(lufs=round(lufs(mix), 2), true_peak_dBTP=round(_db(_true_peak(mix)), 2),
+                                   first100ms_rms_dBFS=round(first100, 1)),
+               translation_drop_vs_build=dict(stems_sum=tr, demo_master=tr_demo),
+               music_stereo=mono,
+               demo=dict(ebur128=eb, python_lufs=round(lufs(y), 2),
                          true_peak_dBTP=round(_db(_true_peak(y)), 2),
                          dc=[float(f"{v:.2e}") for v in np.mean(y, axis=0)]))
     with open(os.path.join(out_dir, "music_techhouse_demo_report.json"), "w") as fh:
@@ -1132,9 +1310,68 @@ def render_demo(duration=17.5, drop_time=1.8, end_hit_time=14.5, seed=1, out_dir
     return rep
 
 
+SELF_TEST_CASES = (
+    (17.5, 1.8, 14.5),       # the demo
+    (17.5, 2.37, 14.5),      # intro bar starts at -1.63 s (used to be silent until 0.37 s)
+    (16.0, 0.4, 13.0),       # very short intro (used to be hats + riser only)
+    (17.5, 2.2, 14.5),       # used to be silent until 0.20 s
+    (17.5, 4.3, 15.0),       # two intro bars (Ab, Eb); used to be silent until 0.30 s
+    (17.5, 0.0, 14.5),       # drop on the very first sample
+    (17.5, 16.0, 17.0),      # drop too late: clamped to duration-3 with a warning (used to raise)
+)
+
+
+def self_test(cases=SELF_TEST_CASES, seed=1, verbose=True) -> list:
+    """Render each (duration, drop_time, end_hit_time) case and assert the contract: shapes/dtype, finite,
+    stem true peak <= -6 dBTP, |DC| < 1e-4, zero first/last samples, drop and snapped hit on the beat grid,
+    drop on a downbeat, >= 1 s tail, the first 100 ms of the stem sum above -35 dBFS RMS (audible from
+    t=0), and a warning exactly when drop_time had to be clamped.  Raises AssertionError on any failure."""
+    results, failed = [], []
+    for (dur, drop, hit) in cases:
+        with warnings.catch_warnings(record=True) as wl:
+            warnings.simplefilter("always")
+            st = render(dur, drop, hit, seed=seed)
+        m = st["meta"]
+        N = int(round(dur * SR))
+        xs = {k: st[k].astype(np.float64) for k in STEMS}
+        mix = sum(xs.values())
+        first100 = _db(np.sqrt(np.mean(mix[:int(0.1 * SR)] ** 2)))
+        want_drop = min(max(drop, 0.0), dur - 3.0)
+        on_grid = lambda t: any(abs(b - t) < 1e-9 for b in m["beat_times"])
+        chk = dict(
+            shape_dtype=all(st[k].shape == (N, 2) and st[k].dtype == np.float32 for k in STEMS),
+            finite=all(np.all(np.isfinite(v)) for v in xs.values()),
+            true_peak_le_minus6=all(_db(_true_peak(v)) <= -6.0 for v in xs.values()),
+            dc_lt_1e4=all(np.max(np.abs(np.mean(v, axis=0))) < 1e-4 for v in xs.values()),
+            ends_zero=all(np.max(np.abs(v[[0, -1]])) < 1e-6 for v in xs.values()),
+            drop_reported=abs(m["drop_time"] - want_drop) < 1e-9,
+            drop_on_grid=on_grid(m["drop_time"]),
+            drop_is_downbeat=any(abs(b - m["drop_time"]) < 1e-9 for b in m["downbeat_times"]),
+            hit_on_grid=on_grid(m["end_hit_time_snapped"]),
+            hit_leaves_1s_tail=m["end_hit_time_snapped"] <= dur - 1.0 + 1e-9,
+            first100ms_gt_minus35dBFS=first100 > -35.0,
+            clamp_warning_iff_clamped=(len(wl) > 0) == (abs(want_drop - drop) > 1e-12))
+        r = dict(case=(dur, drop, hit), drop=m["drop_time"], hit=m["end_hit_time_snapped"],
+                 first100ms_dBFS=round(first100, 1), ok=all(chk.values()),
+                 failed=[k for k, v in chk.items() if not v])
+        results.append(r)
+        if verbose:
+            print(json.dumps(r), flush=True)
+        if not r["ok"]:
+            failed.append(r)
+    if failed:
+        raise AssertionError("self-test failed: " + json.dumps(failed))
+    return results
+
+
 if __name__ == "__main__":
+    import sys
     import time
     t0 = time.time()
-    r = render_demo()
-    print(json.dumps(r, indent=2))
-    print(f"rendered in {time.time() - t0:.1f}s")
+    if "--selftest" in sys.argv[1:]:
+        self_test()
+        print(f"self-test passed in {time.time() - t0:.1f}s")
+    else:
+        r = render_demo()
+        print(json.dumps(r, indent=2))
+        print(f"rendered in {time.time() - t0:.1f}s")

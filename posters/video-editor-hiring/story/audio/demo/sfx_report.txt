@@ -3,52 +3,77 @@ Normalisation: true peak -3.0 dBTP per sound; fades >= 2 ms; DC removed
 
 sound                     start    dur    peak      TP  LUFS-M       DC     edge  L/R r    S/M
 ----------------------------------------------------------------------------------------------
-tick()                     0.40  0.045   -3.02   -3.00   -22.2  8.8e-11  1.4e-35   0.84  -10.7
-scrub(1.0)                 0.84  1.000   -3.01   -3.00   -21.1  2.2e-12  1.9e-35   0.90  -12.7
-whoosh(0.45,'lr')          2.25  0.450   -3.31   -3.00   -15.9  3.0e-11  1.7e-35   0.62   -6.3
-whoosh(0.45,'rl')          3.10  0.450   -3.01   -3.00   -16.0  1.7e-11  8.8e-36   0.64   -6.6
-whoosh(0.6,'up')           3.95  0.600   -3.16   -3.00   -15.4  2.4e-11  2.6e-35   0.39   -3.5
-whoosh(0.6,'down')         4.95  0.600   -3.03   -3.00   -14.8  1.5e-11  2.5e-36   0.40   -3.6
-whoosh(0.45,'lr',0.5)      5.95  0.450   -3.02   -3.00   -16.3  1.6e-11  6.2e-36   0.65   -6.7
-slash(0.35)                6.79  0.350   -3.01   -3.00   -18.8  1.2e-11  4.5e-36   0.71   -7.4
-impact('small')            7.54  0.411   -3.02   -3.00   -16.5  2.7e-11  1.9e-36   0.99  -23.3
-impact('medium')           8.36  0.769   -3.01   -3.00   -14.7  1.5e-11  4.2e-36   0.99  -25.1
-impact('big')              9.53  1.206   -3.04   -3.00   -14.9  1.1e-11  1.7e-36   1.00  -26.4
-reject()                  11.13  0.579   -3.01   -3.00   -14.7  5.1e-12  5.5e-37   1.00  -26.3
-check()                   12.11  1.300   -3.01   -3.00    -9.5  2.4e-11  3.1e-35   0.79   -8.2
-pop(0)                    13.81  0.300   -3.01   -3.00   -17.1  3.6e-11  4.2e-36   0.97  -18.4
-pop(2)                    14.51  0.300   -3.01   -3.00   -16.7  4.9e-11  9.6e-36   0.96  -17.1
-pop(4)                    15.21  0.300   -3.01   -3.00   -16.6  5.9e-11  6.8e-36   0.96  -17.2
-riser(1.5)                15.91  1.500   -3.18   -3.00   -12.1  7.1e-12  9.6e-35   0.30   -2.7
-downlifter(1.0)           17.81  1.000   -3.02   -3.00   -13.2  2.0e-12  1.5e-34   0.48   -4.5
-shimmer(1.2)              19.21  1.200   -3.01   -3.00   -11.2  1.6e-11  1.5e-39   0.47   -4.5
-reverse_swell(0.8)        20.81  0.800   -3.01   -3.00   -12.3  1.3e-11  3.2e-36   0.13   -1.1
+tick()                     0.40  0.045   -3.02   -3.00   -22.2  1.1e-11  1.4e-35   0.84  -10.7
+scrub(1.0)                 0.84  1.000   -3.01   -3.00   -21.1  5.8e-12  1.9e-35   0.90  -12.7
+whoosh(0.45,'lr')          2.25  0.450   -3.09   -3.00   -16.2  1.3e-11  1.8e-35   0.63   -6.4
+whoosh(0.45,'rl')          3.10  0.450   -3.01   -3.00   -16.0  1.3e-11  1.0e-35   0.64   -6.7
+whoosh(0.6,'up')           3.95  0.600   -3.11   -3.00   -15.9  2.1e-11  2.1e-35   0.40   -3.7
+whoosh(0.6,'down')         4.95  0.600   -3.07   -3.00   -14.9  1.1e-11  2.8e-36   0.43   -4.0
+whoosh(0.45,'lr',0.5)      5.95  0.450   -3.02   -3.00   -16.5  3.9e-11  6.3e-36   0.66   -6.9
+slash(0.35)                6.79  0.350   -3.11   -3.00   -19.0  8.3e-12  4.4e-36   0.71   -7.4
+impact('small')            7.54  0.428   -3.03   -3.00   -14.6  3.7e-11  3.6e-36   0.98  -20.6
+impact('medium')           8.37  0.735   -3.01   -3.00   -15.9  7.9e-12  5.3e-36   0.98  -19.4
+impact('big')              9.51  1.235   -3.05   -3.00   -14.2  1.4e-11  3.8e-36   0.97  -17.6
+reject()                  11.14  0.580   -3.01   -3.00   -13.2  2.9e-11  1.5e-36   0.98  -19.3
+check()                   12.12  1.300   -3.01   -3.00    -9.5  1.9e-11  3.1e-35   0.79   -8.2
+pop(0)                    13.82  0.300   -3.01   -3.00   -17.1  2.4e-11  4.2e-36   0.97  -18.4
+pop(2)                    14.52  0.300   -3.01   -3.00   -16.7  3.2e-11  9.6e-36   0.96  -17.1
+pop(4)                    15.22  0.300   -3.01   -3.00   -16.6  2.6e-11  6.8e-36   0.96  -17.2
+riser(1.5)                15.92  1.500   -3.12   -3.00   -12.7  9.9e-12  7.8e-36   0.55   -5.4
+downlifter(1.0)           17.82  1.000   -3.02   -3.00   -13.2  9.9e-12  1.5e-34   0.48   -4.5
+shimmer(1.2)              19.22  1.200   -3.01   -3.00   -11.2  1.2e-11  1.5e-39   0.47   -4.5
+reverse_swell(0.8)        20.82  0.800   -3.01   -3.00   -13.9  7.6e-12  2.6e-36   0.66   -6.9
 
-units: start/dur s; peak dBFS (sample); TP dBTP (4x oversampled); LUFS-M = max momentary loudness (400 ms);
+units: start/dur s; peak dBFS (sample); TP dBTP (8x oversampled); LUFS-M = max momentary loudness (400 ms);
        DC = max |channel mean|; edge = max |first/last sample|; L/R r = channel correlation; S/M = side/mid energy dB
+
+Mix levels at SUGGESTED_GAIN_DB (max LUFS-M; 'phone' = after a 4th-order 150 Hz high-pass):
+sound                     gain   full  phone  diff target derived
+-----------------------------------------------------------------
+tick()*                   -4.0  -26.2  -26.2   0.0  -26.0    -4.0
+scrub(1.0)*               -6.0  -27.1  -27.1   0.0  -27.0    -6.0
+whoosh(0.45,'lr')*        -2.5  -18.7  -18.9   0.2  -18.5    -2.5
+whoosh(0.45,'rl')         -2.5  -18.5  -18.8   0.3  -18.5    -2.5
+whoosh(0.6,'up')          -2.5  -18.4  -18.7   0.3  -18.5    -2.5
+whoosh(0.6,'down')        -2.5  -17.4  -17.7   0.3  -18.5    -3.5
+whoosh(0.45,'lr',0.5)     -2.5  -19.0  -19.3   0.2  -18.5    -2.0
+slash(0.35)*               0.0  -19.0  -19.0   0.0  -18.8     0.0
+impact('small')*          -4.0  -18.6  -19.8   1.2  -18.7    -4.0
+impact('medium')*         -0.5  -16.4  -19.1   2.7  -16.5    -0.5
+impact('big')*             0.0  -14.2  -17.6   3.4  -14.3     0.0
+reject()*                 -4.0  -17.2  -19.0   1.8  -17.0    -4.0
+check()*                  -8.5  -18.0  -18.0   0.0  -18.0    -8.5
+pop(0)*                   -3.0  -20.1  -20.1   0.0  -20.0    -3.0
+pop(2)                    -3.0  -19.7  -19.7   0.0  -20.0    -3.5
+pop(4)                    -3.0  -19.6  -19.6   0.0  -20.0    -3.5
+riser(1.5)*               -6.0  -18.7  -18.7   0.0  -18.6    -6.0
+downlifter(1.0)*          -7.0  -20.2  -20.5   0.3  -20.2    -7.0
+shimmer(1.2)*             -8.5  -19.7  -19.7  -0.0  -19.7    -8.5
+reverse_swell(0.8)*       -5.0  -18.9  -18.9   0.0  -18.8    -5.0
+  * = the entry that defines the gain for its key ('derived' = target - LUFS-M at 0 dB, rounded to 0.5 dB, <= 0)
 
 Octave-band energy, dB relative to total (centre Hz):
 sound                        63    125    250    500   1000   2000   4000   8000  16000
 tick()                    -53.2  -51.6  -49.3  -45.8   -1.6   -5.2  -35.2  -40.8  -38.9
 scrub(1.0)                -38.8  -33.6  -25.8  -15.5   -1.3   -6.6  -20.4  -28.0  -34.7
-whoosh(0.45,'lr')         -12.3  -12.5  -10.1   -9.4   -7.7   -4.6   -9.3  -15.6  -21.2
-whoosh(0.45,'rl')         -15.0   -8.5  -10.1  -10.3   -7.8   -5.3   -8.4  -15.7  -20.9
-whoosh(0.6,'up')          -14.5   -8.4   -9.4   -7.8   -7.6   -5.8  -12.2  -17.1  -19.7
-whoosh(0.6,'down')        -16.5   -9.3   -7.7   -7.9   -6.5   -6.6  -13.3  -16.8  -19.5
-whoosh(0.45,'lr',0.5)     -15.6   -9.6   -9.9   -8.1   -7.2   -5.2  -10.0  -18.5  -25.0
+whoosh(0.45,'lr')         -11.2  -11.4   -9.1   -8.3   -6.5   -6.3  -10.8  -15.5  -19.8
+whoosh(0.45,'rl')         -14.0   -7.5   -9.1   -9.2   -6.8   -7.1  -10.1  -15.6  -19.7
+whoosh(0.6,'up')          -13.7   -7.6   -8.6   -7.2   -7.6   -7.4  -12.9  -16.3  -18.9
+whoosh(0.6,'down')        -15.7   -8.5   -7.0   -7.3   -6.7   -8.3  -14.0  -16.1  -18.7
+whoosh(0.45,'lr',0.5)     -14.9   -8.9   -9.2   -7.3   -6.3   -7.0  -11.0  -17.9  -23.5
 slash(0.35)               -27.9  -20.8  -19.1  -17.8  -10.9  -14.0   -9.1   -2.0  -10.6
-impact('small')           -10.8   -3.6   -3.6  -14.1  -22.8  -27.5  -25.9  -27.5  -36.7
-impact('medium')           -4.7   -2.2  -12.9  -20.0  -26.4  -29.2  -27.3  -28.4  -37.6
-impact('big')              -2.7   -3.9  -18.2  -22.6  -25.9  -31.5  -29.4  -30.3  -38.9
-reject()                   -3.0   -3.6  -14.8  -16.5  -21.1  -28.7  -38.8  -50.2  -65.9
+impact('small')           -10.6   -5.4   -2.5  -12.3  -20.4  -30.0  -28.2  -27.8  -37.0
+impact('medium')           -5.6   -4.3   -5.6  -11.8  -19.8  -26.5  -24.8  -26.1  -35.1
+impact('big')              -2.9   -7.0   -6.5  -13.0  -22.1  -24.1  -22.7  -22.4  -31.5
+reject()                   -3.6  -14.5   -3.1  -18.6  -18.9  -21.3  -33.3  -45.7  -61.5
 check()                   -72.0  -66.6  -53.8   -5.6   -1.6  -14.8  -29.3  -90.0 -119.1
 pop(0)                    -39.8  -34.2  -15.1   -8.2   -0.9  -22.4  -50.6  -52.5  -70.3
 pop(2)                    -42.5  -37.3  -15.2  -14.7   -0.3  -21.2  -50.0  -53.2  -72.0
 pop(4)                    -43.7  -39.0  -15.4  -19.2   -0.2  -20.9  -49.5  -55.6  -67.9
-riser(1.5)                -36.6  -25.3  -14.2   -6.3   -5.9   -7.1   -7.5  -10.6  -24.3
+riser(1.5)                -36.7  -25.3  -14.4   -6.5   -6.1   -7.0   -7.3  -10.2  -23.9
 downlifter(1.0)           -11.3   -9.1   -6.4   -7.0   -8.1   -9.0  -11.4  -17.8  -34.6
 shimmer(1.2)              -71.6  -68.0  -58.7   -9.5   -2.4   -5.6  -19.6  -18.3  -22.2
-reverse_swell(0.8)        -64.6  -55.0  -19.9  -10.6  -16.7  -14.2   -8.2   -2.7   -7.9
+reverse_swell(0.8)        -65.5  -55.8  -20.1  -12.8  -18.0  -15.3   -7.9   -2.6   -7.4
 
 Pitch check (dominant spectral peak):
   tick()                  1396.7 Hz = F6-0c in-key
@@ -61,8 +86,8 @@ Tuned notes declared per sound (all asserted in F minor):
   tick           F6 C7 F8
   scrub          C6 F6
   slash          F6 C7 C8 F8 Ab8 C9
-  impact         F2 C3 F3 C4 F4
-  reject         Ab2 C3 F3
+  impact         F1 Db2 F2 C3 F3 C4 F4
+  reject         F3 Ab3 C4
   check          F5 C6
   pop            Ab3 Bb3 C4 Ab5 Bb5 C6
   riser          F3 C4 F5 C6
@@ -70,6 +95,20 @@ Tuned notes declared per sound (all asserted in F minor):
   shimmer        F5 C6 Eb6 F6 G6 Ab6 C7 Eb7 F7 F8 Ab8 C9
   reverse_swell  F4 Ab4 C5
 
-Checks: all finite: PASS, true peak <= -1 dBTP: PASS, |DC| < 1e-4: PASS, edges ~0 (fades): PASS
-ffmpeg ebur128 on whole demo: integrated -16.4 LUFS, LRA 4.5 LU, true peak -3.0 dBFS
-Demo: /home/user/kawin/posters/video-editor-hiring/story/audio/demo/sfx_demo.wav (22.01 s)
+Extra checks:
+  riser(3.0)               L/R r 0.54, TP -3.00 dBTP
+  reverse_swell(1.5)       L/R r 0.66, TP -3.00 dBTP
+  whoosh(0.45,'lr',2.0)    L/R r 0.64, TP -3.00 dBTP
+  riser tremolo gain at the last sample (dur 0.3/1.0/1.2/1.5/2.0/3.0 s): +0.00 +0.00 +0.00 +0.00 +0.00 +0.00 dB
+  whoosh anchors (s, measured envelope peak): 0.45:lr -> 0.252 (0.56*dur), 0.45:rl -> 0.244 (0.54*dur), 0.6:up -> 0.435 (0.72*dur), 0.6:down -> 0.212 (0.35*dur)
+  impact('big') sub settles at 43.70 Hz = F1+2c (zero crossings 0.6-1.0 s after LP 70 Hz)
+  impact('medium') sub settles at 43.71 Hz = F1+2c (zero crossings 0.4-0.65 s after LP 70 Hz)
+  impact('small') sub settles at 69.58 Hz = Db2+7c (zero crossings 0.18-0.3 s after LP 100 Hz)
+  over_music_hit(impact('big')): energy < 60 Hz -26.7 dB, LUFS-M -2.52 LU, phone -0.08 LU, TP -3.16 dBTP, DC 8e-12, edge 6e-39
+  over_music_hit(impact('medium')): energy < 60 Hz -27.4 dB, LUFS-M -1.21 LU, phone -0.09 LU, TP -3.82 dBTP, DC 1e-11, edge 7e-39
+  fx_duck_gain: -6.0 dB inside spans, 0 dB outside, max step 0.0065 dB/sample
+  riser(0.1) -> 0.300 s with warning: True (minimum durations: whoosh 0.08, slash 0.15, scrub 0.03, riser 0.3, downlifter 0.2, shimmer 0.4, reverse_swell 0.2)
+
+Checks: all finite: PASS, true peak <= -1 dBTP: PASS, |DC| < 1e-4: PASS, edges ~0 (fades): PASS, L/R r >= 0.35 (mono-safe): PASS, riser ends on a tremolo peak: PASS, short durations warn: PASS, impacts phone within 4 LU of full: PASS, slams big>=medium>=small (full+phone): PASS, big slam loudest on phone: PASS, SUGGESTED_GAIN_DB = derived: PASS, impact subs on F1/F1/Db2 (+-15 c): PASS, over_music_hit clean (<60 Hz <= -10 dB, phone +-0.15 LU): PASS, fx_duck_gain: PASS
+ffmpeg ebur128 on whole demo: integrated -16.5 LUFS, LRA 4.6 LU, true peak -3.0 dBFS
+Demo: /home/user/kawin/posters/video-editor-hiring/story/audio/demo/sfx_demo.wav (22.02 s)

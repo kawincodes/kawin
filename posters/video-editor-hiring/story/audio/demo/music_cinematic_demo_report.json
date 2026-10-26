@@ -9,9 +9,13 @@
   "demo_dc_lt_1e4": true,
   "drop_is_bar_line": true,
   "end_hit_is_bar_line": true,
+  "meta_exact_membership": true,
   "drop_onset_within_1ms": true,
+  "hit_onsets_within_4ms": true,
+  "breath_before_hits_le_minus15dB": true,
   "notes_in_key": true,
-  "audible_from_t0": true
+  "audible_from_t0": true,
+  "groove_ge_build_end_plus_2LU": true
  },
  "all_checks_pass": true,
  "params": {
@@ -25,6 +29,16 @@
   "key": "F minor",
   "drop_time": 1.8,
   "end_hit_time_snapped": 14.3,
+  "downbeat_times": [
+   1.8,
+   3.8,
+   5.8,
+   7.8,
+   9.8,
+   11.8,
+   14.3,
+   16.3
+  ],
   "bar_times": [
    1.8,
    3.8,
@@ -129,7 +143,7 @@
     "Fm9"
    ]
   ],
-  "stem_gain_db": -4.61,
+  "stem_gain_db": -4.2,
   "stem_peak_dbtp": -6.5,
   "sample_rate": 48000,
   "musical_check": {
@@ -190,153 +204,218 @@
  ],
  "stems": {
   "drums": {
-   "peak_dBFS": -6.64,
+   "peak_dBFS": -6.55,
    "true_peak_dBTP": -6.5,
-   "lufs_I": -21.89,
-   "max_momentary": -16.32,
+   "lufs_I": -21.41,
+   "max_momentary": -15.86,
    "dc": [
-    1.04e-09,
-    1.33e-09
+    1.47e-09,
+    1.71e-09
    ],
    "finite": true,
    "first_last_abs": [
     0.0,
     0.0
    ],
-   "level_at_t0_dBFS": -45.1,
+   "level_at_t0_dBFS": -44.7,
    "octave_bands_dB": {
     "31.5": -31.3,
     "63": 0.0,
-    "125": -3.9,
-    "250": -8.9,
-    "500": -21.6,
-    "1000": -22.3,
+    "125": -4.0,
+    "250": -9.1,
+    "500": -21.7,
+    "1000": -22.4,
     "2000": -20.0,
-    "4000": -17.5,
-    "8000": -17.4,
-    "16000": -19.9
+    "4000": -17.6,
+    "8000": -17.5,
+    "16000": -20.0
    }
   },
   "bass": {
-   "peak_dBFS": -11.74,
-   "true_peak_dBTP": -11.74,
-   "lufs_I": -24.01,
-   "max_momentary": -20.84,
+   "peak_dBFS": -11.05,
+   "true_peak_dBTP": -11.05,
+   "lufs_I": -23.6,
+   "max_momentary": -20.22,
    "dc": [
-    1.24e-08,
-    1.24e-08
+    1.32e-08,
+    1.32e-08
    ],
    "finite": true,
    "first_last_abs": [
     0.0,
     0.0
    ],
-   "level_at_t0_dBFS": -26.9,
+   "level_at_t0_dBFS": -25.9,
    "octave_bands_dB": {
-    "31.5": -6.0,
+    "31.5": -5.8,
     "63": 0.0,
-    "125": -7.0,
+    "125": -6.8,
     "250": -11.5,
-    "500": -15.3,
-    "1000": -20.3,
-    "2000": -29.8,
-    "4000": -44.7,
-    "8000": -67.6,
-    "16000": -91.9
+    "500": -15.0,
+    "1000": -18.6,
+    "2000": -27.0,
+    "4000": -41.9,
+    "8000": -65.0,
+    "16000": -90.1
    }
   },
   "music": {
-   "peak_dBFS": -9.22,
-   "true_peak_dBTP": -9.2,
-   "lufs_I": -24.15,
-   "max_momentary": -19.96,
+   "peak_dBFS": -8.0,
+   "true_peak_dBTP": -7.95,
+   "lufs_I": -23.08,
+   "max_momentary": -19.22,
    "dc": [
-    4.95e-08,
-    -1.02e-07
+    -1.28e-09,
+    -2e-07
    ],
    "finite": true,
    "first_last_abs": [
     0.0,
     0.0
    ],
-   "level_at_t0_dBFS": -32.8,
+   "level_at_t0_dBFS": -29.2,
    "octave_bands_dB": {
-    "31.5": -44.4,
-    "63": -7.8,
-    "125": -2.9,
+    "31.5": -44.3,
+    "63": -7.6,
+    "125": -2.8,
     "250": 0.0,
-    "500": -1.2,
-    "1000": -3.1,
-    "2000": -8.7,
-    "4000": -17.6,
-    "8000": -33.6,
-    "16000": -64.7
+    "500": -0.2,
+    "1000": -1.4,
+    "2000": -7.1,
+    "4000": -15.5,
+    "8000": -31.2,
+    "16000": -62.3
    }
   },
   "fx": {
-   "peak_dBFS": -12.74,
-   "true_peak_dBTP": -12.73,
-   "lufs_I": -25.83,
-   "max_momentary": -19.78,
+   "peak_dBFS": -12.32,
+   "true_peak_dBTP": -12.31,
+   "lufs_I": -25.65,
+   "max_momentary": -19.36,
    "dc": [
-    -8.78e-09,
-    -8.04e-09
+    -9.15e-09,
+    -8.59e-09
    ],
    "finite": true,
    "first_last_abs": [
     0.0,
     0.0
    ],
-   "level_at_t0_dBFS": -57.6,
+   "level_at_t0_dBFS": -60.0,
    "octave_bands_dB": {
     "31.5": 0.0,
     "63": -2.0,
     "125": -16.8,
-    "250": -23.5,
-    "500": -31.7,
-    "1000": -26.7,
-    "2000": -22.2,
-    "4000": -19.3,
-    "8000": -19.0,
-    "16000": -24.6
+    "250": -23.6,
+    "500": -33.5,
+    "1000": -28.9,
+    "2000": -24.4,
+    "4000": -21.1,
+    "8000": -19.9,
+    "16000": -24.9
    }
   }
  },
  "demo": {
   "ebur128": {
    "I_LUFS": -14.1,
-   "LRA_LU": 2.0,
+   "LRA_LU": 1.7,
    "TP_dBTP": -1.4
   },
   "true_peak_internal_dBTP": -1.4,
   "dc": [
-   -1.82e-05,
-   -1.98e-05
+   -2.02e-05,
+   -2.08e-05
   ],
   "first_last": [
    0.0,
    0.0
   ],
   "max_momentary_by_section": {
-   "intro 0-drop": -14.3,
-   "drop bar": -10.3,
-   "groove": -11.5,
-   "turnaround": -11.3,
-   "hit+tail": -10.6
+   "intro 0-drop": -15.8,
+   "drop bar": -10.4,
+   "groove": -11.4,
+   "turnaround": -11.4,
+   "hit+tail": -10.7
   },
   "octave_bands_dB": {
    "31.5": -6.3,
    "63": 0.0,
    "125": -4.6,
-   "250": -7.2,
-   "500": -10.0,
-   "1000": -12.2,
-   "2000": -16.8,
-   "4000": -18.9,
-   "8000": -19.5,
+   "250": -7.3,
+   "500": -9.1,
+   "1000": -10.6,
+   "2000": -15.6,
+   "4000": -18.8,
+   "8000": -19.6,
    "16000": -22.5
   },
-  "drop_onset_error_ms": 0.938
+  "drop_onset_error_ms": 0.771
+ },
+ "transients": {
+  "drop_broadband": {
+   "onset_ms": 0.875,
+   "breath_dB": -43.4
+  },
+  "drop_lp200": {
+   "onset_ms": 3.0,
+   "breath_dB": -53.3
+  },
+  "end_hit_broadband": {
+   "onset_ms": 0.854,
+   "breath_dB": -19.3
+  },
+  "end_hit_lp200": {
+   "onset_ms": 2.771,
+   "breath_dB": -27.1
+  }
+ },
+ "section_loudness_LUFS": {
+  "note": "unmastered stem sum; hpNNN = 4th-order high-pass at NNN Hz (phone speaker model); build_end = last 1 s before the drop; groove = drop+2 s .. end hit-2.5 s",
+  "first_1s": {
+   "full": -21.42,
+   "hp150": -25.4,
+   "hp250": -26.53,
+   "hp400": -28.71
+  },
+  "build_end": {
+   "full": -20.06,
+   "hp150": -23.61,
+   "hp250": -24.65,
+   "hp400": -25.94
+  },
+  "drop_bar": {
+   "full": -16.85,
+   "hp150": -20.35,
+   "hp250": -21.88,
+   "hp400": -23.04
+  },
+  "groove": {
+   "full": -17.67,
+   "hp150": -21.0,
+   "hp250": -22.16,
+   "hp400": -23.22
+  }
+ },
+ "contrast_LU": {
+  "drop_bar_minus_build_end": {
+   "full": 3.21,
+   "hp150": 3.26,
+   "hp250": 2.77,
+   "hp400": 2.9
+  },
+  "groove_minus_build_end": {
+   "full": 2.39,
+   "hp150": 2.61,
+   "hp250": 2.49,
+   "hp400": 2.72
+  },
+  "groove_minus_first_1s": {
+   "full": 3.75,
+   "hp150": 4.4,
+   "hp250": 4.37,
+   "hp400": 5.49
+  }
  },
  "bars": [
   {

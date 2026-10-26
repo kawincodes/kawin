@@ -35,3 +35,5 @@ posters/video-editor-hiring/story/qa30-round*/
 # Design project data (cue sheets, review notes) is safe to track
 !posters/**/*.json
 posters/video-editor-hiring/story/audio/demo/*.wav
+posters/video-editor-hiring/story/audio/audit30/
+posters/video-editor-hiring/story/audio/test/
