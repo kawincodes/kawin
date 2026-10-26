@@ -24,3 +24,7 @@ brand/logo/work/
 
 # Python bytecode caches
 __pycache__/
+
+# Story video review scratch output
+posters/video-editor-hiring/story/judge-*/
+posters/video-editor-hiring/story/qa-round*/
