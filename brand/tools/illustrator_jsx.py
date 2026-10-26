@@ -1376,7 +1376,8 @@ def svg_to_variant(svg_text, name=None, background="auto", arc_tol=DEFAULT_ARC_T
     """Layered SVG -> variant dict (see module docstring). warnings: optional list to extend."""
     w = Warnings()
     r = _Reader(svg_text, arc_tol, w)
-    nodes = r.walk(r.root, r.base, dict(_DEFAULT_INH))
+    # presentation attributes on the root <svg> (fill="none", fill-rule, style="fill:...") inherit too
+    nodes = r.walk(r.root, r.base, r.inherit(r.root, dict(_DEFAULT_INH)))
     if name is None:
         t = next((el for el in r.root if _local(el.tag) == "title"), None)
         name = (t.text or "").strip() if t is not None and t.text else "Artboard"
@@ -1570,8 +1571,10 @@ class _Model:
             core = {"k": "g", "n": name, "ch": ch, "op": 1.0, "fx": fx}
         else:
             subs = self.subs(it.get("d") or "", name)
+            if not subs:
+                return None              # no stray swatch for an item that is not drawn
             fill = self.fill(it.get("fill", "#000000"), name)
-            if not subs or fill is None:
+            if fill is None:
                 return None
             fop = float(it.get("fill_opacity", 1.0)) * fill.get("alpha", 1.0)
             core = {"k": "p", "n": name, "subs": subs, "eo": it.get("fill_rule") == "evenodd",
@@ -1755,9 +1758,16 @@ def _ai_fill(f, model):
         v = {"t": "r", "cx": g["cx"], "cy": g["cy"], "r": g["r"], "r2": g["r2"], "a": g["angle"]}
         dx, dy = g["fx"] - g["cx"], g["fy"] - g["cy"]
         if math.hypot(dx, dy) > 1e-6 * max(g["r"], 1e-9):
-            # focal point -> highlight (angle in Illustrator's y-up frame, length as a fraction of r)
-            v["ha"] = math.degrees(math.atan2(-dy, dx)) + g["angle"]
-            v["hl"] = math.hypot(dx, dy) / g["r"]
+            # focal point -> highlight in the gradient's own frame (angle relative to the major axis
+            # in Illustrator's y-up frame, length as a fraction of r). The script squashes an
+            # elliptical gradient's minor axis - highlight included - by r2/r AFTER setting it, so
+            # the minor-axis component is pre-stretched by r/r2.
+            rel = math.atan2(-dy, dx) + math.radians(g["angle"])
+            fu, fv = math.hypot(dx, dy) * math.cos(rel), math.hypot(dx, dy) * math.sin(rel)
+            if g["r2"] > 1e-12:
+                fv *= g["r"] / g["r2"]
+            v["ha"] = math.degrees(math.atan2(fv, fu))
+            v["hl"] = math.hypot(fu, fv) / g["r"]
     return {"g": f["g"], "v": v}
 
 
@@ -1840,7 +1850,7 @@ def illustrator_script(variants, palette, out_path, *, base=None, title=None, sc
         sublayers += len(items)
         data["variants"].append({"n": v["name"], "ab": cell, "items": items})
     data["expect"] = {"paths": counts["paths"], "points": counts["points"]}
-    js = _AI_JS.replace("__DATA__", _js(data)).replace("__TITLE__", _comment_safe(data["title"]))
+    js = _fill_template(_AI_JS, _js(data), data["title"])
     _write(out_path, js)
     problems = es3_lint(js)
     if problems:
@@ -2115,16 +2125,24 @@ def photoshop_script(variants, palette, out_path, px=4096, *, base=None, title=N
     data = {"title": title or f"{base} - native Photoshop rebuild", "base": base, "ppi": ppi,
             "profile": profile, "sampleTol": sample_tol,
             "swatches": [{"n": x["name"], "rgb": x["rgb"]} for x in model.swatches], "variants": []}
+    used = set()
     for v in model.variants:
         s = float(px) / max(v["W"], v["H"])
         Wp, Hp = int(round(v["W"] * s)), int(round(v["H"] * s))
         items = [_ps_node(n, model, s, Wp, Hp, counts) for n in v["items"]]
         samples = _ps_samples(v, s, Wp, Hp, model)
         counts["samples"] += len(samples)
+        # one .psd per variant: names that slug alike ("K Mark" / "K-Mark", non-Latin names) must
+        # not overwrite each other (compared case-insensitively, as on macOS / Windows volumes)
+        stem = f"{base}_{_slug(v['name'])}"
+        fname, i = stem, 2
+        while fname.lower() in used:
+            fname, i = f"{stem}-{i}", i + 1
+        used.add(fname.lower())
         data["variants"].append({"n": v["name"], "doc": f"{base} {v['name']}",
-                                 "file": f"{base}_{_slug(v['name'])}.psd", "w": Wp, "h": Hp,
+                                 "file": f"{fname}.psd", "w": Wp, "h": Hp,
                                  "s": round(s, 10), "items": items, "samples": samples})
-    js = _PS_JS.replace("__DATA__", _js(data)).replace("__TITLE__", _comment_safe(data["title"]))
+    js = _fill_template(_PS_JS, _js(data), data["title"])
     _write(out_path, js)
     problems = es3_lint(js)
     if problems:
@@ -2138,6 +2156,12 @@ def photoshop_script(variants, palette, out_path, px=4096, *, base=None, title=N
 
 def _comment_safe(s):
     return re.sub(r"[^\x20-\x7E]", "?", s).replace("*/", "* /")
+
+
+def _fill_template(tpl, data_js, title):
+    """Single-pass substitution: a layer named "__TITLE__" (or a title containing "__DATA__")
+    must not be substituted again inside the inserted data."""
+    return re.sub(r"__(DATA|TITLE)__", lambda m: data_js if m.group(1) == "DATA" else _comment_safe(title), tpl)
 
 
 def _write(path, text):
