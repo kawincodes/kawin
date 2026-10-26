@@ -28,3 +28,5 @@ __pycache__/
 # Story video review scratch output
 posters/video-editor-hiring/story/judge-*/
 posters/video-editor-hiring/story/qa-round*/
+posters/video-editor-hiring/story/audio/audit/
+__pycache__/
