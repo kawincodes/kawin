@@ -30,7 +30,8 @@
   5.75-6.25 T1 WHIP-PAN LEFT (blur = 0.35 x per-frame travel); 6.0-6.35 logo flies to the HUD and resolves to the KRS mark.
   6.5/7.0/7.5  role clips pop on (contact on the beat).   8.0 REMOTE badge smashes in (ghost REMOTE teased in its slot).
   9.5-10.0 T2  full-height playhead render-wipe to SKILLS (media-bin layout).
-  10.0-11.5    four software tiles drop into their bin slots (clipped to the slot, contact on the beat).  HOLD to 13.75.
+  10.0-11.5    four software tiles drop into their bin slots (clipped to the slot, contact on the beat).  HOLD to 13.75;
+               12.0/12.5/13.0/13.5 a skim line crosses each thumbnail.
   13.75-14.0 T3 bin pulls back + dims; HARD CUT to the breakdown on 14.0; it settles 14.0-14.2.
   14.5 / 15.0  X stamps (hatch + orange border + squash).   15.5 check, pro clip enables.
   16.0-17.5    riser stepped on the beats: render bar fills, brackets close + turn orange, vignette tightens, glow + light leak build.
@@ -138,6 +139,8 @@ svg{display:block}
 .bt .bar{position:absolute;left:0;top:258px;width:100%;height:5px;background:linear-gradient(90deg,var(--o),var(--o2))}
 .bt .lb{position:absolute;left:0;top:263px;width:100%;bottom:0;display:flex;align-items:center;justify-content:center;
   font-family:'Barlow Condensed';font-weight:800;font-size:58px;letter-spacing:.02em;line-height:1;white-space:nowrap}
+.bt .skim{position:absolute;left:0;top:0;width:6px;height:258px;background:#FF8A2A;box-shadow:0 0 18px rgba(252,116,3,.95),0 0 4px #ffd0a0;opacity:0}
+.bt .skim::before{content:"";position:absolute;right:6px;top:0;width:160px;height:100%;background:linear-gradient(90deg,rgba(252,116,3,0),rgba(252,116,3,.2))}
 .bfl{position:absolute;inset:-3px;border-radius:20px;box-shadow:0 0 0 4px rgba(255,150,60,.95),0 0 36px 6px rgba(252,116,3,.55);opacity:0}
 
 /* S4 filter */
@@ -257,7 +260,7 @@ svg{display:block}
     <line x1="300" y1="1700" x2="520" y2="1949" stroke="url(#gO)" stroke-width="20" stroke-opacity=".35" filter="url(#soft)"/>
     <line x1="300" y1="1700" x2="520" y2="1949" stroke="url(#gO)" stroke-width="6" stroke-linecap="round"/>
     <line x1="400" y1="1690" x2="560" y2="1871" stroke="url(#gW)" stroke-width="2.5" stroke-linecap="round"/>
-    <line x1="1300" y1="1300" x2="1460" y2="1481" stroke="url(#gO)" stroke-width="5" stroke-linecap="round" opacity=".7"/>
+    <line id="stkR" x1="1300" y1="1300" x2="1460" y2="1481" stroke="url(#gO)" stroke-width="5" stroke-linecap="round" opacity=".7"/>
   </g>
 </svg>
 <div id="bgDark" class="L"></div>
@@ -319,16 +322,16 @@ svg{display:block}
     <i class="bslot" style="left:82px;top:542px"></i><i class="bslot" style="left:549px;top:542px"></i>
     <i class="bslot" style="left:82px;top:949px"></i><i class="bslot" style="left:549px;top:949px"></i>
     <div class="bw" style="left:82px;top:542px"><div class="bt" id="c31">
-      <div class="th"><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><rect x="12" y="7" width="40" height="50" rx="4"/><path d="M22 7 V57 M42 7 V57 M12 17 H22 M12 27 H22 M12 37 H22 M12 47 H22 M42 17 H52 M42 27 H52 M42 37 H52 M42 47 H52"/></svg></div></div>
+      <div class="th"><i class="skim" id="sk31"></i><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><rect x="12" y="7" width="40" height="50" rx="4"/><path d="M22 7 V57 M42 7 V57 M12 17 H22 M12 27 H22 M12 37 H22 M12 47 H22 M42 17 H52 M42 27 H52 M42 37 H52 M42 47 H52"/></svg></div></div>
       <i class="bar"></i><div class="lb">PREMIERE PRO</div></div><i class="bfl" id="f31"></i></div>
     <div class="bw" style="left:549px;top:542px"><div class="bt" id="c32">
-      <div class="th"><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><path d="M32 8 L58 21 L32 34 L6 21 Z"/><path d="M6 32 L32 45 L58 32"/><path d="M6 43 L32 56 L58 43"/></svg></div></div>
+      <div class="th"><i class="skim" id="sk32"></i><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><path d="M32 8 L58 21 L32 34 L6 21 Z"/><path d="M6 32 L32 45 L58 32"/><path d="M6 43 L32 56 L58 43"/></svg></div></div>
       <i class="bar"></i><div class="lb">AFTER EFFECTS</div></div><i class="bfl" id="f32"></i></div>
     <div class="bw" style="left:82px;top:949px"><div class="bt" id="c33">
-      <div class="th"><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="32" cy="32" r="8"/><path d="M32 8 V24 M32 40 V56 M8 32 H24 M40 32 H56 M15 15 L26.3 26.3 M37.7 37.7 L49 49 M49 15 L37.7 26.3 M26.3 37.7 L15 49"/></svg></div></div>
+      <div class="th"><i class="skim" id="sk33"></i><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="32" cy="32" r="8"/><path d="M32 8 V24 M32 40 V56 M8 32 H24 M40 32 H56 M15 15 L26.3 26.3 M37.7 37.7 L49 49 M49 15 L37.7 26.3 M26.3 37.7 L15 49"/></svg></div></div>
       <i class="bar"></i><div class="lb">DAVINCI RESOLVE</div></div><i class="bfl" id="f33"></i></div>
     <div class="bw" style="left:549px;top:949px"><div class="bt" id="c34">
-      <div class="th"><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><circle cx="17" cy="46" r="8"/><circle cx="47" cy="46" r="8"/><path d="M22.5 40 L50 8 M41.5 40 L14 8"/></svg></div></div>
+      <div class="th"><i class="skim" id="sk34"></i><div class="tile"><svg class="ico" width="104" height="104" viewBox="0 0 64 64"><circle cx="17" cy="46" r="8"/><circle cx="47" cy="46" r="8"/><path d="M22.5 40 L50 8 M41.5 40 L14 8"/></svg></div></div>
       <i class="bar"></i><div class="lb">FINAL CUT PRO</div></div><i class="bfl" id="f34"></i></div>
   </section>
 
@@ -521,7 +524,7 @@ function flashKeys(times, off, on, dur, ease){   /* off -> on at each t (1 frame
 }
 function stepKeys(pairs, v0, ramp){   /* stepped values: pairs [[t,v],...], each step eases in over ramp s */
   var k=[[0,v0]], prev=v0; ramp=ramp||0.08;
-  pairs.forEach(function(p){ k.push([p[0],prev,'o'],[p[0]+ramp,p[1]]); prev=p[1]; }); return k;
+  pairs.forEach(function(p){ k.push([p[0]-0.02,prev,'o'],[p[0]-0.02+ramp,p[1]]); prev=p[1]; }); return k;   /* ~75 % of the step is done on the beat frame */
 }
 
 /* ================= TIMELINE ================= */
@@ -603,6 +606,11 @@ tw('#s3','opacity',[[13.99,1],[14.0,0]]);
 [['#c31','#f31',10.0],['#c32','#f32',10.5],['#c33','#f33',11.0],['#c34','#f34',11.5]].forEach(function(q){
   drop(q[0],q[2]); tw(q[1],'opacity',[[q[2]-0.01,0],[q[2],1,'o'],[q[2]+0.5,0]]); });
 
+/* hold accents: an NLE skim line crosses each bin thumbnail on the beats (icons only, labels untouched) */
+[['#sk31',12.0],['#sk32',12.5],['#sk33',13.0],['#sk34',13.5]].forEach(function(q){ var t=q[1];
+  tw(q[0],'transform',[[t,'translateX(0px)','io'],[t+0.4,'translateX(449px)']]);
+  tw(q[0],'opacity',[[t-0.01,0],[t,1],[t+0.36,1],[t+0.4,0]]); });
+
 /* --- S4 BREAKDOWN --- */
 tw('#bgDark','opacity',[[13.75,0,'i'],[14.0,0.8,'o'],[14.25,1],[17.95,1],[18.1,0]]);
 tw('#vig2','opacity',[[13.75,0,'io'],[14.1,1],[17.75,1,'io'],[18.1,0]]);
@@ -632,6 +640,7 @@ tw('#c43','transform',[[17.05,'translateY(0px)','w'],[17.35,'translateY(-310px)'
 /* riser 16-18, stepped on the beats (all of it off the text) */
 tw('#s4glow','transform',[[17.05,'translateY(0px)','w'],[17.35,'translateY(-310px)']]);
 tw('#s4glow','opacity',stepKeys([[16.0,0.25],[16.5,0.5],[17.0,0.75],[17.5,1]],0,0.1).concat([[17.9,1],[18.1,0]]));
+tw('#s4rb','filter',flashKeys(RISER,'brightness(1) drop-shadow(0px 0px 0px rgba(255,176,112,0))','brightness(1.9) drop-shadow(0px 0px 16px rgba(255,190,130,1))',0.35));
 tw('#s4rb','transform',stepKeys([[16.0,'scaleX(0.25)'],[16.5,'scaleX(0.5)'],[17.0,'scaleX(0.75)'],[17.5,'scaleX(1)']],'scaleX(0)',0.1));
 tw('#s4rl','clipPath',stepKeys([[16.0,'inset(0px 714px 0px 0px)'],[16.5,'inset(0px 476px 0px 0px)'],[17.0,'inset(0px 238px 0px 0px)'],[17.5,'inset(0px 0px 0px 0px)']],'inset(0px 952px 0px 0px)',0.1));
 tw('#vig3','opacity',stepKeys([[16.0,0.25],[16.5,0.5],[17.0,0.75],[17.5,1]],0,0.1).concat([[17.85,1],[18.05,0]]));
@@ -718,6 +727,10 @@ tw('#flash','opacity',[[1.99,0],[2.0,0.22],[2.22,0],[2.49,0],[2.5,0.15],[2.7,0],
     k.push([t-0.01,A],[t,A,'io'],[t+d,B],[t+d+0.01,A]); o.push([t-0.01,0],[t,1],[t+d,1],[t+d+0.01,0]); });
   tw('#sweep','transform',k); tw('#sweep','opacity',o); })();
 tw('#stkTop','opacity',[[5.75,1,'io'],[6.25,0.12],[23.75,0.12,'io'],[24.25,1]]);
+/* after the two whip counter-moves the mid layer sits (-240,-230) px off; re-seat the top streaks (while dimmed) so on the
+   end card they sit top-right of the logo as in the hook, and retire the right-hand streak before it reaches the headline */
+tw('#stkTop','transform',[[23.75,'translate(0px,0px)','io'],[24.25,'translate(276px,181px)']]);
+tw('#stkR','opacity',[[17.9,0.7,'io'],[18.05,0]]);
 
 /* --- parallax background: slow drift (frozen from 26.0), intro push-in, whip counter-moves, breakdown push --- */
 function drift(t){ t=Math.min(t,26); return {x:10*Math.sin(2*Math.PI*t/14), y:-0.4*t}; }
@@ -757,11 +770,13 @@ function brOff(t,top){   /* o > 0 = outward */
 [['#brTL',-1,-1],['#brTR',1,-1],['#brBL',-1,1],['#brBR',1,1]].forEach(function(c){
   proc(c[0],'transform',function(t){ var b=brOff(t,c[2]<0); return 'translate('+(c[1]*b.o+b.jx).toFixed(2)+'px,'+(c[2]*b.o+b.jy).toFixed(2)+'px)'; });
   /* riser: brackets heat up to orange on each beat, flicker on the 8ths, back to white on the drop */
-  tw(c[0],'borderColor',stepKeys([[16.0,'rgba(255,218,180,0.92)'],[16.5,'rgba(255,186,120,0.95)'],[17.0,'rgba(255,152,64,0.98)'],[17.5,'rgba(252,116,3,1)'],[18.0,'rgba(255,255,255,0.9)']],'rgba(255,255,255,0.9)',0.06));
-  tw(c[0],'filter',[[0,'drop-shadow(0px 0px 0px rgba(252,116,3,0))'],[15.99,'drop-shadow(0px 0px 0px rgba(252,116,3,0))'],[16.0,'drop-shadow(0px 0px 6px rgba(252,116,3,0.5))'],
-    [16.5,'drop-shadow(0px 0px 8px rgba(252,116,3,0.6))'],[17.0,'drop-shadow(0px 0px 10px rgba(252,116,3,0.7))'],[17.5,'drop-shadow(0px 0px 12px rgba(252,116,3,0.8))'],
-    [17.74,'drop-shadow(0px 0px 12px rgba(252,116,3,0.8))'],[17.75,'drop-shadow(0px 0px 22px rgba(255,170,90,1))','o'],[17.86,'drop-shadow(0px 0px 12px rgba(252,116,3,0.8))'],
-    [17.875,'drop-shadow(0px 0px 24px rgba(255,180,100,1))','o'],[17.99,'drop-shadow(0px 0px 14px rgba(252,116,3,0.8))'],[18.0,'drop-shadow(0px 0px 0px rgba(252,116,3,0))']]);
+  tw(c[0],'borderColor',stepKeys([[16.0,'rgba(255,196,130,0.95)'],[16.5,'rgba(255,164,84,0.97)'],[17.0,'rgba(253,138,40,1)'],[17.5,'rgba(252,116,3,1)'],[18.0,'rgba(255,255,255,0.9)']],'rgba(255,255,255,0.9)',0.06));
+  /* glow: a burst on every riser beat that decays to a rising stepped level; flicker on the 8ths; off on the drop */
+  var DS=function(px,a){ return 'drop-shadow(0px 0px '+(px*0.22).toFixed(2)+'px rgba(255,214,170,'+a+')) drop-shadow(0px 0px '+px+'px rgba(252,128,20,'+a+'))'; };
+  var fk=[[0,DS(0,0)],[15.99,DS(0,0)]], lv=[[16.0,DS(6,0.5)],[16.5,DS(8,0.6)],[17.0,DS(10,0.7)],[17.5,DS(12,0.8)]];
+  lv.forEach(function(q){ var e=Math.min(q[0]+0.49,17.74); fk.push([q[0],DS(26,1),'o'],[Math.min(q[0]+0.3,e-0.02),q[1]],[e,q[1]]); });
+  fk.push([17.75,DS(24,1),'o'],[17.86,DS(12,0.8)],[17.875,DS(26,1),'o'],[17.99,DS(14,0.8)],[18.0,DS(0,0)]);
+  tw(c[0],'filter',fk);
 });
 
 /* ================= renderFrame: grain, master strip, motion blur ================= */

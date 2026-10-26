@@ -1,0 +1,362 @@
+[
+ {
+  "t": 0.5,
+  "type": "slash",
+  "note": "Orange blade slices along the KRS R-leg axis (blade on screen 0.36-0.64); the leg, charging up since frame 1, flashes white-hot on 0.5; brackets pulse."
+ },
+ {
+  "t": 0.75,
+  "type": "shimmer",
+  "dur": 0.75,
+  "note": "Warm glint sweeps across the KRS logo (0.75-1.5)."
+ },
+ {
+  "t": 1.0,
+  "type": "riser",
+  "dur": 1.0,
+  "note": "Build to DROP 1: stepped camera push (1.0 / 1.5), background pushes in, waveform ramps up, ghost headline glows. Hit = 2.0."
+ },
+ {
+  "t": 1.0,
+  "type": "pop",
+  "pitch": 0,
+  "note": "Mini playhead render-wipes the WE'RE HIRING kicker from outline to solid (0.87-1.0); the solid kicker pops on 1.0."
+ },
+ {
+  "t": 1.0,
+  "type": "tick",
+  "note": "Strip playhead ticks one ruler step; brackets snap inward; camera steps in."
+ },
+ {
+  "t": 1.5,
+  "type": "tick",
+  "note": "Ghost VIDEO / EDITOR light up to ~70 %; playhead ticks a second step; brackets snap in again; camera steps in."
+ },
+ {
+  "t": 1.5,
+  "type": "shimmer",
+  "dur": 0.4,
+  "note": "Light streak sweeps diagonally across the frame (1.5-1.9)."
+ },
+ {
+  "t": 1.75,
+  "type": "scrub",
+  "dur": 0.25,
+  "note": "Strip playhead scrubs to the centre of the timeline, arriving on the drop."
+ },
+ {
+  "t": 2.0,
+  "type": "anchor",
+  "note": "drop1"
+ },
+ {
+  "t": 2.0,
+  "type": "impact",
+  "size": "big",
+  "note": "VIDEO smashes in - its first visible frame is 2.0 (oversized + blur), 3-frame RGB split + camera shake, flash, brackets kick out, waveform at full energy."
+ },
+ {
+  "t": 2.5,
+  "type": "impact",
+  "size": "big",
+  "note": "EDITOR smashes in on 2.5 (vertical overshoot, 3-frame RGB split + vertical shake, flash)."
+ },
+ {
+  "t": 5.0,
+  "type": "shimmer",
+  "dur": 0.7,
+  "note": "Light streak sweeps across the VIDEO / EDITOR headline (5.0-5.7; text does not move)."
+ },
+ {
+  "t": 5.75,
+  "type": "whoosh",
+  "dur": 0.5,
+  "direction": "rl",
+  "note": "Whip-pan left with motion blur (5.75-6.25): hook exits, THE ROLE enters; timeline strip scrubs fast."
+ },
+ {
+  "t": 6.0,
+  "type": "whoosh",
+  "dur": 0.35,
+  "direction": "lr",
+  "note": "(light) KRS logo flies from the centre into the top-right HUD and resolves to the KRS mark (6.0-6.35); HUD kicker wipes on behind it."
+ },
+ {
+  "t": 6.5,
+  "type": "pop",
+  "pitch": 0,
+  "note": "PART-TIME clip lands on track 1 (contact on the beat, lane flash)."
+ },
+ {
+  "t": 7.0,
+  "type": "pop",
+  "pitch": 2,
+  "note": "FREELANCE / PROJECT clip lands on track 2."
+ },
+ {
+  "t": 7.5,
+  "type": "pop",
+  "pitch": 4,
+  "note": "INTERNSHIP clip lands on track 3."
+ },
+ {
+  "t": 8.0,
+  "type": "impact",
+  "size": "medium",
+  "note": "REMOTE badge (orange slab, globe) smashes into its slot (replacing the ghost REMOTE) with an orange ring burst."
+ },
+ {
+  "t": 9.5,
+  "type": "scrub",
+  "dur": 0.5,
+  "note": "Full-height orange playhead wipes left to right, rendering the SKILLS media bin behind it (9.5-10.0)."
+ },
+ {
+  "t": 10.0,
+  "type": "pop",
+  "pitch": 0,
+  "note": "PREMIERE PRO tile drops into bin slot 1 (squash + orange flash on contact)."
+ },
+ {
+  "t": 10.5,
+  "type": "pop",
+  "pitch": 2,
+  "note": "AFTER EFFECTS tile drops into bin slot 2."
+ },
+ {
+  "t": 11.0,
+  "type": "pop",
+  "pitch": 4,
+  "note": "DAVINCI RESOLVE tile drops into bin slot 3."
+ },
+ {
+  "t": 11.5,
+  "type": "pop",
+  "pitch": 7,
+  "note": "FINAL CUT PRO tile drops into bin slot 4."
+ },
+ {
+  "t": 12.0,
+  "type": "tick",
+  "note": "Skim line crosses bin thumbnail 1 (0.4 s)."
+ },
+ {
+  "t": 12.5,
+  "type": "tick",
+  "note": "Skim line crosses bin thumbnail 2 (0.4 s)."
+ },
+ {
+  "t": 13.0,
+  "type": "tick",
+  "note": "Skim line crosses bin thumbnail 3 (0.4 s)."
+ },
+ {
+  "t": 13.5,
+  "type": "tick",
+  "note": "Skim line crosses bin thumbnail 4 (0.4 s)."
+ },
+ {
+  "t": 13.75,
+  "type": "downlifter",
+  "dur": 0.5,
+  "note": "SKILLS bin pulls back and dims 13.75-14.0, hard cut to the breakdown on 14.0, it settles by 14.2 and the lights are fully down by 14.25."
+ },
+ {
+  "t": 14.0,
+  "type": "anchor",
+  "note": "breakdown"
+ },
+ {
+  "t": 14.5,
+  "type": "reject",
+  "note": "X badge stamps NO MOBILE EDITORS: clip turns hatched/disabled with orange border, NO turns orange, 2-frame squash, bracket jolt."
+ },
+ {
+  "t": 15.0,
+  "type": "reject",
+  "note": "X badge stamps NO CAPCUT EDITORS (same treatment)."
+ },
+ {
+  "t": 15.5,
+  "type": "check",
+  "note": "Check badge pops on 'Professional desktop editors only'; the clip enables (orange border + glow pulse)."
+ },
+ {
+  "t": 16.0,
+  "type": "riser",
+  "dur": 2.0,
+  "note": "Tension build stepped on the beats 16.0/16.5/17.0/17.5: render bar fills under the ruler, brackets close in and heat to orange, vignette tightens, glow + light leak creep in. Hit = 18.0."
+ },
+ {
+  "t": 16.0,
+  "type": "tick",
+  "note": "Render bar fills to 25 %; brackets step in and warm up."
+ },
+ {
+  "t": 16.5,
+  "type": "tick",
+  "note": "Render bar 50 %; brackets step again."
+ },
+ {
+  "t": 17.0,
+  "type": "tick",
+  "note": "Render bar 75 %; brackets step again."
+ },
+ {
+  "t": 17.0,
+  "type": "whoosh",
+  "dur": 0.35,
+  "direction": "up",
+  "note": "RIPPLE DELETE: the two rejected clips lift out (17.0-17.15) and the pro clip slides up into the gap (17.05-17.35)."
+ },
+ {
+  "t": 17.5,
+  "type": "tick",
+  "note": "Render bar 100 %; brackets fully orange."
+ },
+ {
+  "t": 17.6,
+  "type": "whoosh",
+  "dur": 0.7,
+  "direction": "lr",
+  "note": "Brand-slash band (R-leg angle, motion-blurred with a trailing tail) sweeps bottom-left to top-right (17.6-18.3), crossing the frame centre exactly on 18.0."
+ },
+ {
+  "t": 18.0,
+  "type": "anchor",
+  "note": "drop2"
+ },
+ {
+  "t": 18.0,
+  "type": "slash",
+  "note": "Band crosses the frame centre: BENEFITS heading + card 01 are revealed by its diagonal edge."
+ },
+ {
+  "t": 18.0,
+  "type": "impact",
+  "size": "big",
+  "note": "DROP 2: lights come back up, brackets release (back to white) and kick out, flash, waveform to full energy."
+ },
+ {
+  "t": 18.4,
+  "type": "whoosh",
+  "dur": 0.1,
+  "direction": "rl",
+  "note": "Card 02 slides in from the right (18.4-18.5)."
+ },
+ {
+  "t": 18.5,
+  "type": "pop",
+  "pitch": 0,
+  "note": "Card 02 (PREMIUM STOCK & MOCKUP SUBSCRIPTION) lands - slide-in contact on the beat."
+ },
+ {
+  "t": 18.9,
+  "type": "whoosh",
+  "dur": 0.1,
+  "direction": "rl",
+  "note": "Card 03 slides in from the right (18.9-19.0)."
+ },
+ {
+  "t": 19.0,
+  "type": "pop",
+  "pitch": 3,
+  "note": "Card 03 (AND MUCH MORE) lands."
+ },
+ {
+  "t": 20.0,
+  "type": "tick",
+  "note": "Read-along: card 01 icon tile fills orange, accent bar + 01 flare."
+ },
+ {
+  "t": 20.5,
+  "type": "tick",
+  "note": "Read-along: card 02 icon tile fills orange, accent bar + 02 flare."
+ },
+ {
+  "t": 21.0,
+  "type": "tick",
+  "note": "Read-along: card 03 icon tile fills orange, accent bar + 03 flare."
+ },
+ {
+  "t": 22.0,
+  "type": "shimmer",
+  "dur": 0.6,
+  "note": "Light streak sweeps behind the benefit cards (22.0-22.6)."
+ },
+ {
+  "t": 22.0,
+  "type": "tick",
+  "note": "Card 01 accent bar + numeral flare; playhead glow surges."
+ },
+ {
+  "t": 22.5,
+  "type": "tick",
+  "note": "Card 02 accent bar + numeral flare; playhead glow surges."
+ },
+ {
+  "t": 23.0,
+  "type": "tick",
+  "note": "Card 03 accent bar + numeral flare; playhead glow surges."
+ },
+ {
+  "t": 23.75,
+  "type": "whoosh",
+  "dur": 0.5,
+  "direction": "up",
+  "note": "Whip-pan up with vertical motion blur (23.75-24.25); the timeline strip drops away; logo flies back to the centre (23.95-24.45)."
+ },
+ {
+  "t": 24.5,
+  "type": "scrub",
+  "dur": 0.5,
+  "note": "Render playhead sweeps left to right (24.5-25.0), turning the ghost WE'RE HIRING / VIDEO / EDITOR solid behind it."
+ },
+ {
+  "t": 25.0,
+  "type": "pop",
+  "pitch": 0,
+  "note": "REMOTE pill and the CTA bar (APPLY NOW) pop in, replacing their dashed placeholders."
+ },
+ {
+  "t": 25.4,
+  "type": "whoosh",
+  "dur": 0.1,
+  "direction": "rl",
+  "note": "'DM us your portfolio' slides into the right half of the CTA bar (25.4-25.5)."
+ },
+ {
+  "t": 25.5,
+  "type": "pop",
+  "pitch": 5,
+  "note": "'DM us your portfolio' lands."
+ },
+ {
+  "t": 25.5,
+  "type": "reverse_swell",
+  "dur": 0.5,
+  "note": "Brackets close in 25.5-26.0 ahead of the END HIT."
+ },
+ {
+  "t": 26.0,
+  "type": "anchor",
+  "note": "end_hit"
+ },
+ {
+  "t": 26.0,
+  "type": "impact",
+  "size": "big",
+  "note": "END HIT: APPLY NOW ignites solid orange (text flips to navy), ring burst around the CTA, flash, brackets kick and lock. Final composition then holds still to 30.0."
+ },
+ {
+  "t": 26.1,
+  "type": "shimmer",
+  "dur": 0.5,
+  "note": "Glint sweeps across the KRS logo (26.1-26.6), after the flash."
+ },
+ {
+  "t": 30.0,
+  "type": "anchor",
+  "note": "end"
+ }
+]
