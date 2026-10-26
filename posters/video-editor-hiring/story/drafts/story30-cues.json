@@ -1,0 +1,254 @@
+[
+ {
+  "t": 0.5,
+  "type": "slash",
+  "note": "Orange blade slices along the R-leg axis (on screen 0.36-0.64); the KRS R-leg completes and flashes warm white at 0.5."
+ },
+ {
+  "t": 0.75,
+  "type": "shimmer",
+  "dur": 0.75,
+  "note": "Glint sweeps across the KRS logo (0.75-1.5)."
+ },
+ {
+  "t": 1.0,
+  "type": "tick",
+  "note": "Playhead in the timeline strip ticks one ruler step right."
+ },
+ {
+  "t": 1.0,
+  "type": "riser",
+  "dur": 1.0,
+  "note": "Build to DROP 1: camera pushes in 3.5%, ghost headline glows orange, brackets tighten. Hit = 2.0."
+ },
+ {
+  "t": 1.5,
+  "type": "tick",
+  "note": "Playhead ticks a second step."
+ },
+ {
+  "t": 1.75,
+  "type": "scrub",
+  "dur": 0.25,
+  "note": "Playhead scrubs to the centre of the strip, landing on the drop."
+ },
+ {
+  "t": 2.0,
+  "type": "anchor",
+  "note": "drop1"
+ },
+ {
+  "t": 2.0,
+  "type": "impact",
+  "size": "big",
+  "note": "WE'RE HIRING + VIDEO slam onto their ghost outlines; 3-frame RGB split and camera shake, flash, brackets kick out, waveform jumps to full energy."
+ },
+ {
+  "t": 2.5,
+  "type": "impact",
+  "size": "big",
+  "note": "EDITOR slams (3-frame RGB split and shake)."
+ },
+ {
+  "t": 5.0,
+  "type": "shimmer",
+  "dur": 0.7,
+  "note": "Light streak sweeps across the VIDEO / EDITOR headline (5.0-5.7, after its reading time; text does not move)."
+ },
+ {
+  "t": 5.75,
+  "type": "whoosh",
+  "dur": 0.5,
+  "direction": "rl",
+  "note": "Whip-pan left (horizontal motion blur, parallax background). Hook exits, THE ROLE enters; logo flies into the top-right HUD; strip scrubs fast."
+ },
+ {
+  "t": 6.5,
+  "type": "pop",
+  "pitch": 0,
+  "note": "PART-TIME clip pops onto track 1 (lane flash)."
+ },
+ {
+  "t": 7.0,
+  "type": "pop",
+  "pitch": 2,
+  "note": "FREELANCE / PROJECT clip pops onto track 2."
+ },
+ {
+  "t": 7.5,
+  "type": "pop",
+  "pitch": 4,
+  "note": "INTERNSHIP clip pops onto track 3."
+ },
+ {
+  "t": 8.0,
+  "type": "impact",
+  "size": "medium",
+  "note": "REMOTE badge (orange, globe icon) slams in with an orange ring burst."
+ },
+ {
+  "t": 9.5,
+  "type": "scrub",
+  "dur": 0.5,
+  "note": "Full-height orange playhead wipes left to right, rendering SKILLS WE'RE LOOKING FOR behind it."
+ },
+ {
+  "t": 10.0,
+  "type": "pop",
+  "pitch": 0,
+  "note": "PREMIERE PRO tile drops onto track 1 (squash on landing)."
+ },
+ {
+  "t": 10.5,
+  "type": "pop",
+  "pitch": 2,
+  "note": "AFTER EFFECTS tile drops onto track 2."
+ },
+ {
+  "t": 11.0,
+  "type": "pop",
+  "pitch": 4,
+  "note": "DAVINCI RESOLVE tile drops onto track 3."
+ },
+ {
+  "t": 11.5,
+  "type": "pop",
+  "pitch": 7,
+  "note": "FINAL CUT PRO tile drops onto track 4."
+ },
+ {
+  "t": 13.75,
+  "type": "downlifter",
+  "dur": 0.75,
+  "note": "Camera pulls back, SKILLS dims out, the lights drop to dark navy; breakdown scene pushes in 14.0-14.4."
+ },
+ {
+  "t": 14.0,
+  "type": "anchor",
+  "note": "breakdown"
+ },
+ {
+  "t": 14.5,
+  "type": "reject",
+  "note": "X badge stamps NO MOBILE EDITORS: clip turns hatched/disabled with orange border, NO turns orange, 2-frame squash, bracket jolt."
+ },
+ {
+  "t": 15.0,
+  "type": "reject",
+  "note": "X badge stamps NO CAPCUT EDITORS (same treatment)."
+ },
+ {
+  "t": 15.5,
+  "type": "check",
+  "note": "Check badge pops on 'Professional desktop editors only'; the clip enables (orange border + glow pulse)."
+ },
+ {
+  "t": 16.0,
+  "type": "riser",
+  "dur": 2.0,
+  "note": "Tension build: brackets close in, orange glow rises behind the pro clip, waveform grows. Hit = 18.0."
+ },
+ {
+  "t": 17.75,
+  "type": "whoosh",
+  "dur": 0.5,
+  "direction": "lr",
+  "note": "Brand-slash band (R-leg angle) sweeps bottom-left to top-right across the frame (17.75-18.25)."
+ },
+ {
+  "t": 18.0,
+  "type": "anchor",
+  "note": "drop2"
+ },
+ {
+  "t": 18.0,
+  "type": "slash",
+  "note": "Band crosses the frame centre: BENEFITS heading + card 01 are revealed by its diagonal edge."
+ },
+ {
+  "t": 18.0,
+  "type": "impact",
+  "size": "big",
+  "note": "DROP 2: lights come back up, brackets release, flash, waveform back to full energy."
+ },
+ {
+  "t": 18.5,
+  "type": "pop",
+  "pitch": 0,
+  "note": "Card 02 (PREMIUM STOCK & MOCKUP SUBSCRIPTION) snaps in from the right."
+ },
+ {
+  "t": 19.0,
+  "type": "pop",
+  "pitch": 3,
+  "note": "Card 03 (AND MUCH MORE) snaps in from the right."
+ },
+ {
+  "t": 20.0,
+  "type": "tick",
+  "note": "Read-along: icon tile of card 01 glows orange."
+ },
+ {
+  "t": 20.5,
+  "type": "tick",
+  "note": "Read-along: icon tile of card 02 glows."
+ },
+ {
+  "t": 21.0,
+  "type": "tick",
+  "note": "Read-along: icon tile of card 03 glows."
+ },
+ {
+  "t": 23.75,
+  "type": "whoosh",
+  "dur": 0.5,
+  "direction": "up",
+  "note": "Whip-pan up (vertical motion blur) to the end card; the timeline strip drops away; logo flies back to the centre."
+ },
+ {
+  "t": 24.5,
+  "type": "impact",
+  "size": "small",
+  "note": "Logo lands at centre and WE'RE HIRING slams onto its ghost outline."
+ },
+ {
+  "t": 24.5,
+  "type": "shimmer",
+  "dur": 0.5,
+  "note": "Glint sweeps across the landed logo (24.45-25.0)."
+ },
+ {
+  "t": 25.0,
+  "type": "impact",
+  "size": "medium",
+  "note": "VIDEO slams onto its ghost outline."
+ },
+ {
+  "t": 25.5,
+  "type": "impact",
+  "size": "medium",
+  "note": "EDITOR slams onto its ghost outline."
+ },
+ {
+  "t": 26.0,
+  "type": "anchor",
+  "note": "end_hit"
+ },
+ {
+  "t": 26.0,
+  "type": "impact",
+  "size": "big",
+  "note": "END HIT: REMOTE pill + APPLY NOW / DM us your portfolio bar land, brackets lock, flash. Final composition then holds still to 30.0."
+ },
+ {
+  "t": 26.0,
+  "type": "shimmer",
+  "dur": 0.45,
+  "note": "Final glint across the logo (ends 26.45)."
+ },
+ {
+  "t": 30.0,
+  "type": "anchor",
+  "note": "end"
+ }
+]

@@ -819,7 +819,8 @@ def riser(dur: float = 1.5) -> np.ndarray:
     # tonal layer: power fifth gliding up two octaves, ending on F5 + C6
     F3 = _note("F3", "riser")
     _note("C4", "riser"); _note("F5", "riser"); _note("C6", "riser")
-    semis = 24.0 * u ** 1.15
+    # glide arrives on F5 + C6 at 88 % and holds there (in key) into the hit
+    semis = 24.0 * np.minimum(u / 0.88, 1.0) ** 1.15
     tone = np.zeros((n, 2))
     for ratio, lvl in ((1.0, 1.0), (1.5, 0.7)):
         for cents, pan in ((-9.0, -0.6), (0.0, 0.0), (9.0, 0.6)):

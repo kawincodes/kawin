@@ -1,0 +1,692 @@
+<!doctype html>
+<!--
+  KRS TECH SOLUTIONS - "WE'RE HIRING - VIDEO EDITOR" - 30 s Instagram Story, 1080x1920, 30 fps
+  HYBRID build: cinematic's playhead-driven NLE world + camera moves, kinetic's beat-cut slams and big type.
+
+  BEAT GRID 120 BPM: beat = 0.5 s, bar = 2.0 s. Scene changes sit on bar lines; every landing sits on a beat.
+  Music anchors (fixed): 2.0 DROP 1 | 14.0 BREAKDOWN | 18.0 DROP 2 | 26.0 END HIT | 30.0 end.
+
+  PERSISTENT LAYERS
+    bg     navy gradient + far glow layer (parallax 0.12) + mid light-streak layer (parallax 0.35) + breakdown darkener
+    world  #cam (shake / push) holding scenes S1..S6
+    hud    viewfinder brackets (beat micro-pulse, tighten on risers, lock on END HIT), KRS logo (big <-> HUD morph),
+           HUD kicker "WE'RE HIRING" (S2..S5), master NLE strip y1388..1556 (ruler + beat-reactive waveform + playhead;
+           the playhead ticks in the intro, then parks centre while the timeline scrolls; it scrubs fast on every transition)
+    fx     slash blade, brand-slash band, wipe playhead, light-streak sweep, flash; grain (4 seeded tiles, renderFrame); vignette
+
+  STORYBOARD  (t = seconds; "still" = text fully visible and not moving)
+  0.0  INTRO   frame 0 = thumbnail: logo (R-leg half drawn), ghost-outline WE'RE HIRING / VIDEO / EDITOR, brackets, strip.
+  0.5          SLASH: an orange blade cuts along the R-leg axis -> R-leg completes + flash.          [slash]
+  0.75-1.5     shimmer across the logo.                                                              [shimmer]
+  1.0 / 1.5    playhead ticks forward one ruler step.                                                [tick x2]
+  1.0-2.0      riser: camera pushes in 3.5 %, ghost headline glows, brackets tighten, playhead scrubs to centre. [riser]
+  2.0  DROP 1  WE'RE HIRING + VIDEO slam (3-frame RGB split + 3-frame shake, flash).                 [impact big]
+  2.5          EDITOR slams (3-frame RGB split + shake).                                             [impact big]
+  2.7-5.75     HOLD (headline still 3.05 s); waveform/brackets pump on beats; light streak sweeps the headline at 4.0. [shimmer]
+  5.75-6.25 T1 WHIP-PAN LEFT (horizontal motion blur, parallax bg); logo morphs into the HUD; HUD kicker wipes on. [whoosh rl]
+  6.0  THE ROLE heading lands with the whip.
+  6.5 / 7.0 / 7.5  clips PART-TIME, FREELANCE / PROJECT, INTERNSHIP pop onto tracks.                  [pop x3]
+  8.0          REMOTE badge slams (+ ring burst).                                                    [impact medium]
+  8.2-9.5      HOLD (REMOTE still 1.3 s+; chips still 2.0-2.8 s).
+  9.5-10.0 T2  PLAYHEAD WIPE: a full-height playhead scrubs L->R, rendering SKILLS behind it.          [scrub]
+  10.0 / 10.5 / 11.0 / 11.5  PREMIERE PRO, AFTER EFFECTS, DAVINCI RESOLVE, FINAL CUT PRO drop onto tracks. [pop x4]
+  11.6-13.75   HOLD (last tile still 2.1 s); light streak at 12.0.                                   [shimmer]
+  13.75-14.0 T3 camera pulls back, lights drop into the breakdown.                                   [downlifter]
+  14.0 BREAKDOWN  dark, tense. Three clips already legible (NO MOBILE / NO CAPCUT / Professional desktop editors only).
+  14.5 / 15.0  X stamps: clip turns disabled (hatch, orange border, NO turns orange); 2-frame squash on the clip body only. [reject x2]
+  15.5         check pops, pro clip enables (orange border + glow + sheen).                          [check]
+  16.0-18.0    riser: brackets tighten, waveform builds, glow builds (all text still).               [riser]
+  17.8-18.2 T4 BRAND SLASH: orange band at the R-leg angle sweeps, diagonal reveal of BENEFITS.      [whoosh, slash]
+  18.0 DROP 2  BENEFITS heading + card 01 land with the slash.                                       [impact big]
+  18.5 / 19.0  cards 02 / 03 snap in from the right.                                                 [pop x2]
+  19.2-23.8    HOLD (card 02 still 5.15 s); read-along sheens 20.0/20.5/21.0; light streak 22.0.     [shimmer x2]
+  23.8-24.2 T5 WHIP-PAN UP (vertical motion blur); strip drops away; logo flies back to centre.      [whoosh up]
+  24.5         logo lands + WE'RE HIRING slams.                                                      [pop]
+  25.0 / 25.5  VIDEO / EDITOR slam.                                                                  [impact medium x2]
+  26.0 END HIT REMOTE + APPLY NOW / DM us your portfolio land; brackets lock; logo glint.            [impact big]
+  26.45-30.0   FINAL COMPOSITION STILL (3.55 s): only grain + a slow CTA glow move.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1080">
+<title>KRS Hiring Story 30s</title>
+<link rel="stylesheet" href="../../assets/fonts.css">
+<style>
+:root{--o:#FC7403;--o2:#FF8A2A;--navy:#061A40;--navy2:#0A2A66;--muted:#B9C6DE;--steel:#8FA3C9}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:#04122E}
+body{margin:0;width:1080px;height:1920px;overflow:hidden;position:relative;background:#04122E;color:#fff;font-family:Inter,sans-serif;-webkit-font-smoothing:antialiased}
+.L{position:absolute;left:0;top:0;width:1080px;height:1920px}
+.a{position:absolute}
+svg{display:block}
+
+/* ---------- background ---------- */
+#bg{background:linear-gradient(180deg,#0A2558 0%,#061A40 46%,#03102C 100%)}
+#bgFar{left:-260px;top:-240px;width:1600px;height:2400px;background:
+  radial-gradient(760px 700px at 34% 30%, rgba(28,82,180,.46), transparent 70%),
+  radial-gradient(620px 560px at 84% 38%, rgba(252,116,3,.10), transparent 70%),
+  radial-gradient(900px 800px at 20% 80%, rgba(16,58,140,.42), transparent 70%),
+  radial-gradient(520px 520px at 80% 72%, rgba(40,96,200,.18), transparent 70%)}
+#bgMid{left:-260px;top:-240px;width:1800px;height:2600px;overflow:visible}
+#bgDark{background:radial-gradient(900px 1100px at 50% 52%, rgba(3,10,30,.55), rgba(1,5,16,.94) 75%);opacity:0}
+#vig{background:radial-gradient(ellipse 84% 70% at 50% 46%, transparent 56%, rgba(0,0,0,.5) 100%);pointer-events:none}
+#vig2{background:radial-gradient(ellipse 70% 56% at 50% 50%, transparent 50%, rgba(0,0,0,.55) 100%);opacity:0}
+
+/* ---------- shared type ---------- */
+.kick{display:flex;align-items:center;justify-content:center;gap:20px;font-family:'Barlow Condensed';font-weight:800;line-height:1;letter-spacing:.16em;color:var(--o);white-space:nowrap}
+.kick span{margin-right:-.16em}
+.kick.g span{color:transparent;-webkit-text-stroke:2px rgba(252,116,3,.85)}
+.kick.g svg{opacity:.45}
+.hl{position:absolute;left:0;width:1080px;font-family:Anton;line-height:1;white-space:nowrap;text-align:center}
+.hl > div{position:absolute;left:0;top:0;width:100%}
+.hl .w{color:#fff;text-shadow:0 12px 44px rgba(0,0,0,.38)}
+.hl .o{color:var(--o);text-shadow:0 0 36px rgba(252,116,3,.30)}
+.hl .gw{color:rgba(255,255,255,.06);-webkit-text-stroke:3px rgba(255,255,255,.62)}
+.hl .go{color:rgba(252,116,3,.08);-webkit-text-stroke:3px rgba(252,116,3,.9)}
+.hl .r{color:#ff2b55;mix-blend-mode:screen;opacity:0}
+.hl .c{color:#19e3ff;mix-blend-mode:screen;opacity:0}
+.slamW{transform-origin:50% 55%}
+
+.head{position:absolute;left:64px;width:952px;height:76px;display:flex;align-items:center;gap:22px}
+.head h2{font-family:'Barlow Condensed';font-weight:800;font-size:76px;letter-spacing:.18em;line-height:1;white-space:nowrap}
+.head .rule{flex:1;height:3px;background:linear-gradient(90deg,rgba(255,255,255,.42),rgba(255,255,255,.04))}
+
+/* ---------- NLE pieces ---------- */
+.lane{position:absolute;left:64px;width:952px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08)}
+.lane .fl{position:absolute;inset:0;border-radius:16px;background:linear-gradient(90deg,rgba(252,116,3,0),rgba(252,116,3,.30) 40%,rgba(255,255,255,.12) 60%,rgba(252,116,3,0));opacity:0}
+.clip{position:absolute;border-radius:18px;display:flex;align-items:center;gap:28px;padding:0 30px;white-space:nowrap;
+  background:repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 118px, rgba(255,255,255,.075) 118px 120px), linear-gradient(180deg,#2559B8,#163F8E);
+  border:2px solid rgba(150,190,255,.55);box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 16px 36px rgba(0,0,0,.32)}
+.clip::before,.clip::after{content:"";position:absolute;top:10px;bottom:10px;width:6px;border-radius:3px;background:rgba(255,255,255,.28)}
+.clip::before{left:9px}.clip::after{right:9px}
+.clip .ct{font-family:'Barlow Condensed';font-weight:800;font-size:80px;line-height:1;letter-spacing:.02em}
+.tile{flex:none;display:flex;align-items:center;justify-content:center;border-radius:22px;background:linear-gradient(180deg,#0F2D6B,#0A1F4D);border:2.5px solid rgba(252,116,3,.85);box-shadow:0 6px 16px rgba(0,0,0,.3)}
+.ico{fill:none;stroke:#FC7403;stroke-width:4.2;stroke-linecap:round;stroke-linejoin:round}
+
+#c24{border-radius:24px;overflow:hidden;background:linear-gradient(180deg,#FF962F,#FC7403 60%,#EA6A00);display:flex;align-items:center;justify-content:center;gap:46px;color:#061A40;
+  box-shadow:0 0 0 2px rgba(255,190,130,.55),0 24px 70px rgba(252,116,3,.32)}
+#c24 .rt{font-family:Anton;font-size:190px;line-height:1;letter-spacing:.02em;margin-top:-6px}
+#c24 .ico{stroke:#061A40;stroke-width:4.6}
+#c24 .echo{position:absolute;top:0;height:100%}
+#c24ring{border-radius:30px;border:4px solid rgba(255,150,60,.9);opacity:0}
+
+.s3c{height:172px;gap:30px}
+.s3c .ct{font-size:84px}
+
+.c4{position:absolute}
+.c4 .bgw{position:absolute;inset:0}
+.c4 .bp,.c4 .bx,.c4 .bon{position:absolute;inset:0;border-radius:20px}
+.c4 .bp{background:repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 118px, rgba(255,255,255,.07) 118px 120px), linear-gradient(180deg,#2457B4,#163F8E);border:2px solid rgba(150,190,255,.5);box-shadow:0 16px 36px rgba(0,0,0,.35)}
+.c4 .bx{border:4px solid var(--o);background:repeating-linear-gradient(-45deg, rgba(255,255,255,.085) 0 12px, rgba(255,255,255,0) 12px 24px), #0A1A3E;opacity:0;box-shadow:0 0 0 1px rgba(252,116,3,.3),0 16px 36px rgba(0,0,0,.35)}
+.c4 .bon{border:4px solid var(--o);background:repeating-linear-gradient(90deg, rgba(255,255,255,0) 0 118px, rgba(255,255,255,.08) 118px 120px), linear-gradient(180deg,#2B66CF,#1A4AA3);opacity:0;box-shadow:0 0 34px rgba(252,116,3,.45),0 16px 36px rgba(0,0,0,.35)}
+.c4 .gl{position:absolute;inset:-6px;border-radius:24px;box-shadow:0 0 0 4px rgba(255,150,60,.95),0 0 40px 8px rgba(252,116,3,.6);opacity:0}
+.c4 .row{position:absolute;inset:0;display:flex;align-items:center;gap:30px;padding:0 36px;white-space:nowrap}
+.c4 .slot{position:relative;flex:none;width:110px;height:110px}
+.c4 .slot > *{position:absolute;left:0;top:0}
+.c4 .t4{font-family:'Barlow Condensed';font-weight:800;font-size:90px;line-height:1;letter-spacing:.02em}
+.c4 .t4 b{font-weight:800;color:#fff}
+.c4 .tp{font-family:Inter;font-weight:700;font-size:68px;line-height:1.14;letter-spacing:-.01em;white-space:nowrap}
+.c4 .sh{position:absolute;inset:0;border-radius:20px;overflow:hidden}
+.c4 .sh i{position:absolute;top:0;left:0;width:220px;height:100%;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.28),rgba(255,255,255,0));transform:translateX(-300px) skewX(-18deg)}
+
+.card{position:absolute;left:64px;width:952px;height:268px;border-radius:24px;display:flex;align-items:center;gap:30px;padding:0 34px 0 34px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(24,70,152,.92),rgba(11,40,98,.92));border:1.5px solid rgba(255,255,255,.17);box-shadow:0 18px 44px rgba(0,0,0,.32)}
+.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:9px;background:linear-gradient(180deg,var(--o2),var(--o))}
+.card .tx{flex:1;min-width:0}
+.card .bt{font-family:'Barlow Condensed';font-weight:800;font-size:58px;line-height:1.04;letter-spacing:.02em;white-space:nowrap}
+.card .bs{margin-top:14px;font-size:40px;font-weight:500;color:var(--muted);line-height:1.22;white-space:nowrap}
+.card .bn{flex:none;font-family:Anton;font-size:104px;line-height:1;color:var(--steel);opacity:.9}
+.card .sh{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.card .sh i{position:absolute;top:0;left:0;width:260px;height:100%;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.13),rgba(255,255,255,0));transform:translateX(-400px) skewX(-18deg)}
+
+.pill{display:flex;align-items:center;gap:22px;height:104px;padding:0 44px 0 36px;border-radius:52px;background:linear-gradient(180deg,#0E2B66,#0A1F4D);border:3px solid var(--o);box-shadow:0 0 30px rgba(252,116,3,.25)}
+.pill span{font-family:'Barlow Condensed';font-weight:800;font-size:72px;line-height:1;letter-spacing:.14em;margin-right:-.14em}
+.pillG{border:3px dashed rgba(252,116,3,.6);background:none;box-shadow:none}
+.pillG span{color:transparent;-webkit-text-stroke:1.5px rgba(255,255,255,.5)}
+.pillG svg{opacity:.4}
+
+.cta{position:absolute;left:64px;width:952px;height:170px;border-radius:20px;overflow:hidden;background:#0A2150;border:2px solid rgba(252,116,3,.75)}
+.cta .btn{position:absolute;left:0;top:0;height:100%;width:590px;display:flex;align-items:center;gap:18px;padding-left:42px;color:#061A40;font-family:Anton;font-size:76px;letter-spacing:.03em;line-height:1}
+.cta .btn::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,var(--o2),var(--o));clip-path:polygon(0 0,440px 0,590px 100%,0 100%)}
+.cta .btn > *{position:relative}
+.cta .echo{position:absolute;left:0;top:0}
+.cta .dm{position:absolute;left:612px;right:20px;top:0;height:100%;display:flex;align-items:center;gap:18px}
+.cta .dm p{font-size:46px;font-weight:600;line-height:1.12;white-space:nowrap}
+#ctaGlow{border-radius:26px;box-shadow:0 0 60px 14px rgba(252,116,3,.42);opacity:0}
+.ctaG{position:absolute;left:64px;width:952px;height:170px;border-radius:20px;border:3px dashed rgba(252,116,3,.5)}
+
+/* ---------- HUD ---------- */
+.br{position:absolute;width:74px;height:74px;border:0 solid rgba(255,255,255,.9)}
+#brTL{left:40px;top:232px;border-top-width:6px;border-left-width:6px}
+#brTR{left:966px;top:232px;border-top-width:6px;border-right-width:6px}
+#brBL{left:40px;top:1530px;border-bottom-width:6px;border-left-width:6px}
+#brBR{left:966px;top:1530px;border-bottom-width:6px;border-right-width:6px}
+#hk{left:64px;top:272px;height:54px;font-size:54px;justify-content:flex-start;gap:16px}
+#logo{left:330px;top:276px;width:420px;height:193.2px;transform-origin:0 0}
+.lg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+#lgShine{position:absolute;inset:0;overflow:hidden;-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+#lgBar{position:absolute;top:-30%;left:0;width:110px;height:160%;background:linear-gradient(90deg,rgba(255,236,214,0),rgba(255,244,230,1),rgba(255,236,214,0));transform:translateX(-260px) skewX(-24deg)}
+#lgGlowBar{position:absolute;left:300px;top:250px;width:150px;height:260px;background:radial-gradient(closest-side,rgba(255,200,150,.35),rgba(255,200,150,0));mix-blend-mode:screen;opacity:0}
+
+#strip{left:64px;top:1388px;width:952px;height:168px}
+#stripBox{position:absolute;inset:0;border-radius:16px;border:1px solid rgba(255,255,255,.14);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025))}
+#wave{position:absolute;left:0;top:0}
+#ph{position:absolute;left:0;top:-14px;width:0;height:182px}
+#ph .ln{position:absolute;left:-2px;top:14px;bottom:0;width:4px;background:var(--o);box-shadow:0 0 14px rgba(252,116,3,.9)}
+#ph .hd{position:absolute;left:-15px;top:0}
+#phGlow{position:absolute;left:-40px;top:0;width:80px;height:182px;background:radial-gradient(closest-side,rgba(252,116,3,.45),rgba(252,116,3,0));opacity:.3}
+
+/* ---------- FX ---------- */
+#slash{left:-470px;top:-11px;width:940px;height:22px;border-radius:11px;opacity:0;
+  background:linear-gradient(90deg,rgba(255,138,42,0),rgba(255,138,42,.9) 35%,#fff 50%,rgba(255,138,42,.9) 65%,rgba(255,138,42,0));
+  box-shadow:0 0 30px 8px rgba(252,116,3,.55)}
+#slashTrail{left:-1500px;top:-2px;width:3000px;height:4px;opacity:0;background:linear-gradient(90deg,rgba(252,116,3,0),rgba(252,116,3,.9) 30%,rgba(255,220,180,.95) 50%,rgba(252,116,3,.9) 70%,rgba(252,116,3,0));box-shadow:0 0 12px rgba(252,116,3,.8)}
+#band{left:-2500px;top:-150px;width:5000px;height:300px;opacity:0}
+#band .b1{position:absolute;left:0;top:30px;width:100%;height:210px;background:linear-gradient(180deg,rgba(252,116,3,0),#FC7403 22%,#FF8A2A 60%,#FC7403 85%,rgba(252,116,3,0));box-shadow:0 0 60px rgba(252,116,3,.6)}
+#band .b2{position:absolute;left:0;top:250px;width:100%;height:22px;background:#FC7403}
+#band .b3{position:absolute;left:0;top:22px;width:100%;height:6px;background:rgba(255,255,255,.95);box-shadow:0 0 18px #fff}
+#wph{left:0;top:404px;width:0;height:986px;opacity:0}
+#wph .ln{position:absolute;left:-3px;top:30px;bottom:0;width:6px;background:var(--o);box-shadow:0 0 24px rgba(252,116,3,1),0 0 4px #ffd0a0}
+#wph .tr{position:absolute;right:0;top:30px;bottom:0;width:340px;background:linear-gradient(90deg,rgba(252,116,3,0),rgba(252,116,3,.22))}
+#wph .hd{position:absolute;left:-22px;top:0}
+#sweep{left:-300px;top:-200px;width:300px;height:2400px;opacity:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(190,220,255,.16) 40%,rgba(255,255,255,.30) 50%,rgba(190,220,255,.16) 60%,rgba(255,255,255,0));mix-blend-mode:screen}
+#flash{background:radial-gradient(900px 900px at 50% 46%, rgba(255,220,180,.9), rgba(252,116,3,.25) 50%, rgba(252,116,3,0) 80%);mix-blend-mode:screen;opacity:0}
+#grain{background-size:1024px 1024px;image-rendering:pixelated;mix-blend-mode:overlay;opacity:.085;pointer-events:none}
+</style>
+</head>
+<body>
+
+<!-- motion-blur filters (stdDeviation is driven by renderFrame) -->
+<svg width="0" height="0" style="position:absolute">
+  <filter id="mbx" x="-15%" y="-5%" width="130%" height="110%" color-interpolation-filters="sRGB"><feGaussianBlur id="mbxB" stdDeviation="0 0"/></filter>
+  <filter id="mby" x="-5%" y="-10%" width="110%" height="120%" color-interpolation-filters="sRGB"><feGaussianBlur id="mbyB" stdDeviation="0 0"/></filter>
+</svg>
+
+<!-- =============== BACKGROUND =============== -->
+<div id="bg" class="L"></div>
+<div id="bgFar" class="a"></div>
+<svg id="bgMid" class="a" viewBox="0 0 1800 2600" aria-hidden="true">
+  <defs>
+    <linearGradient id="gO" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8A2A" stop-opacity="0"/><stop offset=".5" stop-color="#FF8A2A" stop-opacity="1"/><stop offset="1" stop-color="#FF8A2A" stop-opacity="0"/></linearGradient>
+    <linearGradient id="gW" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset=".5" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <filter id="soft" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="10"/></filter>
+    <pattern id="dots" width="48" height="48" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.6" fill="rgba(160,190,255,.10)"/></pattern>
+  </defs>
+  <rect width="1800" height="2600" fill="url(#dots)"/>
+  <g>
+    <line x1="1040" y1="560" x2="1240" y2="786" stroke="url(#gO)" stroke-width="24" stroke-opacity=".45" filter="url(#soft)"/>
+    <line x1="1040" y1="560" x2="1240" y2="786" stroke="url(#gO)" stroke-width="7" stroke-linecap="round"/>
+    <line x1="1130" y1="540" x2="1280" y2="710" stroke="url(#gW)" stroke-width="3" stroke-linecap="round"/>
+    <line x1="300" y1="1700" x2="520" y2="1949" stroke="url(#gO)" stroke-width="20" stroke-opacity=".35" filter="url(#soft)"/>
+    <line x1="300" y1="1700" x2="520" y2="1949" stroke="url(#gO)" stroke-width="6" stroke-linecap="round"/>
+    <line x1="400" y1="1690" x2="560" y2="1871" stroke="url(#gW)" stroke-width="2.5" stroke-linecap="round"/>
+    <line x1="160" y1="420" x2="300" y2="578" stroke="url(#gW)" stroke-width="2" stroke-linecap="round" opacity=".6"/>
+    <line x1="1300" y1="1300" x2="1460" y2="1481" stroke="url(#gO)" stroke-width="5" stroke-linecap="round" opacity=".7"/>
+  </g>
+</svg>
+<div id="bgDark" class="L"></div>
+
+<!-- =============== WORLD =============== -->
+<div id="cam" class="L">
+
+  <!-- S1 HOOK -->
+  <section id="s1" class="L">
+    <div class="a kick g" id="s1kG" style="left:0;width:1080px;top:496px;height:80px;font-size:80px">
+      <svg width="54" height="44" viewBox="0 0 54 44"><polygon points="0,0 17,0 54,44 37,44" fill="#FC7403"/></svg><span>WE&rsquo;RE HIRING</span></div>
+    <div class="a kick slamW" id="s1kS" style="left:0;width:1080px;top:496px;height:80px;font-size:80px;opacity:0">
+      <svg width="54" height="44" viewBox="0 0 54 44"><polygon points="0,0 17,0 54,44 37,44" fill="#FC7403"/></svg><span>WE&rsquo;RE HIRING</span></div>
+    <div class="hl" style="top:596px;height:372px;font-size:372px">
+      <div class="gw" id="s1vG">VIDEO</div>
+      <div class="slamW" id="s1vS" style="opacity:0;height:372px"><div class="r a" id="s1vR" style="left:0;width:100%">VIDEO</div><div class="c a" id="s1vC" style="left:0;width:100%">VIDEO</div><div class="w a" style="left:0;width:100%">VIDEO</div></div>
+    </div>
+    <div class="hl" style="top:956px;height:372px;font-size:372px">
+      <div class="go" id="s1eG">EDITOR</div>
+      <div class="slamW" id="s1eS" style="opacity:0;height:372px"><div class="r a" id="s1eR" style="left:0;width:100%">EDITOR</div><div class="c a" id="s1eC" style="left:0;width:100%">EDITOR</div><div class="o a" style="left:0;width:100%">EDITOR</div></div>
+    </div>
+  </section>
+
+  <!-- S2 THE ROLE -->
+  <section id="s2" class="L" style="opacity:0">
+    <div class="head" style="top:424px"><svg width="52" height="42" viewBox="0 0 52 42"><polygon points="0,0 17,0 52,42 35,42" fill="#FC7403"/></svg><h2>THE ROLE</h2><span class="rule"></span></div>
+    <div class="lane" style="top:532px;height:150px"><i class="fl" id="l21"></i></div>
+    <div class="lane" style="top:692px;height:150px"><i class="fl" id="l22"></i></div>
+    <div class="lane" style="top:852px;height:150px"><i class="fl" id="l23"></i></div>
+    <div class="clip" id="c21" style="left:64px;top:542px;width:560px;height:130px;opacity:0">
+      <div class="tile" style="width:100px;height:100px"><svg class="ico" width="62" height="62" viewBox="0 0 64 64"><circle cx="32" cy="32" r="23"/><path d="M32 18 V32 L42 39"/></svg></div><span class="ct">PART-TIME</span></div>
+    <div class="clip" id="c22" style="left:120px;top:702px;width:896px;height:130px;opacity:0">
+      <div class="tile" style="width:100px;height:100px"><svg class="ico" width="62" height="62" viewBox="0 0 64 64"><rect x="8" y="20" width="48" height="34" rx="6"/><path d="M24 20 V15 a4 4 0 0 1 4 -4 h8 a4 4 0 0 1 4 4 V20 M8 35 H56"/></svg></div><span class="ct">FREELANCE / PROJECT</span></div>
+    <div class="clip" id="c23" style="left:300px;top:862px;width:620px;height:130px;opacity:0">
+      <div class="tile" style="width:100px;height:100px"><svg class="ico" width="64" height="64" viewBox="0 0 64 64"><path d="M4 25 L32 13 L60 25 L32 37 Z"/><path d="M16 31 V44 c0 4 8 8 16 8 s16 -4 16 -8 V31"/><path d="M56 27 V42"/></svg></div><span class="ct">INTERNSHIP</span></div>
+    <div class="a" id="c24ring" style="left:52px;top:1020px;width:976px;height:324px"></div>
+    <div class="a" id="c24" style="left:64px;top:1032px;width:952px;height:300px;opacity:0">
+      <svg class="echo" style="right:0" width="230" height="300" viewBox="0 0 230 300"><polygon points="40,0 74,0 230,176 230,214" fill="rgba(6,26,64,.13)"/><polygon points="110,0 134,0 230,108 230,135" fill="rgba(6,26,64,.10)"/></svg>
+      <svg class="ico" width="168" height="168" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><ellipse cx="32" cy="32" rx="10.5" ry="24"/><path d="M8 32 H56 M11.5 20 H52.5 M11.5 44 H52.5"/></svg>
+      <span class="rt">REMOTE</span>
+    </div>
+  </section>
+
+  <!-- S3 SKILLS -->
+  <section id="s3" class="L">
+    <div class="head" style="top:424px;gap:18px"><svg width="46" height="38" viewBox="0 0 52 42"><polygon points="0,0 17,0 52,42 35,42" fill="#FC7403"/></svg><h2 style="font-size:64px;letter-spacing:.08em">SKILLS WE&rsquo;RE LOOKING FOR</h2><span class="rule"></span></div>
+    <div class="lane" style="top:524px;height:196px"><i class="fl" id="l31"></i></div>
+    <div class="lane" style="top:736px;height:196px"><i class="fl" id="l32"></i></div>
+    <div class="lane" style="top:948px;height:196px"><i class="fl" id="l33"></i></div>
+    <div class="lane" style="top:1160px;height:196px"><i class="fl" id="l34"></i></div>
+    <div class="clip s3c" id="c31" style="left:64px;top:536px;width:700px;opacity:0;transform-origin:50% 100%">
+      <div class="tile" style="width:124px;height:124px"><svg class="ico" width="76" height="76" viewBox="0 0 64 64"><rect x="12" y="7" width="40" height="50" rx="4"/><path d="M22 7 V57 M42 7 V57 M12 17 H22 M12 27 H22 M12 37 H22 M12 47 H22 M42 17 H52 M42 27 H52 M42 37 H52 M42 47 H52"/></svg></div><span class="ct">PREMIERE PRO</span></div>
+    <div class="clip s3c" id="c32" style="left:140px;top:748px;width:760px;opacity:0;transform-origin:50% 100%">
+      <div class="tile" style="width:124px;height:124px"><svg class="ico" width="76" height="76" viewBox="0 0 64 64"><path d="M32 8 L58 21 L32 34 L6 21 Z"/><path d="M6 32 L32 45 L58 32"/><path d="M6 43 L32 56 L58 43"/></svg></div><span class="ct">AFTER EFFECTS</span></div>
+    <div class="clip s3c" id="c33" style="left:216px;top:960px;width:800px;opacity:0;transform-origin:50% 100%">
+      <div class="tile" style="width:124px;height:124px"><svg class="ico" width="76" height="76" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><circle cx="32" cy="32" r="8"/><path d="M32 8 V24 M32 40 V56 M8 32 H24 M40 32 H56 M15 15 L26.3 26.3 M37.7 37.7 L49 49 M49 15 L37.7 26.3 M26.3 37.7 L15 49"/></svg></div><span class="ct">DAVINCI RESOLVE</span></div>
+    <div class="clip s3c" id="c34" style="left:104px;top:1172px;width:730px;opacity:0;transform-origin:50% 100%">
+      <div class="tile" style="width:124px;height:124px"><svg class="ico" width="76" height="76" viewBox="0 0 64 64"><circle cx="17" cy="46" r="8"/><circle cx="47" cy="46" r="8"/><path d="M22.5 40 L50 8 M41.5 40 L14 8"/></svg></div><span class="ct">FINAL CUT PRO</span></div>
+  </section>
+
+  <!-- S4 BREAKDOWN - THE FILTER -->
+  <section id="s4" class="L" style="opacity:0">
+    <svg class="a" style="left:64px;top:430px" width="952" height="44" viewBox="0 0 952 44" id="s4ruler"></svg>
+    <div class="c4" id="c41" style="left:64px;top:500px;width:880px;height:220px">
+      <div class="bgw" id="c41w"><i class="bp" id="c41p"></i><i class="bx" id="c41x"></i></div><i class="gl" id="c41g"></i>
+      <div class="row"><div class="slot">
+          <svg width="110" height="110" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18.6" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-dasharray="3.2 3"/></svg>
+          <svg id="x41" width="110" height="110" viewBox="0 0 40 40" style="opacity:0"><circle cx="20" cy="20" r="20" fill="#FC7403"/><path d="M13.5 13.5 L26.5 26.5 M26.5 13.5 L13.5 26.5" stroke="#061A40" stroke-width="4.6" stroke-linecap="round"/></svg></div>
+        <span class="t4"><b id="n41">NO</b> MOBILE EDITORS</span></div>
+    </div>
+    <div class="c4" id="c42" style="left:136px;top:750px;width:880px;height:220px">
+      <div class="bgw" id="c42w"><i class="bp" id="c42p"></i><i class="bx" id="c42x"></i></div><i class="gl" id="c42g"></i>
+      <div class="row"><div class="slot">
+          <svg width="110" height="110" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18.6" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-dasharray="3.2 3"/></svg>
+          <svg id="x42" width="110" height="110" viewBox="0 0 40 40" style="opacity:0"><circle cx="20" cy="20" r="20" fill="#FC7403"/><path d="M13.5 13.5 L26.5 26.5 M26.5 13.5 L13.5 26.5" stroke="#061A40" stroke-width="4.6" stroke-linecap="round"/></svg></div>
+        <span class="t4"><b id="n42">NO</b> CAPCUT EDITORS</span></div>
+    </div>
+    <div class="a" id="s4glow" style="left:0;top:900px;width:1080px;height:520px;background:radial-gradient(closest-side,rgba(252,116,3,.30),rgba(252,116,3,0));opacity:0"></div>
+    <div class="c4" id="c43" style="left:64px;top:1010px;width:952px;height:300px">
+      <div class="bgw"><i class="bp"></i><i class="bon" id="c43on"></i></div><i class="gl" id="c43g"></i>
+      <div class="sh"><i id="c43sh"></i></div>
+      <div class="row" style="gap:32px"><div class="slot" style="width:120px;height:120px">
+          <svg width="120" height="120" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18.6" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="1.6" stroke-dasharray="3.2 3"/></svg>
+          <svg id="k43" width="120" height="120" viewBox="0 0 40 40" style="opacity:0"><circle cx="20" cy="20" r="20" fill="#FC7403"/><path d="M11 20.5 L17.5 27 L29.5 14" fill="none" stroke="#061A40" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <p class="tp">Professional desktop<br>editors only</p></div>
+    </div>
+  </section>
+
+  <!-- S5 BENEFITS -->
+  <section id="s5" class="L" style="clip-path:polygon(0px 0px,0px 0px,0px 0px,0px 0px)">
+    <div class="head" style="top:424px" id="s5h"><svg width="52" height="42" viewBox="0 0 52 42"><polygon points="0,0 17,0 52,42 35,42" fill="#FC7403"/></svg><h2>BENEFITS</h2><span class="rule"></span></div>
+    <div class="card" id="c51" style="top:524px">
+      <div class="tile" style="width:136px;height:136px;border-radius:26px"><svg class="ico" width="82" height="82" viewBox="0 0 44 44" style="stroke-width:3"><circle cx="13" cy="22" r="8"/><path d="M21 22 H39 M33 22 V29 M38 22 V27"/></svg></div>
+      <div class="tx"><div class="bt">PREMIUM SOFTWARE</div><div class="bs">OEM license provided</div></div>
+      <div class="bn">01</div><div class="sh"><i id="sh51"></i></div></div>
+    <div class="card" id="c52" style="top:812px;opacity:0">
+      <div class="tile" style="width:136px;height:136px;border-radius:26px"><svg class="ico" width="82" height="82" viewBox="0 0 44 44" style="stroke-width:3"><rect x="11" y="5" width="29" height="23" rx="4"/><path d="M5 13 V35 a4 4 0 0 0 4 4 H32"/><path d="M22 12 L30 16.5 L22 21 Z" fill="#FC7403"/></svg></div>
+      <div class="tx"><div class="bt">PREMIUM STOCK &amp; MOCKUP<br>SUBSCRIPTION</div><div class="bs">Pro access to a site like Envato</div></div>
+      <div class="bn">02</div><div class="sh"><i id="sh52"></i></div></div>
+    <div class="card" id="c53" style="top:1100px;opacity:0">
+      <div class="tile" style="width:136px;height:136px;border-radius:26px"><svg class="ico" width="82" height="82" viewBox="0 0 44 44" style="stroke-width:3"><path d="M18 6 C19 15 21 17 30 18 C21 19 19 21 18 30 C17 21 15 19 6 18 C15 17 17 15 18 6 Z"/><path d="M34 28 V40 M28 34 H40"/></svg></div>
+      <div class="tx"><div class="bt">AND MUCH MORE</div><div class="bs">&hellip;plus extra perks</div></div>
+      <div class="bn">03</div><div class="sh"><i id="sh53"></i></div></div>
+  </section>
+
+  <!-- S6 END CARD -->
+  <section id="s6" class="L" style="opacity:0">
+    <div class="a kick g" id="s6kG" style="left:0;width:1080px;top:496px;height:80px;font-size:80px">
+      <svg width="54" height="44" viewBox="0 0 54 44"><polygon points="0,0 17,0 54,44 37,44" fill="#FC7403"/></svg><span>WE&rsquo;RE HIRING</span></div>
+    <div class="a kick slamW" id="s6kS" style="left:0;width:1080px;top:496px;height:80px;font-size:80px;opacity:0">
+      <svg width="54" height="44" viewBox="0 0 54 44"><polygon points="0,0 17,0 54,44 37,44" fill="#FC7403"/></svg><span>WE&rsquo;RE HIRING</span></div>
+    <div class="hl" style="top:594px;height:300px;font-size:300px">
+      <div class="gw" id="s6vG">VIDEO</div>
+      <div class="w slamW" id="s6vS" style="opacity:0">VIDEO</div>
+    </div>
+    <div class="hl" style="top:884px;height:300px;font-size:300px">
+      <div class="go" id="s6eG">EDITOR</div>
+      <div class="o slamW" id="s6eS" style="opacity:0">EDITOR</div>
+    </div>
+    <div class="a" style="left:0;width:1080px;top:1200px;height:104px;display:flex;justify-content:center">
+      <div class="pill pillG" id="s6rG" style="position:absolute"><svg class="ico" width="66" height="66" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><ellipse cx="32" cy="32" rx="10.5" ry="24"/><path d="M8 32 H56 M11.5 20 H52.5 M11.5 44 H52.5"/></svg><span>REMOTE</span></div>
+      <div class="pill slamW" id="s6r" style="position:absolute;opacity:0"><svg class="ico" width="66" height="66" viewBox="0 0 64 64"><circle cx="32" cy="32" r="24"/><ellipse cx="32" cy="32" rx="10.5" ry="24"/><path d="M8 32 H56 M11.5 20 H52.5 M11.5 44 H52.5"/></svg><span>REMOTE</span></div>
+    </div>
+    <div class="ctaG" id="s6cG" style="top:1352px"></div>
+    <div class="a" id="ctaGlow" style="left:64px;top:1352px;width:952px;height:170px"></div>
+    <div class="cta slamW" id="s6c" style="top:1352px;opacity:0">
+      <div class="btn"><span>APPLY NOW</span><svg width="50" height="50" viewBox="0 0 40 40"><path d="M7 20 H30 M21 10 L31 20 L21 30" fill="none" stroke="#061A40" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <svg class="echo" width="952" height="170" viewBox="0 0 952 170"><polygon points="462,0 480,0 630,170 612,170" fill="#FC7403"/></svg>
+      <div class="dm"><svg width="56" height="56" viewBox="0 0 36 36" fill="none" stroke="#FC7403" stroke-width="2.6" stroke-linejoin="round"><path d="M33 3 L3 15 L15 20 L20 33 Z"/><path d="M33 3 L15 20"/></svg><p>DM us your<br>portfolio</p></div>
+    </div>
+  </section>
+</div>
+
+<div id="vig" class="L"></div>
+<div id="vig2" class="L"></div>
+
+<!-- =============== HUD =============== -->
+<div id="hud" class="L">
+  <i class="br" id="brTL"></i><i class="br" id="brTR"></i><i class="br" id="brBL"></i><i class="br" id="brBR"></i>
+  <div class="a kick" id="hk" style="clip-path:inset(0% 100% 0% 0%)"><svg width="40" height="32" viewBox="0 0 54 44"><polygon points="0,0 17,0 54,44 37,44" fill="#FC7403"/></svg><span>WE&rsquo;RE HIRING</span></div>
+  <div class="a" id="logo">
+    <svg class="lg" viewBox="0 0 550 253" aria-label="KRS Tech Solutions"><path fill="#FFFFFF" d="M7.85 1.4L49.25 1.4L49.25 76.39L130.78 1.4L179 1.4L101.56 76.72L182.53 151.2L121.38 151.2L49.25 84.86L49.25 151.2L7.85 151.2ZM191.77 1.4L321.9 1.4C324.15 1.4 341.17 1.4 354 14.23C366.82 27.05 366.82 44.08 366.82 46.32L366.82 52.45C366.82 54.93 366.82 73.77 355.24 87.96C343.65 102.15 328.27 102.15 326.24 102.15L322.24 102.15L291.89 67.85L315.85 67.85A10.5 10.5 0 0 0 326.35 57.35L326.35 46.2A10.5 10.5 0 0 0 315.85 35.7L233.17 35.7L233.17 151.2L191.77 151.2ZM534.77 1.4L534.77 35.7L432.05 35.7A10.5 10.5 0 0 0 421.55 46.2L421.55 48.65A10.5 10.5 0 0 0 432.05 59.15L504.02 59.15C506.14 59.15 522.2 59.15 534.3 71.25C546.4 83.35 546.4 99.41 546.4 101.53L546.4 108.82C546.4 110.94 546.4 127 534.3 139.1C522.2 151.2 506.14 151.2 504.02 151.2L383.69 151.2L383.69 116.9L494.5 116.9A10.5 10.5 0 0 0 505 106.4L505 103.95A10.5 10.5 0 0 0 494.5 93.45L422.52 93.45C420.41 93.45 404.35 93.45 392.25 81.35C380.15 69.25 380.15 53.19 380.15 51.07L380.15 43.78C380.15 41.66 380.15 25.6 392.25 13.5C404.35 1.4 420.41 1.4 422.52 1.4ZM0.81 170.25L39.94 170.25L39.94 178.45L24.48 178.45L24.48 212.22L16.27 212.22L16.27 178.45L0.81 178.45ZM45.07 170.25L80.12 170.25L80.12 178.45L53.27 178.45L53.27 186.85L77.9 186.85L77.9 195.05L53.27 195.05L53.27 204.03L80.12 204.03L80.12 212.22L45.07 212.22ZM121.82 170.25L121.82 178.45L97.41 178.45A4.5 4.5 0 0 0 92.91 182.95L92.91 199.53A4.5 4.5 0 0 0 97.41 204.03L121.82 204.03L121.82 212.22L96.14 212.22A11.44 11.44 0 0 1 84.71 200.79L84.71 181.69A11.44 11.44 0 0 1 96.14 170.25ZM127.52 170.25L135.72 170.25L135.72 186.85L158.03 186.85L158.03 170.25L166.23 170.25L166.23 212.22L158.03 212.22L158.03 195.05L135.72 195.05L135.72 212.22L127.52 212.22ZM17.86 252.25L12.01 252.25L12.01 235.55L17.48 235.55Q18.77 235.55 19.78 235.81Q20.79 236.07 21.49 236.61Q22.2 237.16 22.56 237.99Q22.93 238.83 22.93 240Q22.93 241.03 22.4 241.86Q21.87 242.7 20.95 243.22Q20.72 243.35 20.48 243.45Q21.14 243.62 21.66 243.98Q22.49 244.57 22.94 245.46Q23.38 246.35 23.38 247.43Q23.38 248.99 22.7 250.07Q22.01 251.14 20.77 251.69Q19.54 252.25 17.86 252.25ZM17.96 244.44L14.22 244.44L14.22 250.45L17.86 250.45Q18.92 250.45 19.66 250.08Q20.4 249.72 20.79 249.04Q21.18 248.37 21.18 247.46Q21.18 246.53 20.84 245.85Q20.51 245.17 19.8 244.81Q19.09 244.44 17.96 244.44ZM14.83 242.66L17.55 242.66Q18.5 242.66 19.21 242.34Q19.93 242.02 20.32 241.42Q20.72 240.81 20.72 239.98Q20.72 239.06 20.37 238.48Q20.02 237.9 19.3 237.63Q18.58 237.36 17.48 237.36L14.22 237.36L14.22 242.66ZM47.14 235.55L49.34 235.55L49.34 246.85Q49.34 248.73 48.5 249.98Q47.67 251.23 46.28 251.85Q44.9 252.48 43.28 252.48Q41.59 252.48 40.22 251.85Q38.85 251.23 38.05 249.98Q37.25 248.73 37.25 246.85L37.25 235.55L39.44 235.55L39.44 246.85Q39.44 248.16 39.92 249Q40.41 249.85 41.27 250.27Q42.14 250.68 43.28 250.68Q44.44 250.68 45.31 250.27Q46.17 249.85 46.66 249Q47.14 248.16 47.14 246.85ZM65.98 235.55L65.98 252.25L63.77 252.25L63.77 235.55ZM91.15 250.45L91.15 252.25L81.02 252.25L81.02 235.55L83.23 235.55L83.23 250.45ZM109.04 252.25L104.52 252.25L104.52 235.55L109.25 235.55Q110.89 235.55 112.24 236.09Q113.59 236.64 114.57 237.67Q115.55 238.69 116.08 240.14Q116.61 241.59 116.61 243.41L116.61 244.4Q116.61 246.22 116.08 247.67Q115.55 249.12 114.56 250.14Q113.57 251.16 112.18 251.71Q110.78 252.25 109.04 252.25ZM106.73 250.45L109.04 250.45Q110.83 250.45 112.02 249.7Q113.22 248.95 113.82 247.59Q114.42 246.23 114.42 244.4L114.42 243.38Q114.42 241.95 114.08 240.83Q113.73 239.71 113.07 238.94Q112.4 238.17 111.44 237.76Q110.49 237.36 109.25 237.36L106.73 237.36ZM187.43 235.55L187.43 252.25L185.22 252.25L185.22 235.55ZM215.19 235.55L215.19 252.25L212.96 252.25L204.55 239.37L204.55 252.25L202.34 252.25L202.34 235.55L204.55 235.55L213 248.46L213 235.55ZM242.75 235.55L242.75 252.25L240.53 252.25L232.12 239.37L232.12 252.25L229.91 252.25L229.91 235.55L232.12 235.55L240.56 248.46L240.56 235.55ZM270.04 243.37L270.04 244.43Q270.04 246.31 269.57 247.8Q269.1 249.29 268.21 250.33Q267.33 251.38 266.1 251.93Q264.86 252.48 263.34 252.48Q261.86 252.48 260.62 251.93Q259.39 251.38 258.49 250.33Q257.59 249.29 257.1 247.8Q256.6 246.31 256.6 244.43L256.6 243.37Q256.6 241.49 257.09 240.01Q257.58 238.52 258.47 237.47Q259.37 236.42 260.6 235.87Q261.83 235.32 263.31 235.32Q264.84 235.32 266.07 235.87Q267.31 236.42 268.19 237.47Q269.08 238.52 269.56 240.01Q270.04 241.49 270.04 243.37ZM267.84 244.43L267.84 243.35Q267.84 241.86 267.54 240.71Q267.24 239.56 266.65 238.78Q266.07 238 265.22 237.6Q264.38 237.2 263.31 237.2Q262.28 237.2 261.45 237.6Q260.62 238 260.03 238.78Q259.44 239.56 259.12 240.71Q258.8 241.86 258.8 243.35L258.8 244.43Q258.8 245.93 259.12 247.08Q259.44 248.24 260.04 249.02Q260.64 249.81 261.47 250.21Q262.31 250.61 263.34 250.61Q264.42 250.61 265.25 250.21Q266.09 249.81 266.67 249.02Q267.25 248.24 267.55 247.08Q267.84 245.93 267.84 244.43ZM284.61 235.55L289.35 249.31L294.13 235.55L296.53 235.55L290.35 252.25L288.39 252.25L282.22 235.55ZM318.9 252.25L317.3 247.88L310.32 247.88L308.73 252.25L306.48 252.25L312.84 235.55L314.78 235.55L321.17 252.25ZM316.65 246.07L313.82 238.28L310.98 246.07ZM344.32 235.55L344.32 237.36L338.96 237.36L338.96 252.25L336.78 252.25L336.78 237.36L331.42 237.36L331.42 235.55ZM367.87 250.45L367.87 252.25L357.26 252.25L357.26 235.55L367.76 235.55L367.76 237.36L359.47 237.36L359.47 242.73L366.7 242.73L366.7 244.53L359.47 244.53L359.47 250.45ZM445.94 248.03Q445.94 247.44 445.76 246.99Q445.58 246.54 445.14 246.17Q444.7 245.8 443.92 245.47Q443.15 245.14 441.97 244.79Q440.73 244.43 439.73 243.97Q438.73 243.52 438.02 242.94Q437.31 242.35 436.93 241.59Q436.55 240.84 436.55 239.86Q436.55 238.89 436.96 238.06Q437.36 237.24 438.11 236.62Q438.86 236.01 439.9 235.66Q440.95 235.32 442.23 235.32Q444.11 235.32 445.43 236.04Q446.74 236.75 447.43 237.91Q448.12 239.06 448.12 240.37L445.91 240.37Q445.91 239.43 445.51 238.7Q445.11 237.97 444.3 237.55Q443.48 237.13 442.23 237.13Q441.05 237.13 440.28 237.49Q439.51 237.84 439.14 238.45Q438.77 239.06 438.77 239.84Q438.77 240.37 438.99 240.8Q439.21 241.23 439.69 241.59Q440.17 241.96 440.91 242.27Q441.65 242.58 442.68 242.87Q444.1 243.27 445.13 243.76Q446.17 244.26 446.84 244.87Q447.51 245.48 447.83 246.26Q448.16 247.03 448.16 248.01Q448.16 249.03 447.75 249.85Q447.34 250.68 446.57 251.26Q445.8 251.85 444.73 252.16Q443.65 252.48 442.33 252.48Q441.18 252.48 440.06 252.16Q438.94 251.84 438.03 251.19Q437.12 250.55 436.57 249.61Q436.03 248.66 436.03 247.41L438.23 247.41Q438.23 248.27 438.56 248.88Q438.89 249.5 439.47 249.9Q440.05 250.3 440.79 250.49Q441.53 250.68 442.33 250.68Q443.49 250.68 444.3 250.36Q445.1 250.04 445.52 249.44Q445.94 248.84 445.94 248.03ZM472.13 246.94L474.34 246.94Q474.16 248.52 473.43 249.77Q472.7 251.02 471.35 251.75Q470.01 252.48 468 252.48Q466.54 252.48 465.34 251.93Q464.14 251.38 463.28 250.36Q462.42 249.35 461.95 247.92Q461.49 246.49 461.49 244.74L461.49 243.07Q461.49 241.32 461.95 239.89Q462.42 238.46 463.3 237.44Q464.17 236.42 465.41 235.87Q466.65 235.32 468.2 235.32Q470.09 235.32 471.4 236.03Q472.71 236.74 473.44 238Q474.16 239.25 474.34 240.91L472.13 240.91Q471.97 239.74 471.54 238.89Q471.1 238.05 470.3 237.59Q469.5 237.13 468.2 237.13Q467.09 237.13 466.24 237.56Q465.4 237.98 464.83 238.76Q464.27 239.54 463.98 240.63Q463.69 241.72 463.69 243.05L463.69 244.74Q463.69 245.96 463.95 247.04Q464.21 248.12 464.74 248.94Q465.26 249.75 466.08 250.21Q466.89 250.68 468 250.68Q469.42 250.68 470.25 250.23Q471.09 249.78 471.52 248.95Q471.95 248.11 472.13 246.94ZM498.66 252.25L497.06 247.88L490.08 247.88L488.49 252.25L486.24 252.25L492.6 235.55L494.54 235.55L500.93 252.25ZM496.41 246.07L493.58 238.28L490.74 246.07ZM524 250.45L524 252.25L513.87 252.25L513.87 235.55L516.08 235.55L516.08 250.45ZM547.92 250.45L547.92 252.25L537.31 252.25L537.31 235.55L547.81 235.55L547.81 237.36L539.52 237.36L539.52 242.73L546.75 242.73L546.75 244.53L539.52 244.53L539.52 250.45ZM147.96 243.9A2.95 2.95 0 0 1 153.86 243.9A2.95 2.95 0 0 1 147.96 243.9ZM399 243.9A2.95 2.95 0 0 1 404.9 243.9A2.95 2.95 0 0 1 399 243.9Z"/></svg>
+    <svg class="lg" viewBox="0 0 550 253" aria-hidden="true"><path fill="#FC7403" d="M192.5 204.03L215.61 204.03A4.49 4.49 0 0 0 215.61 195.05L203.53 195.05A11.44 11.44 0 0 1 192.1 183.62L192.1 181.69A11.44 11.44 0 0 1 203.53 170.25L225.32 170.25L225.32 178.45L204.5 178.45A4.2 4.2 0 0 0 204.5 186.85L216.87 186.85A11.44 11.44 0 0 1 228.3 198.29L228.3 200.79A11.44 11.44 0 0 1 216.87 212.22L192.5 212.22ZM245.72 170.25L265.1 170.25A11.44 11.44 0 0 1 276.54 181.69L276.54 200.79A11.44 11.44 0 0 1 265.1 212.22L245.72 212.22A11.44 11.44 0 0 1 234.29 200.79L234.29 181.69A11.44 11.44 0 0 1 245.72 170.25ZM242.49 182.95L242.49 199.53A4.5 4.5 0 0 0 246.99 204.03L263.84 204.03A4.5 4.5 0 0 0 268.34 199.53L268.34 182.95A4.5 4.5 0 0 0 263.84 178.45L246.99 178.45A4.5 4.5 0 0 0 242.49 182.95ZM282.83 170.25L291.03 170.25L291.03 204.03L316.93 204.03L316.93 212.22L282.83 212.22ZM320.98 170.25L329.18 170.25L329.18 199.53A4.5 4.5 0 0 0 333.68 204.03L347.51 204.03A4.5 4.5 0 0 0 352.01 199.53L352.01 170.25L360.21 170.25L360.21 200.79A11.44 11.44 0 0 1 348.77 212.22L332.42 212.22A11.44 11.44 0 0 1 320.98 200.79ZM365.29 170.25L404.42 170.25L404.42 178.45L388.95 178.45L388.95 212.22L380.75 212.22L380.75 178.45L365.29 178.45ZM409.73 170.25L417.93 170.25L417.93 212.22L409.73 212.22ZM435.2 170.25L454.58 170.25A11.44 11.44 0 0 1 466.01 181.69L466.01 200.79A11.44 11.44 0 0 1 454.58 212.22L435.2 212.22A11.44 11.44 0 0 1 423.76 200.79L423.76 181.69A11.44 11.44 0 0 1 435.2 170.25ZM431.96 182.95L431.96 199.53A4.5 4.5 0 0 0 436.46 204.03L453.31 204.03A4.5 4.5 0 0 0 457.81 199.53L457.81 182.95A4.5 4.5 0 0 0 453.31 178.45L436.46 178.45A4.5 4.5 0 0 0 431.96 182.95ZM471.1 170.25L479.3 170.25L500.6 198.41L500.6 170.25L508.8 170.25L508.8 212.22L500.6 212.22L479.3 184.07L479.3 212.22L471.1 212.22ZM513.8 204.03L536.91 204.03A4.49 4.49 0 0 0 536.91 195.05L524.83 195.05A11.44 11.44 0 0 1 513.4 183.62L513.4 181.69A11.44 11.44 0 0 1 524.83 170.25L546.62 170.25L546.62 178.45L525.8 178.45A4.2 4.2 0 0 0 525.8 186.85L538.17 186.85A11.44 11.44 0 0 1 549.6 198.29L549.6 200.79A11.44 11.44 0 0 1 538.17 212.22L513.8 212.22Z"/></svg>
+    <svg class="lg" id="lgR" viewBox="0 0 550 253" aria-hidden="true"><path fill="#FC7403" d="M240.05 67.85L285.89 67.85L359.64 151.2L313.8 151.2Z"/></svg>
+    <div id="lgShine"><i id="lgBar"></i></div>
+  </div>
+  <div class="a" id="strip">
+    <div id="stripBox"></div>
+    <canvas id="wave" width="952" height="168"></canvas>
+    <div id="ph"><div id="phGlow"></div><i class="ln"></i>
+      <svg class="hd" width="30" height="30" viewBox="0 0 30 30"><path d="M2 2 H28 V16 L15 28 L2 16 Z" fill="#FC7403"/></svg></div>
+  </div>
+</div>
+
+<!-- =============== FX =============== -->
+<div id="fx" class="L" style="overflow:hidden">
+  <div class="a" id="slashTrail"></div>
+  <div class="a" id="slash"></div>
+  <div class="a" id="wph"><i class="tr"></i><i class="ln"></i>
+    <svg class="hd" width="44" height="44" viewBox="0 0 30 30"><path d="M2 2 H28 V16 L15 28 L2 16 Z" fill="#FC7403"/></svg></div>
+  <div class="a" id="band"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
+  <div class="a" id="sweep"></div>
+  <div id="flash" class="L"></div>
+</div>
+<div id="grain" class="L"></div>
+
+<script>
+(function(){
+'use strict';
+var D = 30, FPS = 30, NF = D * FPS;
+window.STORY_DURATION = D;
+var $ = function(s){ var e = document.querySelector(s); if(!e) throw new Error('missing ' + s); return e; };
+
+/* ---------- easing ---------- */
+function bez(x1,y1,x2,y2){
+  var cx=3*x1,bx=3*(x2-x1)-cx,ax=1-cx-bx,cy=3*y1,by=3*(y2-y1)-cy,ay=1-cy-by;
+  function X(t){return ((ax*t+bx)*t+cx)*t;} function Y(t){return ((ay*t+by)*t+cy)*t;}
+  return function(x){ if(x<=0) return 0; if(x>=1) return 1; var lo=0,hi=1,t=x;
+    for(var i=0;i<40;i++){ var v=X(t); if(Math.abs(v-x)<1e-7) break; if(v<x) lo=t; else hi=t; t=(lo+hi)/2; } return Y(t); };
+}
+var EZ = {l:'linear', o:'cubic-bezier(.16,1,.3,1)', o3:'cubic-bezier(.33,1,.68,1)', i:'cubic-bezier(.6,0,.9,.45)',
+          io:'cubic-bezier(.65,0,.35,1)', w:'cubic-bezier(.75,0,.25,1)'};
+var fIO = bez(.65,0,.35,1), fW = bez(.75,0,.25,1), fO = bez(.16,1,.3,1);
+function clamp(v,a,b){ return v<a?a:(v>b?b:v); }
+function seg(t,a,b){ return clamp((t-a)/(b-a),0,1); }
+
+/* ---------- WAAPI helpers: every track spans 0..D, keyframe offset = t/D ---------- */
+function tw(el, prop, keys){
+  if(typeof el==='string') el=$(el);
+  var fr=[], first=keys[0], last=keys[keys.length-1];
+  if(first[0]>0) fr.push({offset:0, easing:'linear'}), fr[0][prop]=first[1];
+  keys.forEach(function(k){ var f={offset:clamp(k[0]/D,0,1), easing:EZ[k[2]]||k[2]||'linear'}; f[prop]=k[1]; fr.push(f); });
+  if(last[0]<D){ var f2={offset:1}; f2[prop]=last[1]; fr.push(f2); }
+  el.animate(fr,{duration:D*1000, fill:'both'});
+}
+function proc(el, prop, fn){   /* one keyframe per video frame - deterministic procedural motion */
+  if(typeof el==='string') el=$(el);
+  var fr=[]; for(var i=0;i<=NF;i++){ var f={offset:i/NF}; f[prop]=fn(i/FPS); fr.push(f); }
+  el.animate(fr,{duration:D*1000, fill:'both'});
+}
+function slam(el,t,s0,blur){   /* lands on beat t */
+  s0=s0||1.5; blur=(blur===undefined)?12:blur;
+  tw(el,'transform',[[t-0.1,'scale('+s0+')','i'],[t,'scale(0.965)','o'],[t+0.2,'scale(1)']]);
+  tw(el,'opacity',[[t-0.1,0],[t-0.066,1]]);
+  if(blur) tw(el,'filter',[[t-0.1,'blur('+blur+'px)'],[t,'blur(0px)']]);
+}
+function rgb(r,c,t){
+  [[r,-1],[c,1]].forEach(function(p){
+    tw(p[0],'opacity',[[t-0.01,0],[t,0.85],[t+0.08,0.85],[t+0.09,0]]);
+    tw(p[0],'transform',[[t,'translate('+(18*p[1])+'px,0px)'],[t+1/30,'translate('+(10*p[1])+'px,'+(3*p[1])+'px)'],[t+2/30,'translate('+(5*p[1])+'px,0px)'],[t+0.1,'translate(0px,0px)']]);
+  });
+}
+function pop(el,t,dy){
+  dy=dy||40;
+  tw(el,'transform',[[t-0.1,'translateY('+dy+'px) scale(0.86)','o'],[t+0.06,'translateY(-3px) scale(1.02)','io'],[t+0.18,'translateY(0px) scale(1)']]);
+  tw(el,'opacity',[[t-0.1,0],[t-0.04,1]]);
+}
+function drop(el,t){
+  tw(el,'transform',[[t-0.17,'translateY(-170px) scale(1,1)','i'],[t,'translateY(0px) scale(1.02,0.9)','o'],[t+0.12,'translateY(0px) scale(1,1)']]);
+  tw(el,'opacity',[[t-0.17,0],[t-0.12,1]]);
+}
+function slideIn(el,t){
+  tw(el,'transform',[[t-0.12,'translateX(170px)','o'],[t+0.08,'translateX(-5px)','io'],[t+0.2,'translateX(0px)']]);
+  tw(el,'opacity',[[t-0.12,0],[t-0.07,1]]);
+}
+function flashLane(el,t){ tw(el,'opacity',[[t-0.01,0],[t,0.95,'o'],[t+0.5,0]]); }
+
+/* ================= TIMELINE ================= */
+/* --- camera (world): riser push 1.0-2.0, 3-frame shakes on the two big slams --- */
+tw('#cam','transform',[
+  [0,'translate(0px,0px) scale(1)'],[1.0,'translate(0px,0px) scale(1)','i'],[1.98,'translate(0px,0px) scale(1.035)'],
+  [2.0,'translate(12px,-8px) scale(1)'],[2+1/30,'translate(-9px,6px) scale(1)'],[2+2/30,'translate(4px,-3px) scale(1)'],[2.1,'translate(0px,0px) scale(1)'],
+  [2.49,'translate(0px,0px) scale(1)'],[2.5,'translate(9px,-6px) scale(1)'],[2.5+1/30,'translate(-6px,4px) scale(1)'],[2.5+2/30,'translate(3px,-2px) scale(1)'],[2.6,'translate(0px,0px) scale(1)']]);
+
+/* --- logo: R-leg slice-in, push, morph to HUD and back --- */
+tw('#lgR','clipPath',[[0,'inset(0% 0% 56.7% 0%)'],[0.45,'inset(0% 0% 56.7% 0%)','o'],[0.56,'inset(0% 0% 0% 0%)']]);
+tw('#lgR','filter',[[0.47,'brightness(1) drop-shadow(0px 0px 0px rgba(255,138,42,0))'],[0.5,'brightness(2.3) drop-shadow(0px 0px 14px rgba(255,138,42,0.95))','o'],[0.95,'brightness(1) drop-shadow(0px 0px 0px rgba(255,138,42,0))']]);
+tw('#logo','transform',[[0,'translate(0px,0px) scale(1)'],[1.0,'translate(0px,0px) scale(1)','i'],[1.98,'translate(-7.35px,-3.4px) scale(1.035)'],[2.0,'translate(0px,0px) scale(1)'],
+  [5.75,'translate(0px,0px) scale(1)','w'],[6.25,'translate(436px,-8px) scale(0.595238)'],
+  [23.9,'translate(436px,-8px) scale(0.595238)','io'],[24.45,'translate(0px,0px) scale(1)']]);
+tw('#lgBar','transform',[[0.75,'translateX(-260px) skewX(-24deg)','io'],[1.5,'translateX(600px) skewX(-24deg)'],[1.5,'translateX(-260px) skewX(-24deg)'],
+  [24.45,'translateX(-260px) skewX(-24deg)','io'],[25.0,'translateX(600px) skewX(-24deg)'],[25.0,'translateX(-260px) skewX(-24deg)'],
+  [26.0,'translateX(-260px) skewX(-24deg)','io'],[26.45,'translateX(600px) skewX(-24deg)']]);
+
+/* --- intro slash blade along the R-leg axis (48.5 deg) through the leg at (559,360) --- */
+var AX = 'translate(559px,360px) rotate(48.5deg) ';
+tw('#slash','transform',[[0.36,AX+'translateX(-1700px)'],[0.64,AX+'translateX(1700px)']]);
+tw('#slash','opacity',[[0.355,0],[0.36,1],[0.64,1],[0.645,0]]);
+tw('#slashTrail','transform',[[0,AX+'scaleX(1)']]);
+tw('#slashTrail','opacity',[[0.43,0],[0.5,0.85,'o'],[1.05,0]]);
+
+/* --- S1 hook --- */
+tw('#s1kG','opacity',[[1.99,1],[2.0,0]]);
+tw('#s1vG','opacity',[[1.99,1],[2.0,0]]);
+tw('#s1eG','opacity',[[2.49,1],[2.5,0]]);
+['#s1kG','#s1vG','#s1eG'].forEach(function(s){
+  tw(s,'filter',[[1.0,'drop-shadow(0px 0px 0px rgba(252,116,3,0))','i'],[1.98,'drop-shadow(0px 0px 20px rgba(252,116,3,0.85))']]);
+});
+slam('#s1kS',2.0,1.35,8);
+slam('#s1vS',2.0,1.55,14); rgb('#s1vR','#s1vC',2.0);
+slam('#s1eS',2.5,1.55,14); rgb('#s1eR','#s1eC',2.5);
+/* T1 whip-pan left */
+tw('#s1','transform',[[5.75,'translateX(0px)','w'],[6.25,'translateX(-1080px)']]);
+tw('#s1','opacity',[[6.25,1],[6.26,0]]);
+
+/* --- S2 THE ROLE --- */
+tw('#s2','transform',[[5.75,'translateX(1080px)','w'],[6.25,'translateX(0px)']]);
+tw('#s2','opacity',[[5.74,0],[5.75,1],[10.0,1],[10.01,0]]);
+tw('#s2','clipPath',[[9.5,'inset(0px 0px 0px 0px)','io'],[10.0,'inset(0px 0px 0px 1080px)']]);
+tw('#hk','clipPath',[[6.0,'inset(0% 100% 0% 0%)','o'],[6.35,'inset(0% 0% 0% 0%)']]);
+tw('#hk','opacity',[[23.8,1],[23.95,0]]);
+pop('#c21',6.5); flashLane('#l21',6.5);
+pop('#c22',7.0); flashLane('#l22',7.0);
+pop('#c23',7.5); flashLane('#l23',7.5);
+slam('#c24',8.0,1.3,8);
+tw('#c24ring','transform',[[8.0,'scale(0.97)','o'],[8.55,'scale(1.1)']]);
+tw('#c24ring','opacity',[[7.99,0],[8.0,0.9],[8.55,0]]);
+
+/* --- T2 playhead wipe 9.5-10.0 --- */
+tw('#wph','transform',[[9.5,'translateX(0px)','io'],[10.0,'translateX(1080px)']]);
+tw('#wph','opacity',[[9.49,0],[9.5,1],[10.0,1],[10.01,0]]);
+
+/* --- S3 SKILLS --- */
+tw('#s3','clipPath',[[9.5,'inset(0px 1080px 0px 0px)','io'],[10.0,'inset(0px 0px 0px 0px)']]);
+tw('#s3','transform',[[13.75,'scale(1)','i'],[14.0,'scale(0.9)']]);
+tw('#s3','opacity',[[13.8,1],[14.0,0]]);
+drop('#c31',10.0); flashLane('#l31',10.0);
+drop('#c32',10.5); flashLane('#l32',10.5);
+drop('#c33',11.0); flashLane('#l33',11.0);
+drop('#c34',11.5); flashLane('#l34',11.5);
+
+/* --- T3 lights drop / S4 BREAKDOWN --- */
+tw('#bgDark','opacity',[[13.75,0,'io'],[14.1,1],[17.95,1],[18.1,0]]);
+tw('#vig2','opacity',[[13.75,0,'io'],[14.1,1],[16.0,1,'i'],[17.95,0.6],[18.1,0]]);
+tw('#s4','opacity',[[14.0,0,'o'],[14.22,1],[18.2,1],[18.21,0]]);
+tw('#s4','transform',[[14.0,'scale(1.08)','o'],[14.4,'scale(1)']]);
+function stamp(n,t){
+  var X='#x4'+n;
+  tw(X,'transform',[[t-0.1,'scale(2.6) rotate(-25deg)','i'],[t,'scale(0.9) rotate(0deg)','o'],[t+0.12,'scale(1) rotate(0deg)']]);
+  tw(X,'opacity',[[t-0.1,0],[t-0.05,1]]);
+  tw('#c4'+n+'x','opacity',[[t-0.01,0],[t,1]]);
+  tw('#c4'+n+'p','opacity',[[t-0.01,1],[t+1/30,0]]);
+  tw('#c4'+n+'w','transform',[[t-0.01,'scale(1,1)'],[t,'scale(1.022,0.93)'],[t+1/30,'scale(0.992,1.018)'],[t+2/30,'scale(1,1)']]);
+  tw('#n4'+n,'color',[[t-0.01,'#ffffff'],[t,'#FC7403']]);
+  tw('#c4'+n+'g','opacity',[[t-0.01,0],[t,1,'o'],[t+0.45,0]]);
+}
+stamp(1,14.5); stamp(2,15.0);
+tw('#k43','transform',[[15.4,'scale(0)','o'],[15.5,'scale(1.18)','io'],[15.62,'scale(1)']]);
+tw('#k43','opacity',[[15.4,0],[15.43,1]]);
+tw('#c43on','opacity',[[15.49,0],[15.5,1]]);
+tw('#c43g','opacity',[[15.49,0],[15.5,1,'o'],[15.95,0]]);
+tw('#c43sh','transform',[[15.5,'translateX(-300px) skewX(-18deg)','io'],[16.1,'translateX(1200px) skewX(-18deg)']]);
+tw('#s4glow','opacity',[[16.0,0,'i'],[17.9,0.95],[18.1,0]]);
+/* S4 ruler ticks */
+(function(){ var s=$('#s4ruler'), h='<line x1="0" y1="43" x2="952" y2="43" stroke="rgba(255,255,255,.16)"/>';
+  for(var i=0;i<=40;i++){ var x=8+i*23.4, M=i%5===0; h+='<line x1="'+x.toFixed(1)+'" y1="'+(M?14:28)+'" x2="'+x.toFixed(1)+'" y2="42" stroke="rgba(255,255,255,'+(M?.45:.24)+')" stroke-width="2"/>'; }
+  s.innerHTML=h; })();
+
+/* --- T4 brand-slash band 17.8-18.2, diagonal reveal of S5 (edge locked to the band) --- */
+var DX=0.66262, DY=0.74895, NX=0.74895, NY=-0.66262, KC=1077, S0=-1520, S1=1080;
+function sAt(t){ return S0+(S1-S0)*fIO(seg(t,17.8,18.2)); }
+function P(s,k,m){ return [s*NX+k*DX+m*NX, s*NY+k*DY+m*NY]; }
+proc('#band','transform',function(t){ var p=P(sAt(t),KC,0); return 'translate('+p[0].toFixed(1)+'px,'+p[1].toFixed(1)+'px) rotate(48.5deg)'; });
+tw('#band','opacity',[[17.79,0],[17.8,1],[18.2,1],[18.21,0]]);
+proc('#s5','clipPath',function(t){
+  if(t>=18.2) return 'polygon(-3000px -3000px,4000px -3000px,4000px 5000px,-3000px 5000px)';
+  var s=sAt(t)-20, a=P(s,KC-3200,0), b=P(s,KC+3200,0), c=P(s,KC+3200,-4000), d=P(s,KC-3200,-4000);
+  return 'polygon('+[a,b,c,d].map(function(q){return q[0].toFixed(1)+'px '+q[1].toFixed(1)+'px';}).join(',')+')';
+});
+
+/* --- S5 BENEFITS --- */
+tw('#s5h','transform',[[17.95,'scale(1.05)','o'],[18.3,'scale(1)']]);
+tw('#c51','transform',[[17.95,'scale(1.04)','o'],[18.3,'scale(1)']]);
+slideIn('#c52',18.5);
+slideIn('#c53',19.0);
+tw('#sh51','transform',[[20.0,'translateX(-400px) skewX(-18deg)','io'],[20.6,'translateX(1300px) skewX(-18deg)']]);
+tw('#sh52','transform',[[20.5,'translateX(-400px) skewX(-18deg)','io'],[21.1,'translateX(1300px) skewX(-18deg)']]);
+tw('#sh53','transform',[[21.0,'translateX(-400px) skewX(-18deg)','io'],[21.6,'translateX(1300px) skewX(-18deg)']]);
+/* T5 whip-pan up */
+tw('#s5','transform',[[23.8,'translateY(0px)','w'],[24.2,'translateY(-1920px)']]);
+tw('#s5','opacity',[[24.2,1],[24.21,0]]);
+tw('#strip','transform',[[23.8,'translateY(0px)','i'],[24.15,'translateY(260px)']]);
+tw('#strip','opacity',[[13.9,1],[14.2,0.45],[16.0,0.45,'i'],[18.0,1],[23.85,1],[24.1,0]]);
+
+/* --- S6 END CARD --- */
+tw('#s6','transform',[[23.8,'translateY(1920px)','w'],[24.2,'translateY(0px)']]);
+tw('#s6','opacity',[[23.79,0],[23.8,1]]);
+tw('#s6kG','opacity',[[24.49,1],[24.5,0]]);
+tw('#s6vG','opacity',[[24.99,1],[25.0,0]]);
+tw('#s6eG','opacity',[[25.49,1],[25.5,0]]);
+tw('#s6rG','opacity',[[25.99,1],[26.0,0]]);
+tw('#s6cG','opacity',[[25.99,1],[26.0,0]]);
+slam('#s6kS',24.5,1.3,6);
+slam('#s6vS',25.0,1.45,12);
+slam('#s6eS',25.5,1.45,12);
+slam('#s6r',26.0,1.35,8);
+slam('#s6c',26.0,1.16,8);
+proc('#ctaGlow','opacity',function(t){ if(t<26.0) return 0; if(t<26.45) return 1-0.55*seg(t,26.0,26.45);
+  return (0.45+0.25*Math.sin(Math.PI*(t-26.45)/1.6)*Math.sin(Math.PI*(t-26.45)/1.6)).toFixed(4); });
+
+/* --- global FX --- */
+tw('#flash','opacity',[[1.99,0],[2.0,0.22],[2.22,0],[2.49,0],[2.5,0.15],[2.7,0],[7.99,0],[8.0,0.12],[8.2,0],[17.99,0],[18.0,0.2],[18.25,0],[25.99,0],[26.0,0.22],[26.35,0]]);
+(function(){ var k=[[0,'translateX(-400px) rotate(18deg)']], o=[[0,0]];
+  [4.0,9.0,12.0,22.0].forEach(function(t){ k.push([t-0.01,'translateX(-400px) rotate(18deg)'],[t,'translateX(-400px) rotate(18deg)','io'],[t+0.7,'translateX(1700px) rotate(18deg)'],[t+0.71,'translateX(-400px) rotate(18deg)']);
+    o.push([t-0.01,0],[t,1],[t+0.7,1],[t+0.71,0]); });
+  tw('#sweep','transform',k); tw('#sweep','opacity',o); })();
+
+/* --- parallax background: slow drift + counter-moves on whips (frozen after 26.0) --- */
+function drift(t){ var u=Math.min(t,26.0); return {x:-50*u/26, y:-30*u/26}; }
+proc('#bgFar','transform',function(t){ var d=drift(t), dark=fIO(seg(t,13.75,14.4))-fIO(seg(t,17.9,18.2));
+  return 'translate('+(d.x-130*fW(seg(t,5.75,6.25))).toFixed(2)+'px,'+(d.y-120*fW(seg(t,23.8,24.2))).toFixed(2)+'px) scale('+(1+0.05*dark).toFixed(4)+')'; });
+proc('#bgMid','transform',function(t){ var d=drift(t);
+  return 'translate('+(2*d.x-240*fW(seg(t,5.75,6.25))).toFixed(2)+'px,'+(2*d.y-230*fW(seg(t,23.8,24.2))).toFixed(2)+'px)'; });
+
+/* --- beat engine (brackets + waveform) --- */
+function beatAmp(b){
+  if(b<2) return (b===1||b===1.5)?0.5:0;
+  if(b<14) return (b%2===0)?1:0.6;
+  if(b<16) return (b%1===0)?0.45:0;
+  if(b<18) return 0.3+0.7*(b-16)/2;
+  if(b<24) return (b%2===0)?1:0.6;
+  if(b<26) return 0.6;
+  return 0;
+}
+function beat(t){ var b=Math.floor(t*2+1e-6)/2; return beatAmp(b)*Math.exp(-(t-b)/0.11); }
+function jitter(t,at){ var f=Math.round((t-at)*FPS); return f===0?[6,-3]:f===1?[-4,3]:f===2?[2,-1]:[0,0]; }
+function brOff(t){
+  if(t>=26.45) return {o:0,jx:0,jy:0};
+  var o=8*beat(t);
+  if(t>=1&&t<2) o-=14*Math.pow(t-1,2);
+  if(t>=2) o+=18*Math.exp(-(t-2)/0.14);
+  if(t>=16&&t<18) o-=28*Math.pow((t-16)/2,2);
+  if(t>=18) o+=20*Math.exp(-(t-18)/0.14);
+  o+=22*Math.sin(Math.PI*seg(t,5.75,6.25))+10*Math.sin(Math.PI*seg(t,9.5,10))-10*Math.sin(Math.PI*seg(t,13.75,14.1))+22*Math.sin(Math.PI*seg(t,23.8,24.2));
+  if(t>=25.85&&t<26) o-=16*seg(t,25.85,26);
+  if(t>=26) o+=10*Math.exp(-(t-26)/0.07)-0;
+  var j=[0,0]; [14.5,15.0].forEach(function(a){ if(t>=a&&t<a+0.1){ j=jitter(t,a); } });
+  return {o:o,jx:j[0],jy:j[1]};
+}
+[['#brTL',-1,-1],['#brTR',1,-1],['#brBL',-1,1],['#brBR',1,1]].forEach(function(c){
+  proc(c[0],'transform',function(t){ var b=brOff(t); return 'translate('+(c[1]*b.o+b.jx).toFixed(2)+'px,'+(c[2]*b.o+b.jy).toFixed(2)+'px)'; });
+});
+
+/* ================= renderFrame: grain, master strip, motion blur ================= */
+var grainEl=$('#grain'), tiles=[], seed=20261026;
+function rnd(){ seed=(Math.imul(seed,1664525)+1013904223)>>>0; return seed/4294967296; }
+for(var k=0;k<4;k++){ var cv=document.createElement('canvas'); cv.width=cv.height=256; var g=cv.getContext('2d'), im=g.createImageData(256,256);
+  for(var i=0;i<im.data.length;i+=4){ var v=(rnd()*255)|0; im.data[i]=im.data[i+1]=im.data[i+2]=v; im.data[i+3]=255; }
+  g.putImageData(im,0,0); tiles.push('url('+cv.toDataURL()+')'); }
+
+/* logo shine mask = the logo itself */
+(function(){ var ps=document.querySelectorAll('#logo path'), s='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 550 253">';
+  for(var i=0;i<ps.length;i++) s+='<path fill="#fff" d="'+ps[i].getAttribute('d')+'"/>'; s+='</svg>';
+  var u='url("data:image/svg+xml;base64,'+btoa(s)+'")', el=$('#lgShine'); el.style.webkitMaskImage=u; el.style.maskImage=u; })();
+
+var cv=$('#wave'), cx=cv.getContext('2d'), phEl=$('#ph'), phGlow=$('#phGlow');
+var mbx=$('#mbxB'), mby=$('#mbyB'), s1=$('#s1'), s2=$('#s2'), s5=$('#s5'), s6=$('#s6');
+function hash(i){ var x=Math.sin(i*12.9898+78.233)*43758.5453; return x-Math.floor(x); }
+function ampAt(i){ return (0.22+0.78*Math.abs(0.62*Math.sin(i*0.23)+0.38*Math.sin(i*0.061+1.3)))*(0.55+0.45*hash(i)); }
+function energy(t){
+  if(t<1) return 0.3; if(t<2) return 0.3+0.5*(t-1)*(t-1);
+  if(t<13.75) return 1; if(t<14) return 1-0.7*seg(t,13.75,14);
+  if(t<16) return 0.3; if(t<18) return 0.3+0.85*Math.pow((t-16)/2,2);
+  return 1;
+}
+var SCRUBS=[[5.75,6.25,700],[9.5,10.0,700],[13.75,14.0,260],[17.8,18.2,700],[23.8,24.2,700]];
+var SPEED=[[2,14,60],[14,16,30],[16,17,50],[17,18,80],[18,30,60]];
+function scroll(t){ var s=0; SPEED.forEach(function(p){ s+=p[2]*Math.max(0,Math.min(t,p[1])-p[0]); });
+  SCRUBS.forEach(function(p){ s+=p[2]*fIO(seg(t,p[0],p[1])); }); return s; }
+function phX(t){ /* playhead x in strip coords: ticks in the intro, then parks at centre (476) */
+  var x=76+100*fO(seg(t,1.0,1.14))+100*fO(seg(t,1.5,1.64))+200*fIO(seg(t,1.75,2.0)); return x; }
+function drawStrip(t){
+  var W=952,H=168; cx.clearRect(0,0,W,H);
+  var S=scroll(t), P=phX(t), E=energy(t), B=beat(t), x, i;
+  /* ruler */
+  cx.fillStyle='rgba(255,255,255,.12)'; cx.fillRect(0,34,W,1);
+  for(x=-(S%24);x<W;x+=24){ i=Math.round((x+S)/24); var M=(i%5===0);
+    cx.fillStyle=M?'rgba(255,255,255,.46)':'rgba(255,255,255,.24)'; cx.fillRect(x,M?10:22,2,M?24:12); }
+  cx.fillStyle='rgba(255,255,255,.10)'; cx.fillRect(0,150,W,1);
+  /* waveform */
+  for(x=-(S%7);x<W;x+=7){ i=Math.round((x+S)/7); var r=0.55+0.45*hash(i*7.31);
+    var h=Math.max(2,50*ampAt(i)*E*(0.74+0.55*B*r));
+    var played=x<P; var near=Math.abs(x-P)<26;
+    cx.fillStyle=near?'rgba(255,170,100,.95)':(played?'rgba(175,203,248,.88)':'rgba(120,150,210,.36)');
+    cx.fillRect(x,94-h,3.4,2*h); }
+  phEl.style.transform='translateX('+P.toFixed(2)+'px)';
+  phGlow.style.opacity=(0.25+0.75*B).toFixed(3);
+}
+function blurOn(el,filt,node,sd,axis){
+  if(sd>0.4){ node.setAttribute('stdDeviation', axis==='x'?(sd.toFixed(2)+' 0'):('0 '+sd.toFixed(2))); el.style.filter='url(#'+filt+')'; }
+  else el.style.filter='none';
+}
+window.renderFrame=function(t){
+  var f=Math.round(t*FPS), k=Math.floor(f/2);
+  grainEl.style.backgroundImage=tiles[k%4];
+  grainEl.style.backgroundPosition=((k*173)%512)+'px '+((k*331)%512)+'px';
+  drawStrip(t);
+  var u1=seg(t,5.75,6.25), sd1=(u1>0&&u1<1)?40*Math.pow(Math.sin(Math.PI*u1),2):0;
+  blurOn(s1,'mbx',mbx,sd1,'x'); s2.style.filter=s1.style.filter;
+  var u5=seg(t,23.8,24.2), sd5=(u5>0&&u5<1)?46*Math.pow(Math.sin(Math.PI*u5),2):0;
+  blurOn(s5,'mby',mby,sd5,'y'); s6.style.filter=s5.style.filter;
+};
+window.renderFrame(0);
+})();
+</script>
+</body>
+</html>
