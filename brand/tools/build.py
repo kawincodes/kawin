@@ -143,7 +143,41 @@ def stage_formats():
     return f"{len(written)} files"
 
 
-STAGES = {"svg": stage_svg, "formats": stage_formats}
+# Variants rebuilt natively by the Illustrator / Photoshop scripts (real layers, global swatches).
+SCRIPT_VARIANTS = [("K Mark", "K-Logo_Mark_Color"), ("K Badge", "K-Logo_Badge_Color"),
+                   ("K Premium", "K-Logo_Badge_Dimensional"), ("K Tech Icon", "K-Logo_Tech_Icon"),
+                   ("K One Colour", "K-Logo_Mark_Black")]
+
+
+def stage_scripts():
+    import illustrator_jsx as ij
+
+    out = os.path.join(ROOT, "logo", "scripts")
+    os.makedirs(out, exist_ok=True)
+    variants = [ij.svg_to_variant(_svg(name), label) for label, name in SCRIPT_VARIANTS]
+    palette = dict(brand.PALETTE, white=brand.NEUTRAL["white"], ink=brand.NEUTRAL["ink"],
+                   night=brand.NEUTRAL["night"])
+    ij.illustrator_script(variants, palette, os.path.join(out, "K-Logo_Illustrator.jsx"), base="K-Logo")
+    ij.photoshop_script(variants, palette, os.path.join(out, "K-Logo_Photoshop.jsx"), px=PSD_PX, base="K-Logo")
+    return out
+
+
+def _module_stage(module):
+    def run():
+        mod = __import__(module)
+        return f"{len(mod.run(ROOT))} files"
+    return run
+
+
+# Order matters: later stages read the SVG masters written by the first one.
+STAGES = {
+    "svg": stage_svg,
+    "formats": stage_formats,
+    "scripts": stage_scripts,
+    "raster": _module_stage("build_raster"),
+    "web": _module_stage("build_web"),
+    "guidelines": _module_stage("build_guidelines"),
+}
 
 if __name__ == "__main__":
     which = sys.argv[1:] or ["all"]
