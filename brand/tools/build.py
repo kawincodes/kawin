@@ -218,7 +218,31 @@ def stage_trace():
 
 def stage_preview():
     import preview_sheet
+    preview_sheet.build_tech(os.path.join(ROOT, "K-Logo_Tech_Icon_Preview.png"))
     return preview_sheet.build(os.path.join(ROOT, "K-Logo_Preview.png"))
+
+
+KIT_ZIP = "K-Logo_Brand_Kit.zip"
+
+
+def stage_package():
+    """One zip of the whole kit (the deliverable folders plus the reproducible build)."""
+    import zipfile
+
+    out = os.path.join(ROOT, KIT_ZIP)
+    skip = {"__pycache__", "design", "dist"}
+    with zipfile.ZipFile(out + ".tmp", "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for d, ds, fs in os.walk(ROOT):
+            ds[:] = sorted(x for x in ds if x not in skip)
+            for f in sorted(fs):
+                if f.endswith((".pyc", ".tmp")) or f in (".gitignore", KIT_ZIP):
+                    continue
+                path = os.path.join(d, f)
+                z.write(path, os.path.join("K-Logo_Brand_Kit", os.path.relpath(path, ROOT)))
+    os.replace(out + ".tmp", out)
+    with zipfile.ZipFile(out) as z:
+        assert z.testzip() is None
+        return f"{len(z.namelist())} files, {os.path.getsize(out) / 1e6:.1f} MB"
 
 
 def _module_stage(module):
@@ -238,6 +262,7 @@ STAGES = {
     "web": _module_stage("build_web"),
     "guidelines": _module_stage("build_guidelines"),
     "preview": stage_preview,
+    "package": stage_package,     # last: zips everything above
 }
 
 if __name__ == "__main__":

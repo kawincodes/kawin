@@ -6,6 +6,9 @@ geometry or a colour is one edit plus one re-run.
 
 ![Preview](K-Logo_Preview.png)
 
+**Download everything:** [`K-Logo_Brand_Kit.zip`](K-Logo_Brand_Kit.zip) — the whole kit in one file.
+**Tech app icon at every size:** [`K-Logo_Tech_Icon_Preview.png`](K-Logo_Tech_Icon_Preview.png).
+
 **Start with the brand guidelines:** [`guidelines/K-Logo_Brand_Guidelines.pdf`](guidelines/K-Logo_Brand_Guidelines.pdf)
 (11 pages: the idea, construction, refinement, clear space and sizes, variants, colour,
 backgrounds, misuse, icons, file guide). An HTML version sits next to it.
@@ -92,7 +95,7 @@ Use your printer's own profile for press work.
 ```bash
 python3 brand/tools/build.py all                   # everything below, in order
 python3 brand/tools/build.py svg formats           # or individual stages:
-#   svg formats scripts trace raster web guidelines preview
+#   svg formats scripts trace raster web guidelines preview package
 ```
 
 Needs Python 3.10+ with `pillow numpy shapely psd-tools fonttools pypdf`, librsvg

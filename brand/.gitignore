@@ -4,4 +4,3 @@ __pycache__/
 *.pyc
 # design-panel scratch work stays out of the kit
 design/
-dist/
