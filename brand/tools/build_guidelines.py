@@ -29,7 +29,9 @@ Production decisions
   * Labels      - no guide line, dimension, arc, circle or dot of a drawing may run through or
                   touch a label (3 px clear), and no two labels may touch: Draw measures every
                   label box from the font's advance widths and verify() fails on any collision.
-                  A line hidden behind a backing rect still reads as a strike-through.
+                  A line hidden behind a backing rect still reads as a strike-through. On the
+                  construction page the mark is an obstacle too: J, P and C sit in the white
+                  wedges beside their points, on each wedge's bisector, clear of the facets.
   * Facts       - minimum sizes (MIN_PX ... GAPPED_MIN_MM), the palette sentence (PALETTE_CLAIM)
                   and the file guide (files_rows) are single definitions; verify() measures the
                   gapped mark's gap, checks that every file the guide names exists, and finds the
@@ -91,7 +93,7 @@ GOOGLE = {"red": "#EA4335", "yellow": "#FBBC05", "green": "#34A853", "blue": "#4
 MIN_PX, MIN_MM = 16, 8              # colour mark, badge, solid one-colour mark (hinted favicons)
 GAPPED_MIN_PX, GAPPED_MIN_MM = 128, 20
 GAP_PCT = 0.8
-TECH_SMALL_MAX = 64                 # tech icon: full detail above, the small version at and below
+TECH_SMALL_MAX = 119                # tech icon: the small version up to here, full detail from 120 px
 # How the palette is described (lead decision, the same words in every document of the kit). The
 # hues stay within a few degrees of Google's (page 4 prints the numbers): never claim more.
 PALETTE_CLAIM = ("your own four colours, refined — deeper and cleaner, with the blue and green nudged off "
@@ -609,8 +611,9 @@ def page_construction(M) -> str:
     d.circle((512, 512), 512, G, 1.1, dash=(5, 5), what="badge circle")
     d.line((512, 4), (512, 1020), G, 1, dash=(5, 5), what="canvas centre (vertical)")
     d.line((4, 512), (1020, 512), G, 1, dash=(5, 5), what="canvas centre (horizontal)")
-    # the mark
+    # the mark; no label may touch it either (J, P and C sit in the white counters next to it)
     d.add(mark(k))
+    d.guide(Polygon(silhouette(k)), "mark")
     # the two cutting lines, continued past the letter
     fl = (P[0] - J[0], P[1] - J[1])
     fold_end = (x0 - 70, p["foldL"][1] - 70 * fl[1] / fl[0])
@@ -677,13 +680,29 @@ def page_construction(M) -> str:
     d.dim((xm, J[1]), (xm, P[1])).dim((xm, P[1]), (xm, C[1]))
     d.text((xm + d.px(12), (J[1] + P[1]) / 2 + d.px(5)), f2(m["above"]), 14, 600)
     d.text((xm + d.px(12), (P[1] + C[1]) / 2 + d.px(5)), f2(m["below"]), 14, 600)
-    for q, lab, off in ((J, "J", (16, -26)), (P, "P", (12, -10)), (C, "C", (16, 44))):
+    # each point's label sits on the bisector of the white wedge that opens at it - J in the notch
+    # (stem edge up, arm edge), C in the counter (stem edge down, leg edge), P between the arm's
+    # lower edge and its dotted line - at the smallest distance that keeps it CLEAR px off the mark
+    # and every guide; a leader runs from the dot along the bisector
+    for q, lab, u in ((J, "J", (0, -1, da[0], da[1])), (P, "P", (1, 0, da[0], da[1])), (C, "C", (0, 1, dl[0], dl[1]))):
         d.dot(q, 5)
-        lp = (q[0] + d.px(off[0]), q[1] + d.px(off[1]))
-        if lab != "P":
-            d.line((q[0] + d.px(4), q[1] + (d.px(-4) if lab == "J" else d.px(4))),
-                   (lp[0] - d.px(2), lp[1] + (d.px(4) if lab == "J" else d.px(-14))), INK, 0.9, what="leader", owner=lab)
-        d.text(lp, lab, 16, 600, halo=None)
+        n = math.hypot(u[0] + u[2], u[1] + u[3])
+        u = ((u[0] + u[2]) / n, (u[1] + u[3]) / n)
+        fs = d.px(16)
+        for i in range(400):
+            r = d.px(8 + 0.25 * i)
+            lp = (q[0] + u[0] * r, q[1] + u[1] * r + 0.27 * fs)          # box centre on the bisector
+            zone = d.label_box(lp, lab, 16, 600, "middle").buffer(d.px(Draw.CLEAR + 0.5), join_style=2)
+            if not any(zone.intersects(g) for g, _what, _owner in d.guides):
+                break
+        else:
+            raise ValueError(f"no room for the label {lab}")
+        box = d.label_box(lp, lab, 16, 600, "middle")
+        lead = LineString([(q[0] + u[0] * d.px(7), q[1] + u[1] * d.px(7)), (q[0] + u[0] * r, q[1] + u[1] * r)])
+        lead = lead.difference(box.buffer(d.px(2)))
+        if lead.length > d.px(4):
+            d.line(*lead.coords, INK, 0.9, what="leader", owner=lab)
+        d.text(lp, lab, 16, 600, anchor="middle", halo=None)
     # cap height and badge diameter. The canvas centre line (y 512) and the mark's centre line
     # (y cy) cross the cap-height dimension near its middle, so its label is set in two lines in
     # the upper half of the dimension, clear of both: a label centred on the dimension would be
@@ -864,10 +883,10 @@ def page_clearspace(M) -> str:
     mins = "".join(f'<div class="minrow"><div class="mintext"><h3>{t}</h3><p>{s}</p></div>'
                    f'<div class="minsamples">{x}</div></div>' for t, s, x in rows)
     mins = f'<div class="mins">{mins}</div>'
-    body = (f'<div class="cs-left">{tile(drawing, "#FFFFFF", 640, border=True)}</div>'
+    body = (f'<div class="cs"><div class="cs-left">{tile(drawing, "#FFFFFF", 640, border=True, style="height:100%;min-height:640px")}</div>'
             f'<div class="cs-right"><h3 class="sub">Clear space</h3><p class="note">Keep one stem width, w, free on every '
             f'side of the mark’s bounds: no text, edges, images or other marks inside the tinted zone. On the badge, '
-            f'the disc is the clear space.</p><h3 class="sub" style="margin-top:34px">Minimum sizes</h3>{mins}</div>')
+            f'the disc is the clear space.</p><h3 class="sub" style="margin-top:34px">Minimum sizes</h3>{mins}</div></div>')
     return slide(5, "Clear space and minimum size", "Room to breathe, sizes that hold",
                  "Clear space keeps the mark legible; minimum sizes keep its construction visible.", body, top=270)
 
@@ -890,7 +909,7 @@ def page_variants() -> str:
          tile(inline(brand.doc_badge(k, raster=True), 200, 200), NIGHT)),
         ("Premium shaded", "Hero use on light backgrounds: covers, packaging, signage.",
          tile(inline(brand.doc_mark(k, style="dimensional", artboard="tight"), h=hm), "#FFFFFF", border=True)),
-        ("Tech icon", f"App and product icon. At {TECH_SMALL_MAX} px and below use its small version.",
+        ("Tech icon", f"App and product icon. Below {TECH_SMALL_MAX + 1} px use its small version.",
          tile(inline(brand.doc_tech(k), 200, 200), SURFACE)),
         ("One colour, black", f"Single-ink print, engraving, forms. The gaps keep the construction: "
                               f"from {GAPPED_MIN_PX} px or {GAPPED_MIN_MM} mm high.",
@@ -1145,7 +1164,7 @@ def page_icons() -> str:
            f'stroke-dasharray="{fmt(up.px(5))} {fmt(up.px(4))}"/>')
     quads = [
         ("Tech icon", "Rounded tile for apps and docks; the full-bleed square for stores, which apply their own mask. "
-                      f"At {TECH_SMALL_MAX} px and below, the small version: no grid, traces or node.",
+                      f"Below {TECH_SMALL_MAX + 1} px, the small version: no grid, traces or node.",
          f'<div class="qrow">{tile(tech_tile, SURFACE, 228, style="width:228px")}{tile(tech_sq, SURFACE, 228, style="width:228px")}'
          f'<div class="smalls"><div class="strip">{small}</div><p>Small version, px</p></div></div>'),
         ("Android adaptive", "The tech icon at 2/3 scale, so the 72 dp view (dashed) frames it like the 1024 icon. "
@@ -1214,7 +1233,8 @@ def files_rows():
         ("source/", "JPG, SVG, AI, PDF, EPS, PSD, PNG",
          f"The original (`{orig}`) and its exact trace, in the original colours, for reference: "
          f"`{trace}`, `K-Logo_Trace.ai` / .pdf / .eps / .psd, `K-Logo_Trace_1024.png` / _4096.png."),
-        ("tools/", "Python", "The reproducible build. Every file above but the original JPEG is generated from brand.py."),
+        ("tools/", "Python", "The reproducible build: every file above is generated from brand.py, the trace files in "
+                             "source/ from `trace_params.json`; only the original JPEG is not."),
         ("guidelines/", "HTML, PDF", "This document."),
     ]
 
@@ -1366,9 +1386,8 @@ table{{border-collapse:collapse;font-variant-numeric:tabular-nums}}
 .cmp tbody th{{color:var(--t2);width:250px}}
 .cmp td:nth-child(2){{color:var(--t2);width:230px}}
 /* 5 clear space */
-.cs-left{{position:absolute;left:0;top:0;width:820px}}
+.cs{{display:grid;grid-template-columns:820px 780px;column-gap:80px}}   /* one row: the drawing's tile ends where the size table does */
 .cs-left .tile{{padding:0}}
-.cs-right{{position:absolute;left:900px;top:0;width:780px}}
 .note{{margin-top:12px;font-size:17px;max-width:740px}}
 .mins{{margin-top:14px}}
 .minrow{{display:grid;grid-template-columns:250px 1fr;gap:32px;padding:14px 0;border-top:1px solid var(--rule);align-items:center}}
@@ -1706,7 +1725,7 @@ def verify(root: str = ROOT, png_dir: str = None) -> bool:
           f"gapped mark: gap {gap:.3f} = {100 * gap / cap:.2f}% of the mark height, {gap / cap * GAPPED_MIN_PX:.2f} px "
           f"at {GAPPED_MIN_PX} px")
     find(5, [f"{MIN_PX}px", f"{MIN_MM}mm", f"{GAPPED_MIN_PX}px", f"{GAPPED_MIN_MM}mm", f"{GAP_PCT:g}%"], "minimum sizes")
-    find(6, [f"{GAPPED_MIN_PX}px", f"{GAPPED_MIN_MM}mm", f"{TECH_SMALL_MAX}px"], "variant minimums")
+    find(6, [f"{GAPPED_MIN_PX}px", f"{GAPPED_MIN_MM}mm", f"{TECH_SMALL_MAX + 1}px"], "variant minimums")
     old = [f"p{i + 1}: {m.group(0)}" for i, t in enumerate(texts)
            for m in re.finditer(r"(?:from|below|under|≥|>=)32px(?:up)?|32pxgapped|48pxgapped", t)]
     check(not old, "no 32 px gapped minimum left" + (f": {old}" if old else ""))

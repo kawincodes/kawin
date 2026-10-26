@@ -1320,10 +1320,22 @@ def verify(root=ROOT):
     ids = lambda gs: [re.match(r'<g id="([^"]+)"', g).group(1) for g in gs]          # noqa: E731
     bg_g, fg_g = brand._android_layers(brand.master(), "background")[1], brand._android_layers(brand.master(), "foreground")[1]
     all_g = brand._tech_layers(k, "full", "square")[1]
-    check(bg_g + fg_g == all_g, f"background {ids(bg_g)} + foreground {ids(fg_g)} == the full tech square's groups "
-                                f"{ids(all_g)} at ANDROID_SCALE {brand.ANDROID_SCALE:.4f}")
-    check('<g id="K"' in brand.doc_android_foreground() and 'id="tile-plate"' not in brand.doc_android_foreground()
-          and 'id="tile-plate"' in brand.doc_android_background(), "foreground has no plate; the plate is in the background")
+    check(fg_g == [g for g in all_g if re.match(r'<g id="(traces|K|node)"', g)],
+          f"foreground {ids(fg_g)} == the full tech square's traces / K / node at ANDROID_SCALE {brand.ANDROID_SCALE:.4f}")
+    vis = bg_g[1] if len(bg_g) == 2 else ""
+    check(ids(bg_g) == ["bg-tile", "bg-visible-area"] and f"scale({fmt(brand.ANDROID_SCALE)})" in vis
+          and 'id="bg-grid"' in vis and 'id="bg-ambient"' in vis,
+          f"background {ids(bg_g)}: full-bleed plate + grid and ambient light scaled by {brand.ANDROID_SCALE:.4f} into the visible area")
+    fg_doc, bg_doc = brand.doc_android_foreground(), brand.doc_android_background()
+    check('<g id="K"' in fg_doc and "plate" not in fg_doc and 'id="bg-tile-plate"' in bg_doc,
+          "foreground has no plate (not even an unused gradient); the plate is in the background")
+    both = px(bg_doc, 1536)
+    both.alpha_composite(px(fg_doc, 1536))
+    m = 1536 * 18 // 108
+    vis_px = np.asarray(both.crop((m, m, 1536 - m, 1536 - m)).resize((1024, 1024), Image.LANCZOS).convert("RGB")).astype(int)
+    ios_arr = np.asarray(px(brand.doc_tech(shape="square"), 1024).convert("RGB")).astype(int)
+    diff = float(np.abs(vis_px - ios_arr).mean())
+    check(diff < 2.0, f"72 dp visible area matches the iOS / store tech square: mean |d| {diff:.2f}/255")
     cap_a = (k.yB - k.yT) / 1024 * 108 / 72
     km = brand.master()
     cap_i = (km.yB - km.yT) / 1024

@@ -6,7 +6,8 @@ Decisions (design panel of three directions + three judges, then the client):
                 extremes align, J and C mirror about P. Scaled back to the original footprint
                 (cap height 58.7% of the disc) and optically centred (+14 x / -6 y).
   * Corners   - sharp everywhere (client request). Only containers (disc, app tile) are curved.
-  * Palette   - the client's own colours, deepened and moved away from Google's hues
+  * Palette   - the client's own four colours, refined: deeper and cleaner, with the blue and
+                green nudged off Google's hues (still the same four-colour family)
                 (blue +4.5 deg, green -4.5 deg, yellow +4.5 deg in OKLCH).
 
 Every variant is an SVG document whose named <g> elements (id + data-name) become layers in the
@@ -18,6 +19,7 @@ from __future__ import annotations
 import io
 import json
 import math
+import re
 import os
 import subprocess
 import sys
@@ -446,9 +448,29 @@ ANDROID_SCALE = 72.0 / 108.0    # the 1024 icon composition mapped onto the 72 d
 def _android_layers(k, which):
     """Tech-icon groups for an adaptive icon (108 dp canvas). The composition is scaled to the
     72 dp visible area, so the K has the same size and treatment as on iOS, macOS and the web."""
-    defs, groups = _tech_layers(scaled_about_centre(k, ANDROID_SCALE), "full", "square")
-    keep = ("tile", "grid", "ambient") if which == "background" else ("traces", "K", "node")
-    return defs, [g for g in groups if any(g.startswith(f'<g id="{gid}"') for gid in keep)]
+    def pick(groups, ids):
+        return [g for g in groups if any(g.startswith(f'<g id="{gid}"') for gid in ids)]
+
+    if which == "foreground":
+        # geometry baked at 2/3, so the K and traces stay exact, editable paths
+        defs, groups = _tech_layers(scaled_about_centre(k, ANDROID_SCALE), "full", "square")
+        groups = pick(groups, ("traces", "K", "node"))
+        used = set(re.findall(r"url\(#([^)]+)\)", "".join(groups)))
+        return [d for d in defs if re.search(r'id="([^"]+)"', d).group(1) in used], groups
+    # background: the plate stays full-bleed; the grid and ambient light are drawn for the full
+    # icon and scaled into the visible area, so they sit exactly as on the iOS / macOS tile
+    defs, groups = _tech_layers(k, "full", "square")
+    c = fmt(k.size / 2)
+    t = f"translate({c} {c}) scale({fmt(ANDROID_SCALE)}) translate(-{c} -{c})"
+    inner = "".join(pick(groups, ("grid", "ambient")))
+    groups = pick(groups, ("tile",)) + [f'<g {_attrs("visible-area", "Visible area")} transform="{t}">{inner}</g>']
+    # own id namespace: the foreground's gradients share names but not coordinates
+    return [_prefix_ids(d, "bg-") for d in defs], [_prefix_ids(g, "bg-") for g in groups]
+
+
+def _prefix_ids(text, p):
+    text = re.sub(r'\bid="([^"]+)"', lambda m: f'id="{p}{m.group(1)}"', text)
+    return re.sub(r"url\(#([^)]+)\)", lambda m: f"url(#{p}{m.group(1)})", text)
 
 
 def doc_android_foreground(k=None):

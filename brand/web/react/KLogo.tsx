@@ -3,11 +3,13 @@
 //
 //   <KLogo />                                   colour mark, 48 px high, decorative
 //   <KLogo variant="tech" size={128} title="Open the app" />
-//   <KLogo variant="mono" size="2rem" style={{ color: 'var(--k-logo-mono)' }} />
+//   <KLogo variant="mono" size={160} style={{ color: 'var(--k-logo-mono)' }} />
 //
-// Brand rules built in: every corner stays sharp and no facet is recoloured or moved; the tech icon
-// switches to its simplified drawing at 64 px and below when size is a pixel size (a number or
-// "48px": a CSS length cannot be resolved during render); gradient ids are unique per instance.
+// Brand rules built in: every corner stays sharp and no facet is recoloured or moved. By size, when
+// size is a pixel size (a number or "48px": a CSS length cannot be resolved during render): the tech
+// icon switches to its simplified drawing at 119 px and below, and the gapped one-colour marks
+// (mono, white) to the solid mark below 128 px, where their construction gap would be under one
+// pixel. Gradient ids are unique per instance.
 import { useId } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 
@@ -17,7 +19,8 @@ export interface KLogoProps {
   /** Artwork. Default 'color'. */
   variant?: KLogoVariant;
   /** Height: a number is px, a string is any CSS length. Width follows the aspect ratio. Default 48.
-   *  Give small tech icons a pixel size: the switch to the simplified drawing needs one. */
+   *  Give small tech icons and one-colour marks a pixel size: the switch to the simplified or solid
+   *  drawing needs one. */
   size?: number | string;
   /** Accessible name. Omit it for a decorative logo (the SVG is then aria-hidden). */
   title?: string;
@@ -26,7 +29,14 @@ export interface KLogoProps {
 }
 
 /** The full tech icon is replaced by its simplified drawing at this height and below (px). */
-export const TECH_SMALL_MAX = 64;
+export const TECH_SMALL_MAX = 119;
+
+/** The gapped one-colour marks (mono, white) need this height or more (px): their construction gap is
+ *  0.8% of the mark height, one whole pixel at 128 px. Below it they draw the solid mark. */
+export const MONO_GAPPED_MIN = 128;
+
+/** A variant's own drawing, or one it switches to by size. */
+type ArtKey = KLogoVariant | 'tech-small' | 'white-solid';
 
 /** [offset, colour, opacity?] */
 type Stop = readonly [number, string, number?];
@@ -41,7 +51,7 @@ interface Art {
   readonly p: readonly Shape[];
 }
 
-const ART: Readonly<Record<KLogoVariant | 'tech-small', Art>> = {
+const ART: Readonly<Record<ArtKey, Art>> = {
   'color': {
     w: 480.9,
     h: 601.15,
@@ -58,7 +68,7 @@ const ART: Readonly<Record<KLogoVariant | 'tech-small', Art>> = {
     h: 601.15,
     g: [],
     p: [
-      ['M0 144.1V0H139.5V227.8l-.46-.35-.14.19L1.24 144.84zM256.94 298.64 140.97 228.9 312.63 0H480.9zM0 149.7l136 81.8L0 412.83zM257.05 302.65 480.9 601.15H312.63L139.5 370.34V601.15H0V419.85l.5.35L140.14 234l114.11 68.64 2.05 1.26z', 'currentColor'],
+      ['M0 144.1V0H139.5V226.8l-.6.84zM256.94 298.64l-113.9-68.51L315.64 0H480.9zM0 149.7l136 81.8L0 412.83zm259.3 156L480.9 601.15H312.63L139.5 370.34V601.15H0V420.85L140.14 234z', 'currentColor'],
     ],
   },
   'mono-solid': {
@@ -66,7 +76,7 @@ const ART: Readonly<Record<KLogoVariant | 'tech-small', Art>> = {
     h: 601.15,
     g: [],
     p: [
-      ['M139.5 230.8 312.63 0H480.9L255.5 300.6 480.9 601.15H312.63L139.5 370.34V601.15H0V0H139.5z', 'currentColor'],
+      ['M0 0H139.5V230.8L312.63 0H480.9L255.5 300.6 480.9 601.15H312.63L139.5 370.34V601.15H0z', 'currentColor'],
     ],
   },
   'white': {
@@ -74,7 +84,15 @@ const ART: Readonly<Record<KLogoVariant | 'tech-small', Art>> = {
     h: 601.15,
     g: [],
     p: [
-      ['M0 144.1V0H139.5V227.8l-.46-.35-.14.19L1.24 144.84zM256.94 298.64 140.97 228.9 312.63 0H480.9zM0 149.7l136 81.8L0 412.83zM257.05 302.65 480.9 601.15H312.63L139.5 370.34V601.15H0V419.85l.5.35L140.14 234l114.11 68.64 2.05 1.26z', '#FFF'],
+      ['M0 144.1V0H139.5V226.8l-.6.84zM256.94 298.64l-113.9-68.51L315.64 0H480.9zM0 149.7l136 81.8L0 412.83zm259.3 156L480.9 601.15H312.63L139.5 370.34V601.15H0V420.85L140.14 234z', '#FFF'],
+    ],
+  },
+  'white-solid': {
+    w: 480.9,
+    h: 601.15,
+    g: [],
+    p: [
+      ['M0 0H139.5V230.8L312.63 0H480.9L255.5 300.6 480.9 601.15H312.63L139.5 370.34V601.15H0z', '#FFF'],
     ],
   },
   'badge': {
@@ -104,7 +122,7 @@ const ART: Readonly<Record<KLogoVariant | 'tech-small', Art>> = {
       ['M0 144.56 139.5 228.5v2.3L0 416.84z', 1],
       ['M480.9 0 255.5 300.6l-116-69.8L312.63 0z', 2],
       ['M0 146.9V0H139.5V230.8z', 3],
-      ['M249.9 309.85 0 159.5V146.9l139.5 83.9 116 69.8z', 4],
+      ['M272.75 323.6 0 159.5V146.9l139.5 83.9 116 69.8z', 4],
     ],
   },
   'tech': {
@@ -171,6 +189,15 @@ function pixels(size: number | string): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
+/** The drawing for a variant at a pixel height (undefined: not known, so the variant's own). */
+function drawing(variant: KLogoVariant, px: number | undefined): ArtKey {
+  if (px === undefined) return variant;
+  if (variant === 'tech') return px <= TECH_SMALL_MAX ? 'tech-small' : variant;
+  if (variant === 'mono') return px < MONO_GAPPED_MIN ? 'mono-solid' : variant;
+  if (variant === 'white') return px < MONO_GAPPED_MIN ? 'white-solid' : variant;
+  return variant;
+}
+
 function gradient([kind, c, stops]: Gradient, id: string): ReactElement {
   const children = stops.map(([offset, color, opacity], i) => (
     <stop key={i} offset={offset} stopColor={color} stopOpacity={opacity} />
@@ -190,8 +217,7 @@ export function KLogo({ variant = 'color', size = 48, title, className, style }:
   // useId is unique per instance; keep only characters that are safe inside url(#...)
   const uid = 'k' + useId().replace(/[^A-Za-z0-9_-]/g, '');
   const px = pixels(size);
-  const small = variant === 'tech' && px !== undefined && px <= TECH_SMALL_MAX;
-  const art = ART[small ? 'tech-small' : variant] ?? ART.color;
+  const art = ART[drawing(variant, px)] ?? ART.color;
   const box: CSSProperties | undefined =
     px === undefined ? { height: size, width: 'auto', aspectRatio: `${art.w} / ${art.h}` } : undefined;
   const labelId = title ? `${uid}-t` : undefined;

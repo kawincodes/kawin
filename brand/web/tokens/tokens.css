@@ -14,8 +14,8 @@
   --k-clear-space: 0.2321; /* x mark height = 1 stem width on every side */
   --k-aspect-ratio: 0.8; /* mark width / height */
   --k-min-size-mark: 16px;
-  --k-min-size-mark-gapped: 32px;
-  --k-tech-small-max: 64px;
+  --k-min-size-mark-gapped: 128px;
+  --k-tech-small-max: 119px;
   /* semantic aliases (light) */
   --k-surface: var(--k-white);
   --k-text: var(--k-ink);

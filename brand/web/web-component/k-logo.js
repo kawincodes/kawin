@@ -8,9 +8,11 @@
 // size:    height; a number is px, anything else is a CSS length such as 3rem, not a % (default 48).
 //          Width follows.
 // label:   accessible name; without it the logo is decorative (aria-hidden).
-// Mono variants paint with currentColor: set `color` on the element. The tech icon switches to its
-// simplified drawing at 64 px and below - for a CSS length too, by its laid-out height (a
-// ResizeObserver re-checks it, e.g. when the root font size changes). Every instance gets its own
+// Mono variants paint with currentColor: set `color` on the element. By its height - for a CSS
+// length too, by its laid-out height (a ResizeObserver re-checks it, e.g. when the root font size
+// changes) - the tech icon switches to its simplified drawing at 119 px and below, and the
+// gapped one-colour marks (mono, white) to the solid mark below 128 px, where their
+// construction gap (0.8% of the height) would be under one pixel. Every instance gets its own
 // gradient ids.
 
 const ART = {
@@ -30,7 +32,7 @@ const ART = {
     h: 601.15,
     g: [],
     p: [
-      ['M0 144.1V0H139.5V227.8l-.46-.35-.14.19L1.24 144.84zM256.94 298.64 140.97 228.9 312.63 0H480.9zM0 149.7l136 81.8L0 412.83zM257.05 302.65 480.9 601.15H312.63L139.5 370.34V601.15H0V419.85l.5.35L140.14 234l114.11 68.64 2.05 1.26z', 'currentColor'],
+      ['M0 144.1V0H139.5V226.8l-.6.84zM256.94 298.64l-113.9-68.51L315.64 0H480.9zM0 149.7l136 81.8L0 412.83zm259.3 156L480.9 601.15H312.63L139.5 370.34V601.15H0V420.85L140.14 234z', 'currentColor'],
     ],
   },
   'mono-solid': {
@@ -38,7 +40,7 @@ const ART = {
     h: 601.15,
     g: [],
     p: [
-      ['M139.5 230.8 312.63 0H480.9L255.5 300.6 480.9 601.15H312.63L139.5 370.34V601.15H0V0H139.5z', 'currentColor'],
+      ['M0 0H139.5V230.8L312.63 0H480.9L255.5 300.6 480.9 601.15H312.63L139.5 370.34V601.15H0z', 'currentColor'],
     ],
   },
   'white': {
@@ -46,7 +48,15 @@ const ART = {
     h: 601.15,
     g: [],
     p: [
-      ['M0 144.1V0H139.5V227.8l-.46-.35-.14.19L1.24 144.84zM256.94 298.64 140.97 228.9 312.63 0H480.9zM0 149.7l136 81.8L0 412.83zM257.05 302.65 480.9 601.15H312.63L139.5 370.34V601.15H0V419.85l.5.35L140.14 234l114.11 68.64 2.05 1.26z', '#FFF'],
+      ['M0 144.1V0H139.5V226.8l-.6.84zM256.94 298.64l-113.9-68.51L315.64 0H480.9zM0 149.7l136 81.8L0 412.83zm259.3 156L480.9 601.15H312.63L139.5 370.34V601.15H0V420.85L140.14 234z', '#FFF'],
+    ],
+  },
+  'white-solid': {
+    w: 480.9,
+    h: 601.15,
+    g: [],
+    p: [
+      ['M0 0H139.5V230.8L312.63 0H480.9L255.5 300.6 480.9 601.15H312.63L139.5 370.34V601.15H0z', '#FFF'],
     ],
   },
   'badge': {
@@ -76,7 +86,7 @@ const ART = {
       ['M0 144.56 139.5 228.5v2.3L0 416.84z', 1],
       ['M480.9 0 255.5 300.6l-116-69.8L312.63 0z', 2],
       ['M0 146.9V0H139.5V230.8z', 3],
-      ['M249.9 309.85 0 159.5V146.9l139.5 83.9 116 69.8z', 4],
+      ['M272.75 323.6 0 159.5V146.9l139.5 83.9 116 69.8z', 4],
     ],
   },
   'tech': {
@@ -136,7 +146,9 @@ const ART = {
   },
 };
 
-const TECH_SMALL_MAX = 64;
+const TECH_SMALL_MAX = 119;
+const MONO_GAPPED_MIN = 128;
+const SOLID = { mono: 'mono-solid', white: 'white-solid' };
 const CSS = ':host{display:inline-block;line-height:0;vertical-align:middle}:host([hidden]){display:none}svg{display:block}';
 const Base = typeof HTMLElement === 'undefined' ? class {} : HTMLElement; // importable during SSR
 let seq = 0;
@@ -166,7 +178,7 @@ export class KLogoElement extends Base {
 
   connectedCallback() {
     // A CSS length (rem, em, vh ...) is only known after layout: watch the element so the tech
-    // icon still switches at TECH_SMALL_MAX. The first callback runs before the first paint.
+    // icon and the one-colour marks still switch by size. The first callback runs before the first paint.
     if (!this._ro && typeof ResizeObserver !== 'undefined') this._ro = new ResizeObserver(() => this._render());
     if (this._ro) this._ro.observe(this);
     this._render();
@@ -195,9 +207,11 @@ export class KLogoElement extends Base {
     const px = m ? Number(m[1]) : undefined;
     let key = this.getAttribute('variant') || 'color';
     if (!Object.prototype.hasOwnProperty.call(ART, key)) key = 'color';
-    if (key === 'tech') {
+    const solid = Object.prototype.hasOwnProperty.call(SOLID, key);
+    if (key === 'tech' || solid) {
       const h = px !== undefined ? px : this._laidOutHeight(size);
-      if (h !== undefined && h <= TECH_SMALL_MAX) key = 'tech-small';
+      if (h !== undefined && key === 'tech' && h <= TECH_SMALL_MAX) key = 'tech-small';
+      else if (h !== undefined && solid && h < MONO_GAPPED_MIN) key = SOLID[key];
     }
     const art = ART[key];
     if (this._key !== key) {                       // artwork changes rebuild the shadow tree

@@ -36,9 +36,9 @@ anti-aliased edge. It is delivered in every format in `source/` (`K-Logo_Trace.a
 | Edit in **Adobe Photoshop** | `logo/psd/*.psd` — 4096 px, 300 dpi, sRGB. In the flat variants every facet and the disc is an **editable vector shape layer** (facets overlap by a hair under each other, so joins never show a seam). In the shaded and tech variants the lit facets and lighting are pixel layers at 4096 px; their exact vector paths are in the `.ai`/`.pdf`/`.svg`. `K-Logo_All_Variants.psd` holds the main variants as layer groups — switch them on and off. `logo/scripts/K-Logo_Photoshop.jsx` rebuilds the flat variants natively in Photoshop. |
 | **Print** (offset, signage, merch) | `logo/ai/*_CMYK.ai`, `logo/pdf/*_CMYK.pdf`, `logo/eps/*_CMYK.eps` — device CMYK |
 | Other vector apps (Figma, Affinity, Inkscape, CorelDRAW) | `logo/svg/*.svg` (layered, named groups) or `logo/eps/*.eps` |
-| Websites, documents, slides | `logo/png/*` (256–4096 px, transparent) or `web/svg/*` |
+| Websites, documents, slides | `logo/png/*` (256–4096 px wide, transparent: colour, tight, clear-space, badge, shaded, gapped and solid one-colour, greyscale, tech) or `web/svg/*` |
 | Favicon / PWA | `icons/web/` + paste `icons/web/head-snippet.html` into `<head>`; set `name` / `short_name` in `icons/web/site.webmanifest` to your product name (it says "K" until there is one) |
-| iOS / macOS / Android apps | `icons/ios/AppIcon.appiconset/`, `icons/macos/`, `icons/android/res/` — all overviewed in `icons/K-Logo_Icons_Overview.png` |
+| iOS / macOS / Android apps | `icons/ios/AppIcon.appiconset/` (Xcode "All Sizes", 13 opaque PNGs), `icons/macos/` (iconset + `.icns`), `icons/android/res/` (adaptive foreground/background/themed + legacy, all densities) — all overviewed in `icons/K-Logo_Icons_Overview.png` |
 | Profile pictures, link previews, banners | `social/` |
 | Code (React, Web Component, design tokens) | `web/` — see `web/README.md` |
 
@@ -52,7 +52,7 @@ to edge on shared vertices, so the numbers in the guidelines can be measured in 
 | Primary mark | `K-Logo_Mark_Color` (`_Tight`, `_ClearSpace`) | default, on white or light backgrounds |
 | Avatar badge | `K-Logo_Badge_Color` | profile pictures, round crops, photos |
 | Premium shaded | `K-Logo_Mark_Dimensional`, `K-Logo_Badge_Dimensional` | hero use, splash screens, presentations (light backgrounds) |
-| Tech app icon | `K-Logo_Tech_Icon` (`_Small` ≤ 64 px, `_Square` for app stores, `_macOS`) | app icons, dark product UI |
+| Tech app icon | `K-Logo_Tech_Icon` (`_Small` below 120 px, `_Square` for app stores, `_macOS`) | app icons, dark product UI |
 | One colour, gapped | `K-Logo_Mark_Black`, `K-Logo_Mark_White` | one-colour print, engraving, reversed on dark — mark at least 128 px / 20 mm tall |
 | One colour, solid | `K-Logo_Mark_Black_Solid`, `K-Logo_Mark_White_Solid` | smaller than that, stamps, embroidery |
 | Greyscale | `K-Logo_Mark_Greyscale` | black-only print where tints are possible |
@@ -82,7 +82,9 @@ Use your printer's own profile for press work.
 - Clear space: one stem width on every side (0.232 × the mark height).
 - Minimum size: colour mark, badge and solid mark 16 px (the favicons are pixel-hinted) / 8 mm in
   print. The gapped one-colour mark needs 128 px / 20 mm so its construction gaps stay visible;
-  below that use the solid one. The tech icon switches to its small version at 64 px and below.
+  below that use the solid one. The tech icon uses full detail from 120 px and its small version below
+  that (the app-icon sets already follow this: iOS 20–87 px, macOS up to 128 px and Android 48–96 px
+  legacy icons are the small version).
 - No name or wordmark is defined yet, so none is drawn anywhere in the kit.
 
 ## Rebuild

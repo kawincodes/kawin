@@ -58,7 +58,7 @@ from okcolor import contrast  # noqa: E402
 AXIS_TOL = 0.03          # largest rounding error (per axis) accepted for 0.1 / 1 unit precision
 MAX_EDGE = 0.05          # build fails if any edge of any shape moves further (design units)
 ARC_SAG = 0.002          # chord error when arcs are flattened for the edge check
-TECH_SMALL_MAX = 64      # px: at this size and below the tech icon is drawn with detail="small"
+TECH_SMALL_MAX = 119     # px: up to this size the tech icon is drawn with detail="small" (full from 120)
 MONO_GAPPED_MIN = 128    # px: the gapped one-colour marks need this height or more (their gap is
                          # 0.8% of the mark height: one whole pixel at 128 px); below it, solid
 GAP_PCT = 0.8
@@ -100,9 +100,9 @@ def _variants():
         Variant("dimensional", "k-logo-dimensional", lambda k: brand.doc_mark(k, "dimensional", artboard="tight"),
                 "K-Logo_Mark_Dimensional", True, "Premium shaded mark for light grounds"),
         Variant("tech", "k-logo-tech", lambda k: brand.doc_tech(k),
-                "K-Logo_Tech_Icon", False, "Tech app icon, rounded tile, > 64 px"),
+                "K-Logo_Tech_Icon", False, "Tech app icon, rounded tile, 120 px and up"),
         Variant("tech-small", "k-logo-tech-small", lambda k: brand.doc_tech(k, detail="small"),
-                "K-Logo_Tech_Icon_Small", False, "Tech app icon simplified for <= 64 px"),
+                "K-Logo_Tech_Icon_Small", False, "Tech app icon simplified for sizes below 120 px"),
     ]
 
 
@@ -723,11 +723,13 @@ TSX = r"""// KLogo.tsx - zero-dependency React component for the K logo (React 1
 //
 //   <KLogo />                                   colour mark, 48 px high, decorative
 //   <KLogo variant="tech" size={128} title="Open the app" />
-//   <KLogo variant="mono" size="2rem" style={{ color: 'var(--k-logo-mono)' }} />
+//   <KLogo variant="mono" size={160} style={{ color: 'var(--k-logo-mono)' }} />
 //
-// Brand rules built in: every corner stays sharp and no facet is recoloured or moved; the tech icon
-// switches to its simplified drawing at @@SMALL@@ px and below when size is a pixel size (a number or
-// "48px": a CSS length cannot be resolved during render); gradient ids are unique per instance.
+// Brand rules built in: every corner stays sharp and no facet is recoloured or moved. By size, when
+// size is a pixel size (a number or "48px": a CSS length cannot be resolved during render): the tech
+// icon switches to its simplified drawing at @@SMALL@@ px and below, and the gapped one-colour marks
+// (mono, white) to the solid mark below @@GAPPED@@ px, where their construction gap would be under one
+// pixel. Gradient ids are unique per instance.
 import { useId } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 
@@ -737,7 +739,8 @@ export interface KLogoProps {
   /** Artwork. Default 'color'. */
   variant?: KLogoVariant;
   /** Height: a number is px, a string is any CSS length. Width follows the aspect ratio. Default @@DEFAULT@@.
-   *  Give small tech icons a pixel size: the switch to the simplified drawing needs one. */
+   *  Give small tech icons and one-colour marks a pixel size: the switch to the simplified or solid
+   *  drawing needs one. */
   size?: number | string;
   /** Accessible name. Omit it for a decorative logo (the SVG is then aria-hidden). */
   title?: string;
@@ -747,6 +750,13 @@ export interface KLogoProps {
 
 /** The full tech icon is replaced by its simplified drawing at this height and below (px). */
 export const TECH_SMALL_MAX = @@SMALL@@;
+
+/** The gapped one-colour marks (mono, white) need this height or more (px): their construction gap is
+ *  @@GAP_PCT@@% of the mark height, one whole pixel at @@GAPPED@@ px. Below it they draw the solid mark. */
+export const MONO_GAPPED_MIN = @@GAPPED@@;
+
+/** A variant's own drawing, or one it switches to by size. */
+type ArtKey = KLogoVariant | @@AUTO@@;
 
 /** [offset, colour, opacity?] */
 type Stop = readonly [number, string, number?];
@@ -761,13 +771,22 @@ interface Art {
   readonly p: readonly Shape[];
 }
 
-const ART: Readonly<Record<KLogoVariant | 'tech-small', Art>> = @@ART@@;
+const ART: Readonly<Record<ArtKey, Art>> = @@ART@@;
 
 /** Height in px when it can be known up front (a number, or a string like "48" / "48px"). */
 function pixels(size: number | string): number | undefined {
   if (typeof size === 'number') return size;
   const m = /^\s*(\d*\.?\d+)\s*(?:px)?\s*$/.exec(size);
   return m ? Number(m[1]) : undefined;
+}
+
+/** The drawing for a variant at a pixel height (undefined: not known, so the variant's own). */
+function drawing(variant: KLogoVariant, px: number | undefined): ArtKey {
+  if (px === undefined) return variant;
+  if (variant === 'tech') return px <= TECH_SMALL_MAX ? 'tech-small' : variant;
+  if (variant === 'mono') return px < MONO_GAPPED_MIN ? 'mono-solid' : variant;
+  if (variant === 'white') return px < MONO_GAPPED_MIN ? 'white-solid' : variant;
+  return variant;
 }
 
 function gradient([kind, c, stops]: Gradient, id: string): ReactElement {
@@ -789,8 +808,7 @@ export function KLogo({ variant = 'color', size = @@DEFAULT@@, title, className,
   // useId is unique per instance; keep only characters that are safe inside url(#...)
   const uid = 'k' + useId().replace(/[^A-Za-z0-9_-]/g, '');
   const px = pixels(size);
-  const small = variant === 'tech' && px !== undefined && px <= TECH_SMALL_MAX;
-  const art = ART[small ? 'tech-small' : variant] ?? ART.color;
+  const art = ART[drawing(variant, px)] ?? ART.color;
   const box: CSSProperties | undefined =
     px === undefined ? { height: size, width: 'auto', aspectRatio: `${art.w} / ${art.h}` } : undefined;
   const labelId = title ? `${uid}-t` : undefined;
@@ -819,7 +837,7 @@ export default KLogo;
 """
 
 INDEX_TS = """// @@HEADER@@
-export { KLogo, KLogo as default, TECH_SMALL_MAX } from './KLogo';
+export { KLogo, KLogo as default, MONO_GAPPED_MIN, TECH_SMALL_MAX } from './KLogo';
 export type { KLogoProps, KLogoVariant } from './KLogo';
 """
 
@@ -833,14 +851,18 @@ WC = r"""// k-logo.js - <k-logo> custom element for the K logo: no framework, sh
 // size:    height; a number is px, anything else is a CSS length such as 3rem, not a % (default @@DEFAULT@@).
 //          Width follows.
 // label:   accessible name; without it the logo is decorative (aria-hidden).
-// Mono variants paint with currentColor: set `color` on the element. The tech icon switches to its
-// simplified drawing at @@SMALL@@ px and below - for a CSS length too, by its laid-out height (a
-// ResizeObserver re-checks it, e.g. when the root font size changes). Every instance gets its own
+// Mono variants paint with currentColor: set `color` on the element. By its height - for a CSS
+// length too, by its laid-out height (a ResizeObserver re-checks it, e.g. when the root font size
+// changes) - the tech icon switches to its simplified drawing at @@SMALL@@ px and below, and the
+// gapped one-colour marks (mono, white) to the solid mark below @@GAPPED@@ px, where their
+// construction gap (@@GAP_PCT@@% of the height) would be under one pixel. Every instance gets its own
 // gradient ids.
 
 const ART = @@ART@@;
 
 const TECH_SMALL_MAX = @@SMALL@@;
+const MONO_GAPPED_MIN = @@GAPPED@@;
+const SOLID = { mono: 'mono-solid', white: 'white-solid' };
 const CSS = ':host{display:inline-block;line-height:0;vertical-align:middle}:host([hidden]){display:none}svg{display:block}';
 const Base = typeof HTMLElement === 'undefined' ? class {} : HTMLElement; // importable during SSR
 let seq = 0;
@@ -870,7 +892,7 @@ export class KLogoElement extends Base {
 
   connectedCallback() {
     // A CSS length (rem, em, vh ...) is only known after layout: watch the element so the tech
-    // icon still switches at TECH_SMALL_MAX. The first callback runs before the first paint.
+    // icon and the one-colour marks still switch by size. The first callback runs before the first paint.
     if (!this._ro && typeof ResizeObserver !== 'undefined') this._ro = new ResizeObserver(() => this._render());
     if (this._ro) this._ro.observe(this);
     this._render();
@@ -899,9 +921,11 @@ export class KLogoElement extends Base {
     const px = m ? Number(m[1]) : undefined;
     let key = this.getAttribute('variant') || 'color';
     if (!Object.prototype.hasOwnProperty.call(ART, key)) key = 'color';
-    if (key === 'tech') {
+    const solid = Object.prototype.hasOwnProperty.call(SOLID, key);
+    if (key === 'tech' || solid) {
       const h = px !== undefined ? px : this._laidOutHeight(size);
-      if (h !== undefined && h <= TECH_SMALL_MAX) key = 'tech-small';
+      if (h !== undefined && key === 'tech' && h <= TECH_SMALL_MAX) key = 'tech-small';
+      else if (h !== undefined && solid && h < MONO_GAPPED_MIN) key = SOLID[key];
     }
     const art = ART[key];
     if (this._key !== key) {                       // artwork changes rebuild the shadow tree
@@ -947,7 +971,9 @@ def _fill_template(t, arts):
     variants = " | ".join(f"'{k}'" for k in PUBLIC)
     return (t.replace("@@HEADER@@", HEADER).replace("@@ART@@", table).replace("@@VARIANTS@@", variants)
             .replace("@@VARIANT_LIST@@", " | ".join(PUBLIC))
-            .replace("@@SMALL@@", str(TECH_SMALL_MAX)).replace("@@DEFAULT@@", str(DEFAULT_SIZE)))
+            .replace("@@SMALL@@", str(TECH_SMALL_MAX)).replace("@@DEFAULT@@", str(DEFAULT_SIZE))
+            .replace("@@GAPPED@@", str(MONO_GAPPED_MIN)).replace("@@GAP_PCT@@", f"{GAP_PCT:g}")
+            .replace("@@AUTO@@", " | ".join(f"'{k}'" for k in AUTO)))
 
 
 def react_files(arts):
@@ -1151,7 +1177,8 @@ def readme(arts, sizes, t):
     cs, yellow = t["clear-space"], t["brand"]["yellow"][0]
     return f"""# K logo - developer kit
 
-{HEADER} Re-run `python3 brand/tools/build_web.py` after any change to the master.
+{HEADER} After any change to the master, rebuild the whole kit with `python3 brand/tools/build.py all`
+(`python3 brand/tools/build_web.py` alone rebuilds only this folder).
 
 | Folder | What |
 | --- | --- |
@@ -1167,13 +1194,18 @@ def readme(arts, sizes, t):
 - Brand yellow ({yellow}) never stands alone on white ({contrast(yellow, brand.NEUTRAL['white']):.2f}:1); it only
   appears inside the mark.
 - Clear space: 1 stem width on every side = `{cs}` x the mark height.
-- Minimum height: {t['min-size']['mark'][0]} px for the colour mark, badge and `mono-solid`;
-  {t['min-size']['mark-gapped'][0]} px for the gapped `mono` / `white`.
-- At {TECH_SMALL_MAX} px and below use the simplified tech icon (`k-logo-tech-small.svg`). `<k-logo>` switches
-  automatically at any size; `<KLogo>` switches when `size` is a number or `"48px"` (a CSS length is
-  unknown while React renders), so give small tech icons a pixel size.
+- Minimum height: {t['min-size']['mark'][0]} px for the colour mark, badge and `mono-solid` (8 mm in print);
+  {t['min-size']['mark-gapped'][0]} px for the gapped `mono` / `white` ({MONO_GAPPED_MIN_MM} mm in print). Their construction gap is
+  {GAP_PCT:g}% of the mark height: below {MONO_GAPPED_MIN} px it is less than one pixel and renders as a grey smudge,
+  so use the solid mark there (`k-logo-mono-solid.svg`, `k-logo-white-solid.svg`).
+- Both switches are built into the components: below {TECH_SMALL_MAX + 1} px `tech` draws the simplified
+  tech icon (`k-logo-tech-small.svg`); below {MONO_GAPPED_MIN} px `mono` draws `mono-solid` and `white` draws the
+  solid white mark. `<k-logo>` switches at any size; `<KLogo>` switches when `size` is a number or
+  `"48px"` (a CSS length is unknown while React renders), so give small tech icons and one-colour
+  marks a pixel size. With the standalone files, pick the file by the same rule.
 - No name or wordmark is defined yet: do not set text next to or inside the mark as if it were one.
-  The files carry the neutral title "{TITLE}"; replace it with the product name when there is one.
+  The files carry the neutral title "{TITLE}": when the product has a name, replace the {TITLE} title and the
+  `name` / `short_name` in `icons/web/site.webmanifest` (in the kit root) with the product name.
 
 ## SVG
 
@@ -1191,7 +1223,8 @@ keep every copy's ids apart.
 
 ```html
 <img src="svg/k-logo.svg" alt="" height="48">   <!-- alt="": the product name is next to it; else name it -->
-<span style="color: var(--k-logo-mono)"><!-- paste svg/k-logo-mono.svg inline --></span>
+<span style="color: var(--k-logo-mono)"><!-- paste svg/k-logo-mono.svg inline (>= {MONO_GAPPED_MIN} px high) --></span>
+<span style="color: var(--k-logo-mono)"><!-- smaller: paste svg/k-logo-mono-solid.svg --></span>
 ```
 
 ## React
@@ -1203,13 +1236,15 @@ import {{ KLogo }} from './react';
 
 <KLogo />                                          // colour, {DEFAULT_SIZE} px high, decorative (aria-hidden)
 <KLogo variant="dimensional" size={{96}} title="Home" />
-<KLogo variant="tech" size={{48}} />                 // <= {TECH_SMALL_MAX} px: simplified tech icon
-<KLogo variant="mono" size="2.5rem" className="logo" style={{{{ color: 'var(--k-logo-mono)' }}}} />
+<KLogo variant="tech" size={{48}} />                 // < {TECH_SMALL_MAX + 1} px: simplified tech icon
+<KLogo variant="mono" size={{160}} className="logo" style={{{{ color: 'var(--k-logo-mono)' }}}} />
+<KLogo variant="mono" size={{32}} />                 // < {MONO_GAPPED_MIN} px: the solid one-colour mark
 ```
 
 Props: `variant` ({" | ".join(PUBLIC)}), `size` (height; number = px, string = CSS length;
 width follows the aspect ratio), `title` (accessible name; without it the SVG is `aria-hidden`),
-`className`, `style`. Gradient ids come from `useId`, so any number of logos can share a page
+`className`, `style`. Exported constants: `TECH_SMALL_MAX` ({TECH_SMALL_MAX}) and `MONO_GAPPED_MIN` ({MONO_GAPPED_MIN}), the two
+size switches. Gradient ids come from `useId`, so any number of logos can share a page
 (with several React roots on one page, give each root its own `identifierPrefix`, as for any `useId`).
 The only hook is `useId`, so on React 19 it also renders as a Server Component.
 
@@ -1223,6 +1258,8 @@ The only hook is `useId`, so on React 19 it also renders as a Server Component.
 
 Attributes: `variant`, `size` (number = px, else a CSS length such as `3rem`; not a percentage, which
 has no definite height to resolve against here), `label` (accessible name; without it the logo is decorative). `mono` / `mono-solid` take the element's `color`; `white` is always white.
+`tech` switches to the simplified drawing below {TECH_SMALL_MAX + 1} px, `mono` and `white` to the solid mark below
+{MONO_GAPPED_MIN} px, by the laid-out height (so `3rem` above is drawn solid).
 Shadow DOM; ids are unique per element; attributes can change at runtime.
 
 ## Tokens
