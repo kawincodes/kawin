@@ -240,9 +240,9 @@ def dimensional_group(k: KParams, uid="dim"):
     if ny < 0:
         nx, ny = -nx, -ny                                     # point down, into yellow/green
     band = Polygon([a, b, (b[0] + nx * w, b[1] + ny * w), (a[0] + nx * w, a[1] + ny * w)]).intersection(lower)
-    defs.append(_lin(f"{uid}-fold-light", J, (J[0] + nx * w, J[1] + ny * w),
+    defs.append(_lin(f"{uid}-fold-light-fill", J, (J[0] + nx * w, J[1] + ny * w),
                      [(0, "#FFFFFF", 0.34), (0.35, "#FFFFFF", 0.12), (1, "#FFFFFF", 0.0)]))
-    body.append(f'<path {_attrs(f"{uid}-fold-light", "Fold highlight")} fill="url(#{uid}-fold-light)" d="{shape_d(band)}"/>')
+    body.append(f'<path {_attrs(f"{uid}-fold-light", "Fold highlight")} fill="url(#{uid}-fold-light-fill)" d="{shape_d(band)}"/>')
     return "".join(defs), f'<g {_attrs(uid, "K mark - dimensional")}>' + "".join(body) + "</g>"
 
 
@@ -366,11 +366,11 @@ def _tech_layers(k: KParams, detail="full", shape="tile"):
     mk = []
     for n, d in trapped(k):
         if detail == "full":
-            defs.append(f'<radialGradient id="tech-{n}" gradientUnits="userSpaceOnUse" cx="{fmt(J[0])}" cy="{fmt(J[1])}" '
+            defs.append(f'<radialGradient id="tech-{n}-fill" gradientUnits="userSpaceOnUse" cx="{fmt(J[0])}" cy="{fmt(J[1])}" '
                         f'r="{fmt(reach)}"><stop offset="0" stop-color="{tone(pal[n], dL=min(0.05, 0.2 * (1 - PALETTE_OKLCH[n][0])))}"/>'
                         f'<stop offset="0.4" stop-color="{tone(pal[n], dL=0.015)}"/>'
                         f'<stop offset="1" stop-color="{tone(pal[n], dL=-0.03, dC=0.005)}"/></radialGradient>')
-            fill = f"url(#tech-{n})"
+            fill = f"url(#tech-{n}-fill)"
         else:
             fill = pal[n]
         mk.append(f'<path {_attrs(f"tech-{n}", FACET_LABEL[n])} fill="{fill}" d="{d}"/>')
@@ -380,8 +380,8 @@ def _tech_layers(k: KParams, detail="full", shape="tile"):
         lit = unary_union([LineString([p["BL"], p["TL"], p["TR"]]), LineString([J, p["armTL"], p["armTR"]])])
         rim = lit.buffer(0.07 * u, cap_style=2, join_style=2).intersection(sil)
         y0, y1 = k.yT, k.yB
-        defs.append(_lin("tech-rim", (0, y0), (0, y1), [(0, "#FFFFFF", 0.5), (0.12, "#FFFFFF", 0.2), (0.5, "#FFFFFF", 0.04), (1, "#FFFFFF", 0.0)]))
-        mk.append(f'<path {_attrs("tech-rim", "Rim light")} fill="url(#tech-rim)" d="{shape_d(rim)}"/>')
+        defs.append(_lin("tech-rim-fill", (0, y0), (0, y1), [(0, "#FFFFFF", 0.5), (0.12, "#FFFFFF", 0.2), (0.5, "#FFFFFF", 0.04), (1, "#FFFFFF", 0.0)]))
+        mk.append(f'<path {_attrs("tech-rim", "Rim light")} fill="url(#tech-rim-fill)" d="{shape_d(rim)}"/>')
         # the fold as a line of light on the flap side, brightest at J
         a, b = p["foldL"], P
         dx, dy = b[0] - a[0], b[1] - a[1]
@@ -392,8 +392,8 @@ def _tech_layers(k: KParams, detail="full", shape="tile"):
         w = 0.06 * u
         band = Polygon([a, b, (b[0] + nx * w, b[1] + ny * w), (a[0] + nx * w, a[1] + ny * w)]).intersection(sil)
         tj = math.dist(a, J) / n_
-        defs.append(_lin("tech-crease", a, b, [(0, "#FFFFFF", 0.08), (tj, "#FFFFFF", 0.5), (1, "#FFFFFF", 0.12)]))
-        mk.append(f'<path {_attrs("tech-crease", "Fold light")} fill="url(#tech-crease)" d="{shape_d(band)}"/>')
+        defs.append(_lin("tech-crease-fill", a, b, [(0, "#FFFFFF", 0.08), (tj, "#FFFFFF", 0.5), (1, "#FFFFFF", 0.12)]))
+        mk.append(f'<path {_attrs("tech-crease", "Fold light")} fill="url(#tech-crease-fill)" d="{shape_d(band)}"/>')
     groups.append(f'<g {_attrs("K", "K mark")}>' + "".join(mk) + "</g>")
 
     if detail == "full":

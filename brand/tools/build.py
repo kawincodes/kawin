@@ -51,7 +51,99 @@ def stage_svg():
     return out
 
 
-STAGES = {"svg": stage_svg}
+# Variants exported as vector files. Gradient-heavy variants skip EPS: EPS has no transparency,
+# so their soft lighting would be flattened to pixels there; PDF/AI keep it vector.
+VECTOR_RGB = [
+    ("K-Logo_Mark_Color", True), ("K-Logo_Mark_Color_Tight", True), ("K-Logo_Mark_Color_ClearSpace", True),
+    ("K-Logo_Badge_Color", True), ("K-Logo_Mark_Black", True), ("K-Logo_Mark_White", True),
+    ("K-Logo_Mark_Black_Solid", True), ("K-Logo_Mark_White_Solid", True), ("K-Logo_Mark_Greyscale", True),
+    ("K-Logo_Mark_Dimensional", False), ("K-Logo_Badge_Dimensional", False),
+    ("K-Logo_Tech_Icon", False), ("K-Logo_Tech_Icon_Square", False),
+]
+# Print masters in device CMYK (flat art only).
+VECTOR_CMYK = ["K-Logo_Mark_Color", "K-Logo_Mark_Color_Tight", "K-Logo_Badge_Color",
+               "K-Logo_Mark_Black", "K-Logo_Mark_Black_Solid", "K-Logo_Mark_Greyscale"]
+# Layered Photoshop files (flat facets become editable vector shape layers).
+PSD = ["K-Logo_Mark_Color", "K-Logo_Badge_Color", "K-Logo_Mark_Dimensional", "K-Logo_Badge_Dimensional",
+       "K-Logo_Tech_Icon", "K-Logo_Tech_Icon_Square", "K-Logo_Mark_Black", "K-Logo_Mark_White"]
+# One master PSD holding the main variants as layer groups; only the first is visible.
+PSD_MASTER = [("Badge - colour", "K-Logo_Badge_Color"), ("Mark - colour", "K-Logo_Mark_Color"),
+              ("Badge - premium shaded", "K-Logo_Badge_Dimensional"), ("Tech icon", "K-Logo_Tech_Icon"),
+              ("Mark - one colour black", "K-Logo_Mark_Black"), ("Mark - one colour white", "K-Logo_Mark_White")]
+PSD_PX = 4096
+
+
+def _svg(name):
+    return VARIANTS[name][0]()
+
+
+def _inner(svg):
+    """(defs, body) of one of our single-root SVG documents."""
+    import re
+    defs = "".join(re.findall(r"<defs>(.*?)</defs>", svg, re.S))
+    body = re.sub(r"^.*?<svg[^>]*>", "", svg, count=1, flags=re.S)
+    body = re.sub(r"</svg>\s*$", "", body)
+    body = re.sub(r"<title>.*?</title>", "", body, flags=re.S)
+    body = re.sub(r"<defs>.*?</defs>", "", body, flags=re.S)
+    return defs, body
+
+
+def _prefix_ids(text, p):
+    """Make ids unique when several variant documents are merged into one."""
+    import re
+    text = re.sub(r'\bid="([^"]+)"', lambda m: f'id="{p}{m.group(1)}"', text)
+    text = re.sub(r"url\(#([^)]+)\)", lambda m: f"url(#{p}{m.group(1)})", text)
+    return re.sub(r'href="#([^"]+)"', lambda m: f'href="#{p}{m.group(1)}"', text)
+
+
+def master_psd_svg():
+    defs, groups = [], []
+    for i, (label, name) in enumerate(PSD_MASTER):
+        d, b = (_prefix_ids(t, f"v{i}-") for t in _inner(_svg(name)))
+        defs.append(d)
+        hidden = "" if i == 0 else ' display="none"'
+        groups.append(f'<g id="variant-{i}" data-name="{label}"{hidden}>{b}</g>')
+    return brand.svg_doc("".join(reversed(groups)), "".join(defs), size=brand.SIZE, title="K Logo - all variants")
+
+
+def stage_formats():
+    import shutil
+    import tempfile
+
+    import svg2psd
+    import vector_export as vx
+
+    logo = os.path.join(ROOT, "logo")
+    dirs = {ext: os.path.join(logo, ext) for ext in ("ai", "pdf", "eps", "psd")}
+    for d in dirs.values():
+        shutil.rmtree(d, ignore_errors=True)
+        os.makedirs(d)
+    written = []
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, eps in VECTOR_RGB:
+            vx.export_rgb(_svg(name), os.path.join(tmp, name), title=f"{name.replace('_', ' ')}")
+            for ext in ("ai", "pdf") + (("eps",) if eps else ()):
+                dst = os.path.join(dirs[ext], f"{name}.{ext}")
+                shutil.move(os.path.join(tmp, f"{name}.{ext}"), dst)
+                written.append(dst)
+        for name in VECTOR_CMYK:
+            shapes, size = vx.svg_to_cmyk_shapes(_svg(name))
+            vx.export_cmyk(shapes, size, os.path.join(tmp, name), f"{name.replace('_', ' ')} (CMYK)")
+            for ext in ("ai", "pdf", "eps"):
+                dst = os.path.join(dirs[ext], f"{name}_CMYK.{ext}")
+                shutil.move(os.path.join(tmp, f"{name}_CMYK.{ext}"), dst)
+                written.append(dst)
+    for name in PSD:
+        dst = os.path.join(dirs["psd"], f"{name}.psd")
+        svg2psd.convert(_svg(name), dst, px=PSD_PX, dpi=300, title=name.replace("_", " "))
+        written.append(dst)
+    dst = os.path.join(dirs["psd"], "K-Logo_All-Variants.psd")
+    svg2psd.convert(master_psd_svg(), dst, px=PSD_PX, dpi=300, title="K Logo - all variants")
+    written.append(dst)
+    return f"{len(written)} files"
+
+
+STAGES = {"svg": stage_svg, "formats": stage_formats}
 
 if __name__ == "__main__":
     which = sys.argv[1:] or ["all"]
