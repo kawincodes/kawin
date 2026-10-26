@@ -24,6 +24,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
@@ -35,8 +36,7 @@ from kmark import (FACETS, KParams, facets, flat_group, poly_d,  # noqa: E402
                    silhouette, silhouette_d, svg_doc)
 from preview import svg_to_png                                   # noqa: E402
 
-OUT = sys.argv[1] if len(sys.argv) > 1 else \
-    "/tmp/claude-0/-home-user-kawin/112bef45-5b8b-536e-9b0e-4c4d94d8b9e3/scratchpad/infra/vector_export/run"
+OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(tempfile.gettempdir(), "k_vector_export_test")
 os.makedirs(OUT, exist_ok=True)
 K = KParams.from_dict(json.load(open(os.path.join(HERE, "trace_params.json"))))
 PAL = K.palette

@@ -101,6 +101,7 @@ INKSCAPE_NS = "http://www.inkscape.org/namespaces/inkscape"
 
 DEFAULT_ARC_TOL = 0.01
 SWATCH_GROUP = "K Brand"
+SHADE_GROUP = "K Shading"     # gradient-only colours, kept apart from the brand palette
 BACKGROUND_NAMES = ("disc", "background", "bg", "badge", "backdrop", "tile")
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -1448,7 +1449,7 @@ class _Model:
 
     def swatch_for(self, hx, where):
         if hx not in self.hex2sw:
-            idx = self._add_swatch("K " + hx[1:], hx)
+            idx = self._add_swatch("K Shade " + hx[1:], hx)
             self.w.add(f"{where}: colour {hx} is not in the palette; added global swatch "
                        f"\"{self.swatches[idx]['name']}\"")
         return self.hex2sw[hx]
@@ -1834,7 +1835,9 @@ def illustrator_script(variants, palette, out_path, *, base=None, title=None, sc
         "title": title or f"{base} - native Illustrator rebuild",
         "base": base, "scale": s, "grid": [gw, gh], "swatchGroup": swatch_group,
         "exportSvg": bool(export_svg), "exportPdf": bool(export_pdf),
-        "swatches": [{"n": x["name"], "rgb": x["rgb"], "hex": x["hex"]} for x in model.swatches],
+        "shadeGroup": SHADE_GROUP,
+        "swatches": [{"n": x["name"], "rgb": x["rgb"], "hex": x["hex"], "brand": x["key"] is not None}
+                     for x in model.swatches],
         "gradients": [],
         "variants": [],
     }
@@ -2407,26 +2410,37 @@ Frame.prototype.Y = function (y) { return this.T - y * this.s; };
 Frame.prototype.P = function (x, y) { return [this.L + x * this.s, this.T - y * this.s]; };
 
 // ---------------------------------------------------------------- swatches and gradients
+function makeSwatchGroup(doc, name) {
+  var g = null;
+  try { g = doc.swatchGroups.add(); g.name = name; }
+  catch (e0) { g = null; note('Swatch group ' + name + ' not created: ' + e0); }
+  return g;
+}
+
 function makeSwatches(doc) {
-  var grp = null, i, s, spot;
-  try { grp = doc.swatchGroups.add(); grp.name = DATA.swatchGroup; }
-  catch (e0) { grp = null; note('Swatch group not created: ' + e0); }
+  // brand colours go in DATA.swatchGroup; colours used only inside gradients go in a separate
+  // DATA.shadeGroup so nobody picks a shading tone as a brand colour
+  var grp = makeSwatchGroup(doc, DATA.swatchGroup), shade = null, g, i, s, spot;
   for (i = 0; i < DATA.swatches.length; i++) {
     s = DATA.swatches[i];
+    if (!s.brand && !shade) shade = makeSwatchGroup(doc, DATA.shadeGroup);
+    g = s.brand ? grp : shade;
     spot = doc.spots.add();
     spot.name = s.n;
     spot.colorType = ColorModel.PROCESS;      // a "spot" of process type = global process swatch
     spot.color = rgbColor(s.rgb);
     SPOTS.push(spot);
-    if (grp) {
-      try { grp.addSpot(spot); }
+    if (g) {
+      try { g.addSpot(spot); }
       catch (e1) {
-        try { grp.addSwatch(doc.swatches.getByName(s.n)); }
-        catch (e2) { note('Swatch ' + s.n + ' not added to ' + DATA.swatchGroup + ': ' + e2); }
+        try { g.addSwatch(doc.swatches.getByName(s.n)); }
+        catch (e2) { note('Swatch ' + s.n + ' not added to ' + g.name + ': ' + e2); }
       }
     }
   }
-  for (i = 0; i < DATA.gradients.length; i++) GRADS.push(makeGradient(doc, DATA.gradients[i], grp));
+  // gradients are shading too: keep them out of the brand group
+  if (DATA.gradients.length && !shade) shade = makeSwatchGroup(doc, DATA.shadeGroup);
+  for (i = 0; i < DATA.gradients.length; i++) GRADS.push(makeGradient(doc, DATA.gradients[i], shade || grp));
 }
 
 function setStop(st, d) {

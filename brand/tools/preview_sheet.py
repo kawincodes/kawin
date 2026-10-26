@@ -29,30 +29,31 @@ def build(out_path):
     d = ImageDraw.Draw(sheet)
     h1, h2, h3, mono = _font(54), _font(30), _font(24), _font(22)
     x, y = 80, 70
-    d.text((x, y), "K logo - premium redesign", fill=INK, font=h1)
-    d.text((x, y + 72), "Final master  |  sharp corners  |  preview for approval", fill=MUTED, font=h3)
+    d.text((x, y), "K logo — premium redesign", fill=INK, font=h1)
+    d.text((x, y + 72), "Final master  ·  sharp corners  ·  version 1.0", fill=MUTED, font=h3)
 
     # before / after
     y = 220
     S = 600
-    for i, (label, svg) in enumerate((("Before - your original", open(TRACE).read()),
-                                       ("After - redesigned master", doc_badge(k)))):
+    for i, (label, svg) in enumerate((("Before — your original (trace)", open(TRACE).read()),
+                                       ("After — redesigned master", doc_badge(k)))):
         xx = 80 + i * (S + 140)
         d.text((xx, y), label, fill=INK, font=h2)
         sheet.alpha_composite(tile(render(svg, S), (255, 255, 255, 0)), (xx, y + 50))
-    d.text((80 + S + 30, y + 50 + S // 2 - 30), "->", fill=MUTED, font=_font(64))
+    d.text((80 + S + 30, y + 50 + S // 2 - 30), "→", fill=MUTED, font=_font(64))
     xx = 80 + 2 * (S + 140) - 70
     notes = ["What changed", "",
-             "- Arm and leg share one angle",
-             "  (53.13 deg) and one weight",
-             "  (96.5% of the stem)",
-             "- Right edges of arm and leg aligned",
-             "- Junction and crotch mirror the fold",
-             "- Optically centred in the circle",
-             "- Colours deepened and made your own",
-             "  (further from Google's palette)",
-             "- Every corner sharp",
-             "- Same footprint as your original"]
+             "·  Arm and leg share one angle",
+             "   (53.13°) and one weight",
+             "   (96.5% of the stem)",
+             "·  Right edges of arm and leg aligned",
+             "·  Junction and crotch mirror the fold",
+             "·  Optically centred in the circle",
+             "·  Your four colours, refined: deeper,",
+             "   cleaner; blue and green nudged",
+             "   off Google's hues",
+             "·  Every corner sharp",
+             "·  Same footprint as your original"]
     for j, line in enumerate(notes):
         d.text((xx, y + 60 + j * 38), line, fill=INK if j == 0 else MUTED, font=h3 if j else h2)
 

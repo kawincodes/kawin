@@ -866,14 +866,22 @@ def check_run(label, variants, palette, refs, out_dir, acorn_dir, px, independen
         # swatches
         spots = {x["id"]: x for x in doc["spots"]}
         grp = [g for g in doc["swatchGroups"] if g["name"] == "K Brand"]
+        shade = [g for g in doc["swatchGroups"] if g["name"] == IJ.SHADE_GROUP]
+        brand_ids = {x["id"] for x in doc["spots"] if x["name"] in {IJ.swatch_name(k) for k in palette}}
+        shade_ids = {x["id"] for x in doc["spots"]} - brand_ids
         want_sw = [IJ.swatch_name(k) for k in palette]
         R.check(all(x["colorType"] == "ColorModel.PROCESS" for x in doc["spots"]), "all swatches are GLOBAL process colours (Spot, ColorModel.PROCESS)",
                 [(x["name"], x["colorType"]) for x in doc["spots"]][:8])
         R.check([x["name"] for x in doc["spots"]][:len(want_sw)] == want_sw, "palette swatches named 'K <Key>'", [x["name"] for x in doc["spots"]])
         R.check(all(x["color"]["t"] == "rgb" and "#%02X%02X%02X" % tuple(x["color"]["rgb"]) == IJ.parse_color(palette[k])[0]
                     for x, k in zip(doc["spots"], palette)), "swatch colours = palette hex", "")
-        R.check(len(grp) == 1 and set(grp[0]["members"]) >= {x["id"] for x in doc["spots"]}, "every swatch is in the swatch group 'K Brand'",
-                f"{len(grp[0]['members']) if grp else 0} members")
+        spot_ids = {x["id"] for x in doc["spots"]}
+        R.check(len(grp) == 1 and set(grp[0]["members"]) == brand_ids,
+                "palette swatches are exactly the swatch group 'K Brand'", f"{len(grp[0]['members']) if grp else 0} members")
+        R.check((not shade_ids and not shade) or (len(shade) == 1 and set(shade[0]["members"]) & spot_ids == shade_ids),
+                f"gradient-only tones are exactly the swatch group '{IJ.SHADE_GROUP}'",
+                f"{len(shade[0]['members']) if shade else 0} members")
+        global_ids = set(grp[0]["members"]) | (set(shade[0]["members"]) if shade else set()) if grp else set()
         tot_paths = tot_pts = n_filled = 0
         all_fill_ok, fill_detail = True, []
         geo_rows, live_rows = [], []
@@ -902,7 +910,7 @@ def check_run(label, variants, palette, refs, out_dir, acorn_dir, px, independen
                 n_filled += 1
                 if f["t"] == "spot":
                     sp = spots[f["spot"]]
-                    ok = sp["colorType"] == "ColorModel.PROCESS" and f["tint"] == 100 and sp["id"] in grp[0]["members"]
+                    ok = sp["colorType"] == "ColorModel.PROCESS" and f["tint"] == 100 and sp["id"] in global_ids
                 elif f["t"] == "gradient":
                     g = [x for x in doc["gradients"] if x["id"] == f["gradient"]][0]
                     ok = all(st["color"]["t"] == "spot" for st in g["stops"])
@@ -934,7 +942,7 @@ def check_run(label, variants, palette, refs, out_dir, acorn_dir, px, independen
                 recon_stats.append((v["name"], c))
         R.check(tot_paths == ai["counts"]["paths"] and tot_pts == ai["counts"]["points"],
                 "pathItems / anchor points recorded = expected", f"{tot_paths} paths, {tot_pts} points (expected {ai['counts']['paths']} / {ai['counts']['points']})")
-        R.check(all_fill_ok, "every fill references a global 'K Brand' swatch (solid: SpotColor tint 100; gradient: stops are SpotColors)",
+        R.check(all_fill_ok, "every fill references a global swatch in 'K Brand' / 'K Shading' (solid: SpotColor tint 100; gradient: stops are SpotColors)",
                 fill_detail or f"{n_filled} filled paths")
         report_geometry("Illustrator", geo_rows, live_rows)
         for name, c in recon_stats:

@@ -136,8 +136,13 @@ def gapped(k: KParams, gap=None):
     one-colour mark still shows the construction (~0.8% of cap height)."""
     p = points(k)
     gap = 0.008 * (k.yB - k.yT) if gap is None else gap
-    cuts = unary_union([LineString([p["foldL"], p["P"]]), LineString([p["innerL"], p["J"]])])
-    band = cuts.buffer(gap / 2, cap_style=3, join_style=2)
+    def through(a, b):
+        # the whole line through a and b, well past the silhouette, so a gap never ends in a cap
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        n = math.hypot(dx, dy) / k.size
+        return LineString([(a[0] - dx / n, a[1] - dy / n), (b[0] + dx / n, b[1] + dy / n)])
+    cuts = unary_union([through(p["foldL"], p["P"]), through(p["innerL"], p["J"])])
+    band = cuts.buffer(gap / 2, cap_style=2, join_style=2)
     return {n: Polygon(f).difference(band) for n, f in facets(k).items()}
 
 
@@ -175,6 +180,11 @@ def _rrect_d(x, y, w, h, r):
 def mark_group(k: KParams, colours=None, raster=False, gid="K", gaps=False):
     """Group of the four facets. colours: {facet: hex}; raster=True -> trapped facets."""
     colours = colours or {n: k.palette[n] for n in FACETS}
+    if not gaps and len(set(colours.values())) == 1:
+        # one colour, no gaps: a single outline, so there are no internal joins to seam
+        d = poly_d(silhouette(k))
+        return (f'<g {_attrs(gid, "K mark")}><path {_attrs(f"{gid}-silhouette", "K")} '
+                f'fill="{colours[FACETS[0]]}" d="{d}"/></g>')
     if gaps:
         pieces = gapped(k)
         paths = [(n, shape_d(pieces[n])) for n in PAINT_ORDER]
@@ -244,6 +254,9 @@ def dimensional_group(k: KParams, uid="dim"):
     nx, ny = -dy / n_, dx / n_
     if ny < 0:
         nx, ny = -nx, -ny                                     # point down, into yellow/green
+    ux, uy = dx / n_, dy / n_
+    a, b = (a[0] - ux * w * 4, a[1] - uy * w * 4), (b[0] + ux * w * 4, b[1] + uy * w * 4)
+    # extended past foldL and P, then clipped by yellow+green: the light ends on the K's contour
     band = Polygon([a, b, (b[0] + nx * w, b[1] + ny * w), (a[0] + nx * w, a[1] + ny * w)]).intersection(lower)
     defs.append(_lin(f"{uid}-fold-light-fill", J, (J[0] + nx * w, J[1] + ny * w),
                      [(0, "#FFFFFF", 0.34), (0.35, "#FFFFFF", 0.12), (1, "#FFFFFF", 0.0)]))
@@ -427,19 +440,27 @@ def doc_tech(k=None, detail="full", shape="tile"):
                    title=f"{NAME} - tech icon ({detail}, {shape})")
 
 
+ANDROID_SCALE = 72.0 / 108.0    # the 1024 icon composition mapped onto the 72 dp visible area
+
+
+def _android_layers(k, which):
+    """Tech-icon groups for an adaptive icon (108 dp canvas). The composition is scaled to the
+    72 dp visible area, so the K has the same size and treatment as on iOS, macOS and the web."""
+    defs, groups = _tech_layers(scaled_about_centre(k, ANDROID_SCALE), "full", "square")
+    keep = ("tile", "grid", "ambient") if which == "background" else ("traces", "K", "node")
+    return defs, [g for g in groups if any(g.startswith(f'<g id="{gid}"') for gid in keep)]
+
+
 def doc_android_foreground(k=None):
-    """Adaptive-icon foreground (108 dp canvas): the K scaled to sit inside the 66 dp safe circle."""
-    k = scaled_about_centre(k or master(), 0.78)
-    return svg_doc(mark_group(k), size=k.size, title=f"{NAME} - Android adaptive foreground")
+    """Adaptive-icon foreground: the lit K, its traces and the node."""
+    defs, groups = _android_layers(k or master(), "foreground")
+    return svg_doc("".join(groups), "".join(defs), size=SIZE, title=f"{NAME} - Android adaptive foreground")
 
 
 def doc_android_background(k=None):
-    k = k or master()
-    night = NEUTRAL["night"]
-    s = k.size
-    defs = _lin("bg", (0, 0), (0, s), [(0, tone(night, dL=0.075, dC=0.012), None), (1, night, None)])
-    return svg_doc(f'<rect {_attrs("background", "Background")} width="{fmt(s)}" height="{fmt(s)}" fill="url(#bg)"/>',
-                   defs, size=s, title=f"{NAME} - Android adaptive background")
+    """Adaptive-icon background: full-bleed plate, construction grid and ambient light."""
+    defs, groups = _android_layers(k or master(), "background")
+    return svg_doc("".join(groups), "".join(defs), size=SIZE, title=f"{NAME} - Android adaptive background")
 
 
 # ------------------------------------------------------------------ raster

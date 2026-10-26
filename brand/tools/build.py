@@ -65,7 +65,17 @@ VECTOR_CMYK = ["K-Logo_Mark_Color", "K-Logo_Mark_Color_Tight", "K-Logo_Badge_Col
                "K-Logo_Mark_Black", "K-Logo_Mark_Black_Solid", "K-Logo_Mark_Greyscale"]
 # Layered Photoshop files (flat facets become editable vector shape layers).
 PSD = ["K-Logo_Mark_Color", "K-Logo_Badge_Color", "K-Logo_Mark_Dimensional", "K-Logo_Badge_Dimensional",
-       "K-Logo_Tech_Icon", "K-Logo_Tech_Icon_Square", "K-Logo_Mark_Black", "K-Logo_Mark_White"]
+       "K-Logo_Tech_Icon", "K-Logo_Tech_Icon_Square", "K-Logo_Mark_Black", "K-Logo_Mark_White",
+       "K-Logo_Mark_Black_Solid", "K-Logo_Mark_Greyscale"]
+# Photoshop composites every shape layer with its own anti-aliasing, so facets that only touch
+# would show a hairline seam; the PSDs therefore use the trapped facets (each grows a hair under
+# the facets painted after it). The visible outline is unchanged. The vector masters keep the
+# exact, abutting facets.
+PSD_SOURCES = {
+    "K-Logo_Mark_Color": lambda: brand.doc_mark(raster=True),
+    "K-Logo_Badge_Color": lambda: brand.doc_badge(raster=True),
+    "K-Logo_Mark_Greyscale": lambda: brand.doc_mark(style="grey", raster=True),
+}
 # One master PSD holding the main variants as layer groups; only the first is visible.
 PSD_MASTER = [("Badge - colour", "K-Logo_Badge_Color"), ("Mark - colour", "K-Logo_Mark_Color"),
               ("Badge - premium shaded", "K-Logo_Badge_Dimensional"), ("Tech icon", "K-Logo_Tech_Icon"),
@@ -75,6 +85,10 @@ PSD_PX = 4096
 
 def _svg(name):
     return VARIANTS[name][0]()
+
+
+def _psd_svg(name):
+    return PSD_SOURCES[name]() if name in PSD_SOURCES else _svg(name)
 
 
 def _inner(svg):
@@ -99,7 +113,7 @@ def _prefix_ids(text, p):
 def master_psd_svg():
     defs, groups = [], []
     for i, (label, name) in enumerate(PSD_MASTER):
-        d, b = (_prefix_ids(t, f"v{i}-") for t in _inner(_svg(name)))
+        d, b = (_prefix_ids(t, f"v{i}-") for t in _inner(_psd_svg(name)))
         defs.append(d)
         hidden = "" if i == 0 else ' display="none"'
         groups.append(f'<g id="variant-{i}" data-name="{label}"{hidden}>{b}</g>')
@@ -135,9 +149,9 @@ def stage_formats():
                 written.append(dst)
     for name in PSD:
         dst = os.path.join(dirs["psd"], f"{name}.psd")
-        svg2psd.convert(_svg(name), dst, px=PSD_PX, dpi=300, title=name.replace("_", " "))
+        svg2psd.convert(_psd_svg(name), dst, px=PSD_PX, dpi=300, title=name.replace("_", " "))
         written.append(dst)
-    dst = os.path.join(dirs["psd"], "K-Logo_All-Variants.psd")
+    dst = os.path.join(dirs["psd"], "K-Logo_All_Variants.psd")
     svg2psd.convert(master_psd_svg(), dst, px=PSD_PX, dpi=300, title="K Logo - all variants")
     written.append(dst)
     return f"{len(written)} files"
@@ -147,6 +161,10 @@ def stage_formats():
 SCRIPT_VARIANTS = [("K Mark", "K-Logo_Mark_Color"), ("K Badge", "K-Logo_Badge_Color"),
                    ("K Premium", "K-Logo_Badge_Dimensional"), ("K Tech Icon", "K-Logo_Tech_Icon"),
                    ("K One Colour", "K-Logo_Mark_Black")]
+# Photoshop's gradient fill layers cannot reproduce the shaded/tech lighting faithfully (scale
+# limits, no elliptical radials), so its script rebuilds the flat variants only; the PSDs in
+# logo/psd cover the rest.
+PHOTOSHOP_SCRIPT_VARIANTS = ("K Mark", "K Badge", "K One Colour")
 
 
 def stage_scripts():
@@ -155,11 +173,52 @@ def stage_scripts():
     out = os.path.join(ROOT, "logo", "scripts")
     os.makedirs(out, exist_ok=True)
     variants = [ij.svg_to_variant(_svg(name), label) for label, name in SCRIPT_VARIANTS]
-    palette = dict(brand.PALETTE, white=brand.NEUTRAL["white"], ink=brand.NEUTRAL["ink"],
-                   night=brand.NEUTRAL["night"])
-    ij.illustrator_script(variants, palette, os.path.join(out, "K-Logo_Illustrator.jsx"), base="K-Logo")
-    ij.photoshop_script(variants, palette, os.path.join(out, "K-Logo_Photoshop.jsx"), px=PSD_PX, base="K-Logo")
+    palette = dict(brand.PALETTE, **brand.NEUTRAL)
+    reports = [
+        ij.illustrator_script(variants, palette, os.path.join(out, "K-Logo_Illustrator.jsx"), base="K-Logo"),
+        ij.photoshop_script([v for v in variants if v["name"] in PHOTOSHOP_SCRIPT_VARIANTS], palette,
+                            os.path.join(out, "K-Logo_Photoshop.jsx"), px=PSD_PX, base="K-Logo"),
+    ]
+    for rep in reports:
+        warnings = rep.get("warnings", [])
+        shades = [w for w in warnings if "is not in the palette" in w]
+        if shades:   # expected: gradient tones of the shaded/tech variants, filed under "K Shading"
+            print(f"  {os.path.basename(rep['path'])}: {len(shades)} shading tones in the 'K Shading' swatch group")
+        for w in warnings:
+            if w not in shades:
+                print(f"  warning ({os.path.basename(rep['path'])}): {w}")
     return out
+
+
+def stage_trace():
+    """The exact trace of the original in every format, next to the trace SVG in source/."""
+    import json
+    import shutil
+    import tempfile
+
+    import svg2psd
+    import vector_export as vx
+
+    src = os.path.join(ROOT, "source")
+    with open(os.path.join(HERE, "trace_params.json")) as f:
+        k = brand.KParams.from_dict(json.load(f))
+    exact = open(os.path.join(src, "K-Logo_trace.svg")).read()
+    trapped = brand.svg_doc(brand.disc(k) + brand.mark_group(k, raster=True), size=k.size,
+                            title="K logo - trace of the original")
+    with tempfile.TemporaryDirectory() as tmp:
+        vx.export_rgb(exact, os.path.join(tmp, "t"), title="K Logo - trace of the original")
+        for ext in ("ai", "pdf", "eps"):
+            shutil.move(os.path.join(tmp, f"t.{ext}"), os.path.join(src, f"K-Logo_Trace.{ext}"))
+    svg2psd.convert(trapped, os.path.join(src, "K-Logo_Trace.psd"), px=PSD_PX, dpi=300,
+                    title="K Logo - trace of the original")
+    for px in (1024, 4096):
+        brand.render(trapped, px).save(os.path.join(src, f"K-Logo_Trace_{px}.png"), optimize=True)
+    return src
+
+
+def stage_preview():
+    import preview_sheet
+    return preview_sheet.build(os.path.join(ROOT, "K-Logo_Preview.png"))
 
 
 def _module_stage(module):
@@ -174,9 +233,11 @@ STAGES = {
     "svg": stage_svg,
     "formats": stage_formats,
     "scripts": stage_scripts,
+    "trace": stage_trace,
     "raster": _module_stage("build_raster"),
     "web": _module_stage("build_web"),
     "guidelines": _module_stage("build_guidelines"),
+    "preview": stage_preview,
 }
 
 if __name__ == "__main__":
