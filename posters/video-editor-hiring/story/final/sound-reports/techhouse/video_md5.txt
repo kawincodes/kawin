@@ -1,0 +1,6 @@
+input  ../final/story-silent.mp4
+  video stream md5 (ffmpeg -map 0:v -c copy -f md5) d7cd4dd70265ecbf6c5a53c1adbb585b
+output ../final/story-techhouse.mp4
+  video stream md5 (ffmpeg -map 0:v -c copy -f md5) d7cd4dd70265ecbf6c5a53c1adbb585b
+identical: True
+ffprobe video-stream fields that differ: none

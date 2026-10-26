@@ -125,11 +125,11 @@ mt.render_story_demo()   # demo/music_techhouse_story30_demo.wav (preview master
 mt.story_self_test()     # or: python3 -I music_techhouse.py --story   /   --story-selftest
 ```
 
-`render()` is unchanged. The sha256 of all four stems and the meta is bit-identical to the pre-story module for (17.5, 1.8, 14.5), (17.5, 2.37, 14.5) and (16.0, 0.4, 13.0), and `self_test()` passes 7/7. Both functions now share one engine, `_render_events(events, N, seed, rng, auto)`. The story-only parts render only when their events exist, and story-only processing is switched on through `auto`. Each anchor snaps to the nearest bar line counted from `drop1` (2.0 s), with a `warnings.warn` if it moves. Each section must be at least 1 bar and the tail at least 1 s, otherwise `ValueError`. The arrangement is written as data: `STORY_SECTIONS` (per-section switches and levels for groove A and drop 2), `STORY_BREAKDOWN`, `BREAKDOWN_DARK` / `BREAKDOWN_BUILD`, `EXIT_FILL`, `STORY_LEAD`, `STORY_LV`, `STORY_END_HOLD` and `STORY_TAIL_PAD_FC`. It reuses the module's instruments. The new parts are a clock tick (`_clock`), a lead (`_lead`, `_lead_bus`), offbeat chord stabs (`_chord_bus`), a pulse shape in `_bass_note`, and an `Fmadd9` chord. `check_story()` runs on top of `check_arrangement()` inside `render_story()`.
+`render()` is unchanged. The sha256 of all four stems and the meta is bit-identical to the pre-story module for (17.5, 1.8, 14.5), (17.5, 2.37, 14.5) and (16.0, 0.4, 13.0), and `self_test()` passes 7/7. Both functions now share one engine, `_render_events(events, N, seed, rng, auto)`. The story-only parts render only when their events exist, and story-only processing is switched on through `auto`. **Anchor policy (shared with `music_cinematic`):** each anchor snaps to the nearest bar line counted from `drop1` (2.0 s; ties go up), with a `warnings.warn` if it moves. Non-finite timing, `drop1 < 0`, a section shorter than 1 bar after snapping, or an end hit leaving less than 1 s of tail raises `StoryGridError` (a `ValueError` subclass with the same name in both modules). Nothing is clamped, so the music never drifts off the picture by more than the snap; `mix.py` validates the anchors itself before rendering and also catches the error. The arrangement is written as data: `STORY_SECTIONS` (per-section switches and levels for groove A and drop 2), `STORY_BREAKDOWN`, `BREAKDOWN_DARK` / `BREAKDOWN_BUILD`, `EXIT_FILL`, `STORY_LEAD`, `STORY_LV`, `STORY_END_HOLD`, `STORY_TAIL_PAD_FC` and `STORY_INTRO_LIFT`. It reuses the module's instruments. The new parts are a clock tick (`_clock`), a lead (`_lead`, `_lead_bus`), offbeat chord stabs (`_chord_bus`), a pulse shape in `_bass_note`, and an `Fmadd9` chord. `check_story()` runs on top of `check_arrangement()` inside `render_story()`.
 
 | time (default anchors) | harmony | what plays |
 |---|---|---|
-| 0 → 2.0 intro | Eb (an Ab bar sits in the pre-roll) | `render()`'s intro, unchanged. Audible from t=0: pad, arp 3 dB down with its filter opening, hat crescendo, tuned snare roll, F3→F5 riser, 50 ms breath. |
+| 0 → 2.0 intro | Eb (an Ab bar sits in the pre-roll) | `render()`'s intro, plus the **hook lift** (`STORY_INTRO_LIFT`): all four stems start 3 dB hotter and ease back to `render()`'s level between 0.45 and 1.0 s (raised cosine in dB; both times capped at 0.25 / 0.5 × drop1, so a short intro never reaches groove A). Audible from t=0: pad, arp 3 dB down with its filter opening, hat crescendo, tuned snare roll, F3→F5 riser, 50 ms breath. |
 | 2.0 → 14.0 groove A | Fm Db Ab Eb Fm Db | **Bars 1–4 (lighter):** open hats at 0.75, no arp lift, base filters. Fill and crash at 9.5 / 10.0. **Bars 5–6 (full):** octave lift on the arp, filters ×1.15 (pad) and ×1.2 (arp), open hats at 0.85. **Exit (13.5):** a falling Db4 C4 Ab3 G3 snare fill. |
 | 14.0 → 16.0 breakdown, dark | Fm | Downbeat: one kick, a crash at 0.5 and a short sub boom (no music downlifter). Then no kick, clap, hats or arp. The pad glides from about 2.9 kHz down to a 480 Hz low-pass in 0.35 s, breathes ±0.15 octave per bar, +2 dB. **F1 sub pulse** in 8ths, accented on the off-8th, so the 14.5 / 15.0 / 15.5 stamps land in a dip. **Clock tick-tock:** F6 on the beat, C6 on the off-8th. The groove's arp echoes fade out. |
 | 16.0 → 18.0 breakdown, build | Db → Eb (2 beats each) | The intro build again: pad 480 Hz → 2.3 kHz, arp back in 3 dB down with its filter opening 650 Hz → 2.4 kHz, hat crescendo, snare roll in 8ths → 16ths → 32nds, F3→F5 riser, reverse cymbal over the last 2 beats. Db2 / Eb2 bass pulses go from 8ths to 16ths in a crescendo. Ghost pump on the beats, 50 ms breath. |
@@ -151,7 +151,7 @@ The `reject` stamps land in the sub's dips. Below 120 Hz the bass stem is -32.4 
 
 | section | window (s) | full LUFS | HP150 LUFS | centroid | energy > 2 kHz |
 |---|---|---|---|---|---|
-| intro | 0–2 | -25.9 | -26.0 | 1044 Hz | 8.5 % |
+| intro | 0–2 | -25.1 | -25.2 | 945 Hz | 7.1 % |
 | groove A | 2–14 | -20.2 | -22.5 | 314 Hz | 2.1 % |
 | breakdown | 14–18 | -25.3 | -26.8 | 334 Hz | 1.9 % |
 | · dark bar / build bar | 14–16 / 16–18 | -26.4 / -24.2 | -29.8 / -24.9 | 135 / 661 Hz | 0.4 / 4.6 % |
@@ -159,7 +159,7 @@ The `reject` stamps land in the sub's dips. Below 120 Hz the bass stem is -32.4 
 | end hit + tail | 26–30 | -22.2 | -24.2 | 256 Hz | 1.8 % |
 
 - **Section order (full / HP150):**
-  - Groove A over the intro: +5.7 / +3.4 LU.
+  - Groove A over the intro: +4.9 / +2.6 LU (+5.7 / +3.4 before the hook lift).
   - Drop 2 over groove A: **+1.48 / +2.12 LU** in the stems, +1.26 / +1.89 after the preview master.
   - Breakdown under groove A: -5.0 / -4.3 LU. Its dark bar: -6.2 / **-7.3 LU**, with a 135 Hz centroid and 0.4 % of its energy above 2 kHz.
   - The build climbs +2.2 / +5.0 LU over the dark bar.
@@ -169,7 +169,7 @@ The `reject` stamps land in the sub's dips. Below 120 Hz the bass stem is -32.4 
 - **Anchors:** 2 / 14 / 18 / 26 s are all in `downbeat_times`, and `check_story()` puts a kick on each exact sample. Drums-stem broadband onsets are +1.44 / +1.33 / +1.42 / +1.46 ms, the 30 % point of every event's 2 ms raised-cosine edge. The breath before drop 1, drop 2 and the end hit is -85 / -84 / -84 dB. The breakdown has no breath (-25 dB, the exit fill).
 - **Notes:** `check_arrangement()` + `check_story()` pass 584 pitched notes (481 events) and 56 tuned snare hits, all in F minor. Pad, arp, stab and chord-stab notes are chord tones, and bass roles are correct. In the audio, the out-of-key share of the music stem's 150 Hz–2 kHz energy is 0.1–3.8 % per section. The final F1 is 0.01 % out of key.
 - **Tail:** the master goes from -9.6 dBFS RMS in the 400 ms after the hit, to -18.2 (27–28 s), -22.8 (28–29), -25.0 (29–29.5), -28.7 (29.5–29.7) and -88 in the last 10 ms. The last sample of the master and of every stem is 0.
-- **Stems:** peak / true peak are drums -9.8 / -9.6, bass -11.5 / -11.4, music -7.0 / -7.0, fx -16.9 / -16.4 dBFS / dBTP. |DC| < 2e-10. Music L/R correlation is 0.77 and the worst 0.5 s window is 0.47 (the end chord). The first 100 ms are -30.8 dBFS RMS unmastered and -24.4 mastered, so the bed is audible from frame 0.
+- **Stems:** peak / true peak are drums -9.8 / -9.6, bass -11.5 / -11.4, music -7.0 / -7.0, fx -16.9 / -16.4 dBFS / dBTP. |DC| < 2e-10. Music L/R correlation is 0.77 and the worst 0.5 s window is 0.47 (the end chord). The first 100 ms are -27.8 dBFS RMS unmastered and -21.4 mastered (-30.8 / -24.4 before the hook lift), so the bed is audible from frame 0. In the story mix, frame 0 measures -23.6 dBFS RMS and the first 400 ms -20.0 LUFS momentary (it was -26.7 / -23.1).
 - **Clicks:** the audit's 2nd-difference scan finds 0 events on bass and fx. On music it finds 18, every one 0–8 ms after a note onset (arp and stab attacks after a quiet moment, the same as in `render()`). Nothing is unexplained, near the boundaries or anywhere else. Round 1 found kinks 69 ms into the breakdown pulses and in the final F1, at -32 dB re the sub in the 2–5 kHz range. Their cause is pedalboard's `Compressor`, whose peak ballistics switch at every waveform peak. The story bass bus now uses `_smooth_comp()` (25 ms RMS detector, C1-smooth gain) and `_peak_limit(smooth=True)`; `render()` keeps its old chain.
 - **Rounds:**
   - Drop 2 over groove A, full band: +0.71 LU in R1 (louder lead and stabs) → +1.01 in R2 (kick and bass ×1.08, pad +1.5 dB) → +1.48 in R3.
@@ -181,7 +181,7 @@ The `reject` stamps land in the sub's dips. Below 120 Hz the bass stem is -32.4 
   - 14.04 / 17.97 / 26.02, snapped to 14 / 18 / 26 with warnings;
   - a 24 s render with drop1 = 0 and a 3-bar breakdown (2 dark bars and a build).
 
-  The same seed gives bit-identical stems and meta. A render takes about 20 s.
+  The same seed gives bit-identical stems and meta. A render takes about 20 s. `story_grid()` gives the same result or the same `StoryGridError` as `music_cinematic.story_grid()` for the default anchors, 14.04 / 17.97 / 26.02, drop1 = 0 (24 s), a grid offset of 2.00825, end_hit 29.5, drop1 = -0.1, drop2 = breakdown, a NaN anchor and a 6 s duration. `render()` stays bit-identical (sha256 of stems + meta for the three cases above).
 
 ## Music bed — `music_cinematic.py` ("Cinematic hybrid pulse")
 
@@ -228,12 +228,13 @@ st['drums'], st['bass'], st['music'], st['fx']   # same stems contract as render
 m = st['meta']   # render()'s keys (beat_times, downbeat_times, drop_time = drop1, end_hit_time_snapped = end_hit, ...)
 m['section_times']   # {'drop1': 2.0, 'breakdown': 14.0, 'drop2': 18.0, 'end_hit': 26.0, 'duration': 30.0}
 m['sections']        # [{'name': 'intro', 't0': 0.0, 't1': 2.0}, ... grooveA, breakdown, drop2, end]
+m['section_boundaries']   # [0.0, drop1, breakdown, drop2, end_hit, duration] (same key as music_techhouse)
 m['fx_transitions']  # where the fx stem has a riser / reverse cymbal / sub boom, for fx_duck_gain()
 mc.render_story_demo()   # demo/music_cinematic_story30_demo.wav, _spectrogram.png, _waveform.png, _report.json
 # or: python3 -I music_cinematic.py --story   (exit code 1 if any check fails)
 ```
 
-`render()` is unchanged: its output is bit-identical to the version before `render_story()` was added, and `render_demo()` still passes all its checks. Each anchor snaps to the nearest bar line counted from `drop1` (every 2.0 s), with a `warnings.warn` if it moves. Every section keeps at least 1 bar and the tail keeps at least 1 s; a duration under 7 s raises `ValueError`. The arrangement is written as data at the top of the story block: `STORY_PLAN` (one dict per bar with kick pattern, toms, fill, energy, accent and layers, grouped in 4-bar phrases), `BREAKDOWN_*`, `SNARE_*`, `LEAD_MOTIF`, `OST_PATTERNS` and `STORY_AUTO` (filter and level automation as anchor breakpoints). It reuses the module's instruments. Four parts are new: a tuned snare (`_snare`), a sub drone (`_drone_bus`), a counter-melody lead (`_lead_bus`) and a wide octave pad (the `_pad_bus` voicing option). `check_story_score()` runs inside `render_story()` and raises on any violation.
+`render()` is unchanged: its output is bit-identical to the version before `render_story()` was added, and `render_demo()` still passes all its checks. Anchors follow the same policy as `music_techhouse` (`story_anchor_bars()`, `StoryGridError`): snapped to the nearest bar line from `drop1` with a warning, and an error instead of a clamp when a section would be under 1 bar, the tail under 1 s or `drop1` negative. (Before, this module clamped those cases and tech-house raised, so one cue sheet could work with one style and crash the other.) The arrangement is written as data at the top of the story block: `STORY_PLAN` (one dict per bar with kick pattern, toms, fill, energy, accent and layers, grouped in 4-bar phrases), `BREAKDOWN_*`, `SNARE_*`, `LEAD_MOTIF`, `OST_PATTERNS` and `STORY_AUTO` (filter and level automation as anchor breakpoints). It reuses the module's instruments. Four parts are new: a tuned snare (`_snare`), a sub drone (`_drone_bus`), a counter-melody lead (`_lead_bus`) and a wide octave pad (the `_pad_bus` voicing option). `check_story_score()` runs inside `render_story()` and raises on any violation.
 
 | time (default anchors) | harmony | what plays |
 |---|---|---|
@@ -266,140 +267,192 @@ mc.render_story_demo()   # demo/music_cinematic_story30_demo.wav, _spectrogram.p
 - **Stems:** true peak drums -6.5 / bass -11.4 / music -9.7 / fx -13.0 dBTP. |DC| < 2e-6, first and last samples are 0, and L/R correlation matches `render()` (music 0.75, worst 400 ms window 0.50).
 - **Clicks:** none. The discontinuity scan finds 0 events on every stem over the whole 30 s, and the HF-burst scan finds 0 within ±0.3 s of each boundary on music and fx. Round 1 found two small kinks in the bass's un-ducked 16th drives (-46 dBFS steps, from the filter envelope jumping). `render_story` now ramps that envelope in over 3 ms (`_bass_bus(fenv_attack=0.003)`; `render()` keeps 0).
 - **Tail:** the last sample is 0.0 and the last 10 ms is -150 dBFS. The last 0.3 s peaks at -34 LUFS momentary.
-- **Robustness:** these runs render cleanly with all anchors on downbeats: anchors snapped from 13.9 / 18.1 / 26.05, a 1-bar breakdown, drop1 = 0, a whole grid offset to 2.37, a 20 s duration, and an end hit at 29.5 (moved to 28.0 with a warning). Same seed gives bit-identical stems and meta. A render takes about 45 s.
+- **Robustness:** these runs render cleanly with all anchors on downbeats: anchors snapped from 13.9 / 18.1 / 26.05, a 1-bar breakdown, drop1 = 0, a whole grid offset to 2.37 and a 20 s duration. An end hit at 29.5 now raises `StoryGridError` (it used to move to 28.0 with a warning). The story stems are bit-identical to the previous version; only the meta gained `section_boundaries`. Same seed gives bit-identical stems and meta. A render takes about 45 s.
 
 ## Mixer — `mix.py`
 
-`mix.py` is the re-recording mixer. It turns a cue sheet and a silent video into the delivery MP4. It renders the music bed and every SFX, mixes and masters them, and muxes the result without touching the video stream. With `--report` it also writes a QC report. Every step is deterministic: two runs give a bit-identical master, and a run from cached stems matches a fresh render exactly.
+`mix.py` is the re-recording mixer. It turns a cue sheet and a silent video into the delivery MP4. It validates the cue sheet, renders the music bed and every SFX, mixes and masters them, muxes the result without touching the video stream, and then runs the delivery gates and the mix QC checks on every run. With `--report` it also writes the QC files. Every step is deterministic.
 
 ```bash
 python3 -I mix.py --cues ../final/cues.json --video ../final/story-silent.mp4 --music techhouse \
                   --out ../final/story-techhouse.mp4 [--wav mix.wav] [--report <dir>] \
-                  [--seed 1] [--cache-dir <dir>] [--whoosh-sync window|peak]
-# --music cinematic for the other bed; exit code 1 if a --report check fails
+                  [--seed 1] [--cache-dir <dir>] [--whoosh-sync window|peak] [--lenient]
+# --music cinematic for the other bed
 ```
 
+**Exit codes.** 0 = every gate and check passed. 1 = a delivery gate or a QC check failed. 2 = invalid cue sheet or anchors (nothing is written). If a **delivery gate** fails, the MP4 and the `--wav` are **not written** (an older file at that path is left alone). A failed **QC check** keeps the MP4 but still exits 1. The report is written in every case, including a `mix_report.json` with the error for exit 2.
+
 **Options**
-- `--wav` keeps the 48 kHz float32 master.
-- `--cache-dir` stores the rendered stems, keyed by the music module's source and its arguments. Use it while iterating: cinematic takes about 45 s to render, tech-house about 20 s.
-- `--seed` is the music seed (default 1).
-- `--whoosh-sync` sets how whoosh cues are placed; see the sync rules below.
+- `--wav` keeps the 48 kHz float32 master. It is written with `scipy.io.wavfile` (no timestamped PEAK chunk), so two runs give byte-identical WAVs.
+- `--cache-dir` stores the rendered stems, keyed by the music module's source and its arguments. A cached run is bit-identical to a fresh render.
+- `--seed` is the music seed (default 1). `--whoosh-sync` is described under the sync rules.
+- `--lenient` turns dropped cues, invalid optional values and missing anchors into notes (missing anchors fall back to 2 / 14 / 18 / 26). Anchor order, grid and section-length errors stop the run even then.
 
-A full run takes about 50–90 s, including up to four master/encode passes.
+A full run takes about 60–120 s, including up to six master/encode passes.
 
-**Cue sheet.** The cue sheet is a list of `{t, type, ...}` objects; a `{"cues": [...]}` wrapper also works.
-- **Anchors:** `anchor` cues set the music anchors. The note text is matched loosely: `drop1` / `drop 1` / `DROP1`, `breakdown`, `drop2`, `end hit` / `end_hit` / `endhit`. An `end` anchor is checked against the video duration. A missing anchor falls back to 2 / 14 / 18 / 26 with a warning.
-- **Duration:** the video's duration from ffprobe sets the mix length, N = round(D × 48000). `render_story(duration=D, drop1, breakdown, drop2, end_hit, seed)` renders the bed for exactly that length.
-- **Robustness:** unknown cue types are skipped with a note. Out-of-key `pop` offsets are snapped to the nearest F-minor note (ties go up), so the draft's `pop(3)` (B5) becomes `pop(4)` (C6). `sfx.MIN_DUR` clamps and module warnings are collected into the report.
+### Cue sheet and anchors
 
-**Sync rules.** The cue `t` is the time in the sheet. The *target* is where the perceptual hit lands, and the QC measures against it.
+The cue sheet is a list of `{t, type, ...}` objects; a `{"cues": [...]}` wrapper also works.
+- **Time:** `t`, or `time` / `start` as aliases (noted). A missing, non-numeric or non-finite time drops the cue.
+- **Optional fields:** JSON `null` counts as missing. `dur` (0–30), `pitch` (-24–24) and `intensity` (0.2–2) must be finite numbers in range. `size` must be big / medium / small and `direction` lr / rl / up / down. These are checked before anything renders.
+- **Strict by default:** a dropped cue (bad time, no or unknown type), an invalid optional value, an unrecognised anchor note, a missing anchor, or an `end` anchor that differs from the video's duration is an error (exit 2) unless `--lenient`.
+- **Anchor names:** an explicit `anchor` / `name` / `id` / `label` / `key` / `section` field wins (two that disagree are an error). Otherwise the note is searched for anchor keywords, matched as whole tokens (no letter or digit on either side), and the **earliest** keyword wins; at the same position the longer match wins. Accepted forms include `drop1`, `DROP 1`, `drop #2`, `drop-2`, `drop_1`, `drop one`, `1st drop`, `second drop`, `breakdown`, `Break-Down`, `end hit`, `END_HIT`, `endhit`, `final hit`, `end`, `end of video`. So "breakdown (after drop 1)" and "BREAKDOWN - … builds into drop 2" are the breakdown, "drop @ 18" is an unnamed drop (drop1 if it is before the breakdown, else drop2), and "drop18" is not recognised. 29 spellings are covered by a unit check.
+- **Duplicates and order:** the same anchor at two different times is an error (it used to keep the first). Anchors must be strictly increasing.
+- **Grid fit:** the 2 s bar grid is anchored on drop1. Its offset is the **least-squares fit over all four anchors** (each anchor's bar index re drop1, rounded). Every anchor must sit within **one video frame** of the fitted grid; otherwise the error names the anchors that are off the grid the other anchors agree on (a median fit, so one bad anchor is not smeared over all four). Each section must be at least 1 bar and the end hit must leave at least 1 s of tail. The music renders on the fitted grid, so the music modules never snap or warn.
+- **Cues on an anchor move with it:** an SFX cue authored within 1 ms of an anchor's cue time (the hero slam, the stacked slash and shimmer) is moved onto the music's section time. A riser or reverse swell whose end is within a frame of a hit anchor's cue or music time ends exactly on the music hit. Hero, stack and section decisions all use the music's `meta['section_times']`. On the audit's variant v6 (drop 2 at 18.033), the grid offset is 2.00825 s, the residuals are +8.25 / +8.25 / -24.75 / +8.25 ms, and the hero slam and slash land 0.0 ms from the music's kick (no flam). Before, the kick and boom were 33 ms ahead of the slam.
+- **Skipped cues (note, not an error):** a cue whose array has no sample inside the video, or whose sync point is not in `0 <= target < duration - 0.3 s` (before the final fade to silence), for example a pop at exactly 30.0, a riser ending at 30.0, or a slam at 29.9.
+
+### Sync rules
+
+The cue `t` is the time in the sheet. The *target* is where the perceptual hit lands, and the QC measures against it.
 
 | type | placement | measured in the SFX bus as |
 |---|---|---|
 | impact, reject, pop, tick, check, downlifter | onset at `t` (`anchor` = 0) | first crossing of -20 dB re max, 1 ms envelope |
 | slash | the cut (`anchor('slash')` = 0.065 s) at `t` | 20 ms-envelope peak |
 | scrub, shimmer | array starts at `t`, length `dur` | first crossing of -30 dB re max, 5 ms envelope |
-| riser, reverse_swell | `t` is the start; the array **ends on the hit at `t + dur`** (notes: "Hit = 2.0", "ahead of the END HIT") | last sample above -20 dB re max |
+| riser, reverse_swell | `t` is the start; the array **ends on the hit at `t + dur`**. With no `dur`: the note's "Hit = 18.0", else the next hit anchor within 4 s, else the next downbeat (noted). On a hero hit the array is gated 45 ms early (the breath, below). | last sample above -20 dB re max, + the 45 ms breath |
 | whoosh (`window`, default) | `(t, dur)` is the on-screen motion window, and the array spans it | centre of the -3 dB region of the 20 ms envelope |
 | whoosh (`--whoosh-sync peak`) | envelope peak on `t` (start = `t - sfx.anchor('whoosh', …)`) | same |
 
-Why whooshes use the window: the storyboard and the notes give whooshes as motion windows ("5.75-6.25 WHIP-PAN LEFT", "17.7-18.3 brand-slash band ... crossing the frame centre exactly on 18.0"). The whoosh is rendered at exactly `dur`, so its natural peak (0.55–0.68 × dur) lands on the fastest point of the motion: 18.03 s for the brand slash. Putting the *peak* on `t` instead would end the whoosh before the band crosses.
+An impact with no `size` is `big` when it sits on a hit anchor (noted) and `medium` elsewhere. Whooshes use the window because the storyboard gives them as motion windows ("17.7-18.3 brand-slash band ... crossing the frame centre exactly on 18.0"); the whoosh's natural peak (0.55–0.68 × dur) then lands on the fastest point of the motion. The peak is the centre of the -3 dB region, not the argmax, because `sfx.anchor()` returns the trailing edge of a ~50 ms plateau that bus processing can move.
 
-The peak is measured as the centre of the -3 dB region, not the argmax. A 0.5 s whoosh stays within 1 dB of its maximum for about 50 ms, and `sfx.anchor()` returns the argmax at the trailing edge of that plateau. The glue compressor's 1–2 dB under a coincident slam moved that argmax 36 ms in round 1. The -3 dB centre is 0–19 ms earlier than `anchor()` and stable.
+### Gain staging (SFX)
 
-**Gain staging (SFX).** Each SFX starts at `sfx.SUGGESTED_GAIN_DB`, and these changes are applied on top (all data at the top of `mix.py`):
-- **Hero slams:** the big impact on drop1, drop2 and end_hit goes through `over_music_hit()` and gets **+2.5 dB** (`HERO_SLAM_DB`). That gives back the 2.5 LU full-band loss of the 90 Hz high-pass, so these three are the loudest SFX both full-band and on the HP150 phone model.
-- **Other impacts:** a big slam off the anchors (EDITOR at 2.5) stays at 0 dB. Any impact whose music low end is within 12 dB of the kick level also uses `over_music_hit()`; this is measured on drums + bass + fx below 150 Hz, from 5 ms before the hit to 60 ms after it. On this draft that is every impact. A slam in a low-end gap would keep its F1 sub.
-- **Type trims** (`TYPE_TRIM_DB`): pop -2, check -2.5, reject -1.5, shimmer -2 dB. UI pops sit 0.5–4.5 dB under the bed's momentary level. The breakdown stamps sit over the sparse breakdown bed (rejects +7.7 to +11.1 dB, check +8.4 to +8.7 dB) but about 3 dB under the hero slams.
-- **Length compensation:** `SUGGESTED_GAIN_DB` was measured on one reference length. A longer, louder render is pulled down to its `ROLE_LUFS_M` target, by at most 3 dB, and never boosted; for example `riser(2.0)` gets -1.3 dB.
-- **Stacking:** a slash, whoosh, shimmer, pop, tick or check whose sync point is within 60 ms of a hero slam gets -3 dB; on this draft that is the 18.0 slash, the 17.75 whoosh and the 26.0 shimmer.
-- **Light cues:** a cue whose note starts with "(light)" gets -3 dB and whoosh intensity 0.7.
+Each SFX starts at `sfx.SUGGESTED_GAIN_DB`; these offsets are data at the top of `mix.py`.
+- **Hero slams:** the big impact on drop1, drop2 and end_hit goes through `over_music_hit()` and gets **+2.5 dB** (`HERO_SLAM_DB`). The end hit gets **+2 dB more** (`END_HIT_SLAM_DB`) with the music's low band ducked 3 dB under it (`END_HIT_LO_DUCK_DB`), because it was the weakest hero on a phone.
+- **Hierarchy cap:** every non-hero SFX is capped `HIERARCHY_MARGIN_DB` = 1 dB under the quietest hero slam, in max momentary loudness full band and on HP150. Unmasking boosts are capped the same way, measured in the processed bus like the QC check. An off-anchor big slam that keeps its sub (variant v4: slam at 0.0) therefore no longer outranks the heroes.
+- **Section trims** (`SECTION_TRIM_DB`, by the section of the sync point; risers and reverse swells by their start): intro **-6 dB** for every non-hero cue except the hook slash, which gets **-5 dB**; breakdown **reject -4 dB, check -5 dB**. The last second before the end hit gets **-2.5 dB** (`PRE_END_HIT`: the VIDEO / EDITOR slams, pops and the reverse swell).
+- **Type trims** (`TYPE_TRIM_DB`): pop -2, check -2.5, reject -1.5, shimmer -2, **scrub +5 dB**.
+- **Crash tail:** a shimmer starting 60–300 ms after a hero hit gets +3 dB (`CRASH_TAIL`; the end card's glint at 26.1).
+- **Stacking:** a slash, whoosh, shimmer, pop, tick or check whose sync point is within 60 ms of a hero hit gets -3 dB.
+- **Length compensation:** a longer, louder render of a variable-length sound is pulled down to its `ROLE_LUFS_M` target (at most 3 dB, never boosted).
+- **Light cues:** a note starting with "(light)" gets -3 dB and whoosh intensity 0.7.
 
-**Signal flow.**
-1. **Music bus.** The four stems are summed. The `fx` stem is first ducked with `sfx.fx_duck_gain()` (-6 dB, README spans) wherever an SFX riser, reverse_swell or downlifter overlaps a matching transition in `meta['fx_transitions']`, so each transition has one source.
-   - On the draft that means the SFX riser at 1.0–2.0 over the music riser (and, in cinematic, its reverse cymbal), and the riser at 16–18 over the music riser and reverse cymbal.
-   - In the final cues it also covers the reverse_swell at 25.5–26.0 over the music's reverse cymbal.
-   - The breakdown downlifter has no music twin, so nothing is ducked there.
+### Signal flow
 
-   The bus is set to -20 LUFS integrated, so both styles sit at the same balance against the SFX. Then a **two-band sidechain duck** runs on a zero-phase, exactly complementary split at 150 Hz, keyed by the impacts, rejects and the check.
-   - Attack: 6–8 ms of look-ahead, so the music is fully ducked when the transient lands.
-   - Hold: 30–60 ms. Release: 150–250 ms. Ramps are raised-cosine in dB, and overlapping keys take the deeper value.
+1. **Music bus.**
+   - **One source per transition.** An SFX riser or reverse swell that duplicates a music fx transition into **drop 1** is replaced by the music's own build (`MUSIC_OWNS_TRANSITIONS`, listed in the report as `replaced_by_music`). The music already builds there, and the SFX riser(1.0) on top filled the intro to groove-A level on a phone. Elsewhere the music `fx` stem is ducked -6 dB under the duplicating SFX with `sfx.fx_duck_gain()` (the riser at 16–18 s, the final sheet's reverse swell at 25.5–26.0).
+   - **Level:** the summed stems are set to -20 LUFS integrated, then the section gains (`MUSIC_SECTION_DB`) are applied: **-1.5 dB over the intro after the hook** (100 ms raised-cosine ramp at 0.45–0.55 s, under the slash) and **+1 dB over drop 2**. Each drop-2 ramp is 40 ms long and sits inside the music's breath before the downbeat, where the bed is silent.
+   - **Sidechain duck:** two bands, split at 150 Hz with a zero-phase, exactly complementary crossover, keyed by the SFX. Attack 6–30 ms, hold, release 100–250 ms, raised-cosine ramps in dB, and the deeper key wins.
 
-   | key | high band (>150 Hz) | low band on a music hit / otherwise |
-   |---|---|---|
-   | big impact | 4.5 dB | 1.5 / 5 dB |
-   | medium impact | 4 dB | 1 / 4 dB |
-   | small impact | 3 dB | 0.5 / 3 dB |
-   | reject | 4 dB | 4 dB |
-   | check | 2 dB | 0 dB |
-
-   On a music hit the low band is barely ducked, so the music's kick and F1 boom keep the low end that `over_music_hit()` handed them.
+     | key | high band (>150 Hz) | low band on a music hit / otherwise |
+     |---|---|---|
+     | big impact | 4.5 dB | 1.5 dB (end hit 3 dB) / 5 dB |
+     | medium / small impact | 4 / 3 dB | 1 / 4 dB, 0.5 / 3 dB |
+     | reject | 4 dB | 4 dB |
+     | check | 2 dB | 0 dB |
+     | scrub / shimmer (whole span) | 2.5 / 2 dB | 0 dB |
+   - **Unmasking** (`UNMASK`): any non-hero cue whose own energy in its dominant octave is less than 3.5 dB over the music gets an octave-band duck of the music over its window. The duck subtracts (1 − g) × the zero-phase band-passed music, so the music is bit-exact wherever g = 1. It goes up to 6 dB, and only then is the cue raised, by up to 6 dB and never past the hierarchy cap. There are up to three re-measurements. On the draft this touches the read-along ticks in drop 2, the 13.75 downlifter, the 23.75 whoosh and the stacked 26.0 shimmer.
 2. **SFX bus.**
-   - **Shared room:** a short convolution room with a synthetic IR from `sfx._make_ir` (RT 0.55 s, 12 ms predelay, return high-passed at 300 Hz and low-passed at 7 kHz, -4 dB). Sends: tick 0.35, pop 0.30, scrub 0.25, check / slash 0.20, reject 0.18, downlifter 0.15, whoosh / impact 0.12, shimmer 0.10. Risers and reverse swells get no send, so their ends stay sharp.
-   - **Glue compression:** detector high-passed at 80 Hz, 10 ms RMS, threshold 6 dB under the bus's loudest moment, 1.5:1, 4 dB knee, 10 / 150 ms; at most 1.4 dB on the slams.
-   - **Transient soft clip:** 4× oversampled, tanh above 0.6 of a ceiling set 1 dB above the level the master make-up will put at -1.5 dBTP. It rounds only the first-cycle peaks of the slams (about 0.12 s of samples in total, residual about -20 dB over the first 80 ms of a hero slam) and takes 4 dB off the bus true peak. Without it the master limiter needed 6.5 dB of gain reduction and pulled the music down with every slam. With it, master gain reduction is at most 4.4 dB, and over 3 dB for 0.09–0.16 s in total.
+   - **Room:** a shared short convolution room (synthetic IR from `sfx._make_ir`, RT 0.55 s, return high-passed at 300 Hz and low-passed at 7 kHz, -4 dB). Risers and reverse swells get no send.
+   - **The breath** (`HIT_BREATH`): everything except the hero slams, room tails included, is **gated shut 45 ms before drop 1, drop 2 and the end hit**. The gate is an 8 ms raised-cosine fade-out ending at hit − 45 ms, stays closed until the hit sample, and reopens over 3 ms under the slam's click. This matches the music's own breath (tech-house 50 ms, cinematic one 16th), so each slam lands out of silence instead of on top of the riser and whoosh.
+   - **Glue and peaks:** glue compression (detector HP80, threshold 6 dB under the bus's loudest moment, 1.5:1), then the 4×-oversampled transient soft clip on the slam peaks.
 3. **Master.**
-   - **EQ:** high-pass 25 Hz, -1 dB at 280 Hz (Q 0.9), +1 dB high shelf at 9 kHz.
-   - **Bus compressor:** detector high-passed at 150 Hz (as the music README asks), threshold +3 dB re the detector's loudness, 1.5:1, 20 / 200 ms; at most 1.6–1.8 dB.
-   - **Loudness:** gain to -14 LUFS integrated (BS.1770-4, iterated through the limiter).
-   - **Limiter:** look-ahead true-peak limiter, 4× oversampled, 5 ms look-ahead, 80 ms release, -1.5 dBTP.
-   - **Edges:** 2 ms fade-in (a click guard only; the hook plays from frame 0), then a 0.3 s raised-cosine fade to exact digital zero at the video end, and windowed DC removal.
-4. **Mux.** `ffmpeg -i video -i mix.wav -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -profile:a aac_low -b:a 256k -ar 48000 -ac 2 -map_metadata 0 -movflags +faststart`. There is no `-shortest`: the WAV is exactly N samples, and the MP4 edit list trims the AAC priming and padding to 30.000 s.
-5. **AAC true-peak loop.** The MP4's audio is decoded and measured with an 8× true peak. AAC overshoots the PCM by 0.1–1.0 dB here; the worst case is the tech-house end hit at 26.0 s, -1.46 dBTP in the PCM but -0.51 dBTP after the encode.
-   - If the decoded peak is above -1.15 dBTP, the limiter ceiling is lowered **only around the overshooting spots**, by each spot's excess + 0.05 dB, ±60 ms with 20 ms ramps, and the master is redone.
-   - After two local rounds the drop becomes global, because AAC rate control is global and a local fix can move an overshoot elsewhere. Up to five passes are allowed.
-   - On the draft, tech-house needed one extra pass (-0.67 dB at 26.0 s). Cinematic needed two (0.5 / 6.5 / 18.0 / 24.5 s), and its lowest local ceiling is -1.95 dBTP.
-   - On the final cue sheet, cinematic needed the global step (-0.16 dB).
+   - **Chain:** EQ (HP 25 Hz, -1 dB at 280 Hz, +1 dB shelf at 9 kHz), then a bus compressor (detector HP150, threshold +3 dB re loudness, 1.5:1), then make-up to -14 LUFS (iterated through the limiter on the first pass), then a 4× true-peak look-ahead limiter at -1.5 dBTP, then a 2 ms fade-in and a 0.3 s raised-cosine fade to exact zero, then DC removal.
+   - **Limiter guards:** the ceiling is 2 dB lower over the first 2048 samples (`AAC_START_GUARD`; AAC has no look-back there) and 0.5 dB lower from 5 ms before to 40 ms after each hero hit (`AAC_HIT_GUARD`; silence-to-slam is the transient AAC overshoots most).
+4. **Mux:** `ffmpeg -i video -i mix.wav -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -profile:a aac_low -ar 48000 -ac 2 -b:a <N>k -map_metadata 0 -movflags +faststart`, with no `-shortest`.
+   - **Rate:** ffmpeg's native AAC encoder overshoots its nominal rate by 5–6 % (256k measured 269.7–271.5 kb/s). So each run encodes once at 256k, measures, and re-aims at 256k × 256k / measured × 0.99 (238–241k). The stream then measures **251.4–253.3 kb/s**, and the gate wants 243.2–256 kb/s.
+   - **Length:** ffmpeg's decoder returns 1,440,768 samples (30.016 s; the extra 768 are -141 dBFS AAC padding). The edit list and ffprobe give exactly 30.000 s for every stream, so no action is needed.
+5. **AAC true-peak loop.** The MP4's audio is decoded and measured 8× oversampled; it must be ≤ -1.15 dBTP (the spec's -1.0 minus a margin).
+   - **Fixes:** the limiter ceiling is lowered only around the overshooting spots (each by its excess + 0.05 dB, ±60 ms, 20 ms ramps). The **make-up gain of the first pass is reused** in later passes, so a local dip changes only nearby samples and the encode elsewhere stays put. Before this change, a re-normalisation moved every sample, the overshoot jumped elsewhere (once +0.47 dBTP at 26.01 s) and runs needed up to 6 passes plus a 1.7 dB global cut.
+   - **Passes:** up to 6. The next-to-last pass may drop the ceiling globally. If the last pass is still over the limit, the true-peak gate fails and nothing is written.
+   - **Measured:** the draft and final sheets need 2–4 passes, and the decoded result is -1.17 to -1.33 dBTP.
 
-**Report (`--report <dir>`).**
+### Gates and checks (always run)
+
+**Delivery gates** (a failure blocks the MP4):
+- integrated -14 ± 0.5 LUFS (WAV and MP4)
+- true peak ≤ -1.0 dBTP (ebur128 and 8×, WAV and decoded MP4; AAC loop converged)
+- LRA ≤ 8 LU
+- no samples ≥ -0.01 dBFS, |DC| < 1e-4
+- audible from frame 0 (RMS > -45 dBFS, momentary > -40 LUFS)
+- last sample 0 with a falling fade
+- video stream bit-identical (md5 + ffprobe fields)
+- container, video and audio durations = the input ± 1 ms
+- AAC-LC 48 kHz stereo at 243–256 kb/s
+- `moov` before `mdat`
+- decoded audio lag 0 samples
+- every anchor's music downbeat within one frame of its cue, with the kick onset on it
+
+**Mix QC checks** (a failure exits 1):
+- every SFX within ±1 frame of its target
+- a hero slam on every hit anchor, within 2 ms of the music hit (it used to be skipped silently when a hero was missing)
+- hero slams the loudest SFX, full band and on HP150
+- every hero hit rises **≥ 10 dB** (master RMS 0–30 ms after vs 40–5 ms before)
+- master **drop 2 − groove A ≥ +1 LU**, full band and HP150
+- master **intro and breakdown dark bar ≥ 2 LU under groove A** on HP150
+- every non-hero cue **≥ +3 dB over the music in its dominant octave**. This is computed on the buses that feed the master: the master's EQ is the same for both and its compressor and limiter apply one gain to their sum, so the ratio equals the master's.
+
+**Report files (`--report <dir>`)**
 
 | file | contents |
 |---|---|
-| `cue_alignment.csv` | One row per SFX cue: cue `t`, type, parameters, sync rule, array start and end, target, detector, the time detected in the SFX bus (this cue's own contribution after the room, glue and soft clip), error in ms, PASS/FAIL at ±1 frame. Also the error against the raw cue `t`, the README `anchor()` time for whooshes, an onset found in the *summed* SFX bus for transient cues (time, error, rise in dB), gain, send and every processing decision. |
-| `anchor_alignment.csv` | Each anchor against `meta['section_times']` and `downbeat_times`, plus the broadband kick onset in the drums stem. |
-| `loudness.txt` | ffmpeg ebur128 of the master WAV, of the master through the phone model (4th-order 150 Hz high-pass) and of the MP4. The phone model's true peak is not a delivery figure, because a high-pass raises peaks. Also astats, the master-chain settings and gain-reduction figures, the master passes, per-section loudness (full band and HP150, with the breakdown split into its dark and build bars), each SFX's max momentary loudness against the ducked music, the loudest-SFX ranking and every check. |
-| `master_spectrogram.png`, `master_waveform.png` | An own STFT on a log-frequency axis from 30 Hz to 20 kHz. The waveform view adds the SFX-bus RMS and the momentary and short-term loudness curves. Both mark the anchors (dashed), each SFX's sync point and its array span (PIL). |
-| `ffprobe_output.json`, `video_md5.txt` | ffprobe of the output, and the input and output video-stream md5 (`ffmpeg -map 0:v -c copy -f md5 -`). |
-| `mix_report.json` | Every check, the settings, the notes and the sha256 of the master samples. |
+| `cue_alignment.csv` | one row per SFX: sync rule, array span, target, breath, expected detection time, detected time, error, PASS/FAIL, bus onset, gain and every processing decision (trims, moves onto the grid, unmasking) |
+| `anchor_alignment.csv` | each anchor: how it was named, cue time, music time and offset, downbeat, kick onset, hero slam offset |
+| `masking.csv` | each non-hero cue: window, dominant octave and its SFX-over-music ratio, best octave, broadband ratio, unmasking applied |
+| `loudness.txt` | ebur128 (WAV, HP150 phone model, MP4), astats, the master chain and passes, AAC rate calibration, per-section loudness and contrasts, hero hits (rise, HP150 momentary, over the bed, limiter GR), SFX levels, masking, every gate and check, notes |
+| `master_spectrogram.png`, `master_waveform.png` | log-frequency STFT; waveform with SFX-bus RMS and momentary / short-term loudness; anchors (music times), SFX sync points and spans |
+| `ffprobe_output.json`, `video_md5.txt`, `mix_report.json` | probe, video md5s, every gate and check, settings, `replaced_by_music`, notes, master sha256 |
 
-The checks are:
-- every SFX within ±1 frame (33.3 ms)
-- anchors on music downbeats, with kick onsets within one frame
-- -14 ± 0.5 LUFS (WAV and MP4)
-- true peak ≤ -1.0 dBTP (ebur128 and 8×, WAV and decoded MP4)
-- LRA ≤ 8 LU
-- no samples at or above -0.01 dBFS, |DC| < 1e-4
-- audible from frame 0 (frame-0 RMS > -45 dBFS)
-- last sample 0 with a falling fade
-- the hero slams are the loudest SFX, full band and on HP150
-- the video stream is bit-identical
-- container, video and audio durations equal the input to within 1 ms
-- AAC-LC 48 kHz stereo, about 256 kb/s
-- `moov` before `mdat` (faststart)
-- decoded MP4 audio lags the master WAV by 0 samples
+**Determinism.** The determinism key is the **sha256 of the master's float32 samples** (printed and in `mix_report.json`). Equal samples now also give byte-identical `--wav` files and byte-identical MP4s:
+- the draft re-run with the final code matches `test/` byte for byte;
+- five variants whose cue sheets differ only in anchor spelling or null fields give the same master, WAV md5 and MP4 md5;
+- fresh renders equal cached-stem renders;
+- in-process runs equal the CLI.
 
-**Verified on the draft** (`drafts/story30-cues.json` + `drafts/story30.mp4`, 39 SFX cues, no cache). The outputs are `test/story30-draft-techhouse.mp4` and `test/story30-draft-cinematic.mp4`, each with a `-report/` directory. All 14 checks pass for both styles. ffmpeg was re-run on the MP4s outside `mix.py` and confirmed the figures.
+### Verified
 
-| | tech-house | cinematic |
+**Draft** (`drafts/story30-cues.json` + `drafts/story30.mp4`, fresh renders, outputs in `test/`): all 12 gates and 7 checks pass for both styles. The final sheet (`final/cues.json` + `final/story-silent.mp4`, 57 SFX cues) passes everything too.
+
+| | draft tech-house | draft cinematic | final tech-house | final cinematic |
+|---|---|---|---|---|
+| MP4 I / LRA / TP (ebur128) | -14.1 / 4.1 / -1.3 | -14.1 / 4.4 / -1.2 | -14.1 / 3.6 / -1.3 | -14.1 / 4.4 / -1.3 |
+| master TP 8× / decoded 8× (passes) | -1.44 / -1.30 (3) | -1.48 / -1.17 (2) | -1.44 / -1.22 (3) | -1.48 / -1.33 (4) |
+| AAC kb/s (nominal) | 252.4 (240k) | 251.9 (239k) | 251.4 (240k) | 253.3 (239k) |
+| frame 0 RMS / 0–400 ms momentary | -23.6 dBFS / -20.0 LUFS | -20.5 / -18.7 | -23.8 / -20.2 | -20.6 / -18.8 |
+| SFX sync, max \|error\| | 11.9 ms (38 cues) | 12.5 ms (38) | 15.9 ms (57) | 15.9 ms (57) |
+| drop 2 − groove A, full / HP150 | +1.55 / +1.82 | +1.83 / +1.77 | +1.43 / +1.71 | +1.78 / +1.73 |
+| same, like for like (18–24 vs 10–14) | +1.22 / +1.32 | +1.54 / +1.57 | +1.29 / +1.34 | +1.69 / +1.61 |
+| intro − groove A, HP150 | -3.26 | -2.75 | -2.82 | -2.31 |
+| dark bar − groove A, HP150 | -4.13 | -3.60 | -4.33 | -3.87 |
+| hero hit rise 2 / 18 / 26 s (dB) | +23.6 / +23.5 / +27.7 | +19.3 / +17.3 / +14.7 | +23.8 / +24.0 / +31.0 | +19.4 / +17.8 / +16.5 |
+| hero HP150 M max 2 / 18 / 26 (LUFS) | -13.4 / -11.8 / -12.2 | -13.9 / -11.9 / -12.1 | -13.5 / -11.8 / **-11.2** | -13.9 / -11.9 / **-11.7** |
+| worst cue, dominant octave | tick@20.5 +3.5 dB | tick@20.5 +3.5 | tick@12.5 +3.5 | tick@13.5 +3.4 |
+| limiter max GR / time > 3 dB | 5.7 dB / 0.20 s | 5.4 / 0.23 | 5.3 / 0.21 | 5.2 / 0.26 |
+
+**Audit findings, before → after** (measured on the masters; "analyzer" = the audit's own `audit30/scripts/analyze.py` re-run on the new masters and MP4s):
+
+| finding | before | after |
 |---|---|---|
-| SFX alignment, max \|error\| (39 cues) | 12.5 ms (whoosh up, room tail); onsets 0.2–1.9 ms | 12.5 ms; onsets 0.2–1.9 ms |
-| anchors 2 / 14 / 18 / 26: music section time, kick onset | exact, downbeats; +1.2 to +1.4 ms | exact, downbeats; +0.6 to +0.8 ms |
-| MP4 (ebur128): I / LRA / TP | -14.1 LUFS / 2.7 LU / -1.3 dBTP (8× decoded -1.34) | -14.1 LUFS / 3.0 LU / -1.2 dBTP (8× decoded -1.24) |
-| master WAV: I / TP 8× / sample peak / \|DC\| | -14.01 LUFS / -1.46 dBTP / -1.51 dBFS / 2e-12 | -14.02 / -1.48 / -1.51 / 2e-12 |
-| phone model (HP150) integrated | -15.5 LUFS | -16.4 LUFS |
-| frame 0 RMS / momentary 0–400 ms | -26.7 dBFS / -23.1 LUFS | -20.6 dBFS / -18.8 LUFS |
-| last 0.3 s (thirds, RMS) / last 10 ms / last sample | -31 / -40 / -63 dBFS / -144 dBFS / 0 | -36 / -45 / -67 / -151 / 0 |
-| loudest SFX, LUFS-M full / HP150 | hero slams -10.1 to -10.3 / -11.0 to -11.2; next is impact@2.5 -11.9 / -12.8 | -9.9 to -10.1 / -10.9 to -11.0; next is impact@2.5 -11.8 / -12.7 |
-| sections, full / HP150 LUFS: intro, groove A, dark bar, build bar, drop 2, end | -15.8/-15.8, -14.0/-15.8, -14.9/-16.7, -16.6/-17.0, -13.0/-14.4, -17.0/-18.5 | -15.0/-16.2, -14.3/-16.9, -14.7/-16.9, -16.9/-17.8, -13.1/-15.6, -16.5/-21.0 |
-| video md5 in = out | 584f3f16…c89c72b | same |
-| container / video / audio duration | 30.000 / 30.000 / 30.000 s, 1,440,000 samples | same |
+| anchor parsing | v2 "BREAKDOWN … builds into drop 2" read as drop2 → tech-house crash, cinematic drop 2 at 16.0 | v1 / v2 bit-identical to the baseline in both styles; duplicates, disorder, off-grid > 1 frame → exit 2 with a named error |
+| gates without `--report` | exit 0 on misaligned anchors / unconverged AAC | gates always run; a failure writes nothing and exits 1 |
+| v6 drop 2 one frame late | kick 33 ms before the slam (flam) | least-squares grid; slam and slash moved onto the music; slam − music 0.0 ms |
+| v4b pop at 30.0 | crash in `report()` after the MP4 was written | skipped with a note; empty segments guarded; passes |
+| v3 missing optional fields | hero slams became medium, hero check vanished, reverse_swell@25.5 ended at 26.3 | heroes big (noted), hero check fails if one is missing, reverse swell ends on 26.0 with its breath |
+| drop 2 − groove A (master) | +0.99…+1.20 full, like for like +0.60 / +0.75 | +1.43…+1.83 full / +1.71…+1.82 HP150; like for like +1.22…+1.69 |
+| hit rise over the 40 ms before | 2.0 s: +5.8…7.2 dB; 18.0 s: +3.4…4.2 dB | +17.3…+24.0 dB at 2 / 18 s, +14.7…+31.0 at 26 s; music-only control +10.4…+23 |
+| intro − groove A, HP150 | +0.02 / +0.69 / +0.59 / +1.22 | -3.26 / -2.75 / -2.82 / -2.31 |
+| dark bar (HP150 / momentary median, analyzer) | -0.2…-1.1 LU; median -14.4…-14.8 LUFS ≥ groove A | -3.6…-4.3 LU; median -17.4…-17.7 vs groove A -14.4…-14.8 |
+| rejects / check over the dark bed | +10…+15 dB | rejects +6.2…+9.1 dB on HP150 (analyzer, 400 ms) |
+| end hit on a phone (final) | -11.2 / -11.3 vs drop 2 -10.7 / -10.9 | -11.2 / -11.7 vs drop 2 -11.8 / -11.9 (the end hit is the loudest hero) |
+| scrub@9.5 / scrub@24.5 vs music (analyzer, broadband) | -10.3…-11.1 / -11.3…-11.7 dB (best octave +3.1 / 0.0) | -5.1…-5.7 / -6.6…-7.3 dB; dominant octave +5.8…+12.6 / +3.9…+9.0 dB |
+| shimmer@26.1 (final) | -7.9 / -8.4 dB under the crash, onset +33 / +16 ms | -5.2 / -5.9 dB broadband, +5.5 / +8.0 dB in its dominant octave; isolated onset +8.6 ms; analyzer onset +35 / +15 ms (a soft bell attack in the crash; the audit noted master onset matching is not discriminative here) |
+| null pitch / intensity, `time` key, NaN t, no anchors | TypeError, silent drop, crash, silent defaults | defaults (null = missing), alias noted, NaN → error, no anchors → exit 2 (`--lenient`: defaults, noted) |
+| v4 slam at 0.0 | decoded +1.59 dBTP, 5 passes, master -2.30 dBTP | start guard + local fix: 2 passes, master -1.44, decoded -1.29 dBTP; the off-anchor slam no longer outranks the heroes |
+| AAC bitrate | 269.7–271.2 kb/s | 251.4–253.3 kb/s (calibrated nominal) |
+| `--wav` md5 between runs | differed (PEAK chunk timestamp) | identical; sha256 of samples documented as the key |
+| tech-house frame 0 | -26.7 dBFS / -23.1 LUFS | -23.6 / -20.0 (module hook lift) |
+| music API | tech-house raised where cinematic clamped; no `section_boundaries` in cinematic | one policy (`StoryGridError`) in both; `section_boundaries` in both |
 
-Drop 2 sits +1.0 / +1.3 LU (tech-house, full / HP150) and +1.2 / +1.2 LU (cinematic) over groove A. The breakdown bed drops out under the stamps: momentary loudness falls to about -20 LUFS between the stamps, which land at -13.3 LUFS-M. The dark bar's gated level is close to groove A only because of the stamps.
+**Variants** (`audit30/variants`, all re-run):
+- **Pass:** v1 spellings, v2 descriptive (both styles), v4b, v5 and v5b pass. Their masters are identical to the baseline.
+- **v3 missing optional fields:** passes; every default is noted.
+- **v4 edges:** passes. The riser ending at 30.0, the whoosh past 30.0, and the slam at 29.9 and tick at 29.95 inside the fade are skipped with notes.
+- **v6 off-grid drop 2:** passes in both styles.
+- **v7 no anchors:** exit 2; with `--lenient` it passes using the defaults.
+- **Synthetic error sheets:** out-of-order, duplicate, off-grid, unknown-type, bad-dur, NaN-t, end-hit-29.5, end-anchor-29.0 and 1-bar-breakdown sheets, plus bad size / direction / intensity / pitch values, all exit 2 before rendering with a message naming the cue or anchor.
 
-Further checks on the master WAVs, using the audit's `hf_spikes`:
-- **Clicks:** 131 HF bursts (tech-house) and 984 (cinematic, ticks and hats). Every one is also present in the raw stem sum or the SFX bus, so mixing added **none**.
-- **Mono:** L/R correlation 0.91, and the mono fold-down loses 0.21 dB.
-- **Spectrum:** 2–5 kHz holds 2.4 % (tech-house) and 1.8 % (cinematic) of the energy, so there is no pile-up.
-- **Final cues:** the run also passes on `final/cues.json` + `final/story-silent.mp4` (58 SFX cues, including reverse_swell, 0.1 s whooshes and a "(light)" whoosh, max error 12.5 ms), with `--whoosh-sync peak`, and with cached stems.
+**Independent re-check (audit's analyzer).** Its 2nd-difference click scan finds no unexplained events in any of the four masters. The HF-burst scan's master-only hits on the final cinematic (14.0–15.5 s, every 8th) are the breakdown clock ticks, the same list as in the audit's own run. Its broadband masking list (< -6 dB) still names some ticks, whooshes and the reverse swell (in the 45 ms breath). All of them are ≥ +3.4 dB in their dominant octave, the criterion the audit asked for.
 
-**For the final mix:** run the command above with `--music techhouse` or `--music cinematic` and `--report`. Cue times can move: everything is re-derived from the sheet. Anchors that move off the 2 s bar grid are snapped by the music module with a warning. If that happens, `anchor_alignment.csv` shows the offset between the cue and the music.
+**For the final mix:** run the command above with `--music techhouse` or `--music cinematic` and `--report`. If the delivery sheet's anchors move by up to a frame, the grid is refitted and the anchor cues move with the music. A larger move is reported as an error rather than a silently shifted drop.

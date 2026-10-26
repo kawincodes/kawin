@@ -1,0 +1,5 @@
+anchor,how,cue_t,music_section_t,music_vs_cue_ms,is_music_downbeat,drums_onset_t,drums_onset_vs_music_ms,hero_slam_t,hero_slam_vs_music_ms
+drop1,note,2.0000,2.0000,+0.00,True,2.0013,+1.33,2.0000,+0.00
+breakdown,note,14.0000,14.0000,+0.00,True,14.0012,+1.23,,
+drop2,note,18.0000,18.0000,+0.00,True,18.0013,+1.27,18.0000,+0.00
+end_hit,note,26.0000,26.0000,+0.00,True,26.0014,+1.37,26.0000,+0.00

@@ -21,7 +21,9 @@ API
     render_story(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=26.0, seed=1)
                             -> same stems + meta; intro / groove A / breakdown / drop 2 / end hit + held tail
                                (meta adds drop1, breakdown, drop2, end_hit, sections, section_boundaries,
-                               fx_transitions); arrangement data in STORY_SECTIONS / STORY_BREAKDOWN / STORY_LEAD
+                               fx_transitions); arrangement data in STORY_SECTIONS / STORY_BREAKDOWN / STORY_LEAD;
+                               anchors off the bar grid snap with a warning, impossible ones raise StoryGridError
+                               (story_anchor_bars(), the same policy as music_cinematic)
     render_story_demo()     -> demo/music_techhouse_story30_demo.wav + _spectrogram.png + _report.json
 
 Run:  python3 -I music_techhouse.py               (renders the demo + report)
@@ -1117,6 +1119,7 @@ def _render_events(events, N, seed, rng, auto, _parts=None):
         pad_gain    optional f(tl) -> extra pad gain (render_story only)
         smooth_dynamics optional bool -> C1-smooth bass compressor + bass/arp limiters (render_story only)
         final_pad_amp optional f(t since hit, q = t / (tail - tail_fade)) -> final pad envelope (render_story)
+        out_gain    optional f(t) -> gain on all four stems over video time t (render_story intro lift)
     Story-only instruments (clock, lead, chord, pulse bass) are rendered only when such events exist, so
     render() output is bit-identical to the pre-refactor module.  Returns (stems, common scale)."""
     n_tot = int(PRE * SR) + N + int(0.5 * SR)
@@ -1312,6 +1315,8 @@ def _render_events(events, N, seed, rng, auto, _parts=None):
     out_env = np.ones(N)
     out_env[:int(0.005 * SR)] = 0.5 - 0.5 * np.cos(np.pi * np.arange(int(0.005 * SR)) / int(0.005 * SR))
     out_env[N - n_fade:] *= 0.5 + 0.5 * np.cos(np.pi * np.arange(1, n_fade + 1) / n_fade)
+    if auto.get("out_gain") is not None:                                # render_story: intro hook lift
+        out_env = out_env * auto["out_gain"](tl[s0:s0 + N])
     for name, X in (("drums", D), ("bass", B), ("music", M), ("fx", F)):
         X = _filt(X, "highpass", STEM_HP, 4)                            # DC / rumble / sub headroom
         X = X[s0:s0 + N] * out_env[:, None]
@@ -1588,34 +1593,61 @@ STORY_LV = dict(clock=-19.0, lead=-10.0, lead_delay=-9.0, lead_verb=-13.0, chord
                 backbeat_snare=0.5, pad_end_db=6.0)          # pad_end_db: held Fm(add9) under the end card
 STORY_TAIL_PAD_FC = (3200.0, 1400.0, 1.3)     # end: pad LP closes start -> end Hz (curve exponent), slower than render()
 STORY_END_HOLD = (0.45, 2.5)                  # end pad envelope 1 - a*q^b: holds (-1 dB at mid-tail), -5 dB at the fade
+# the hook: the intro opens 3 dB hotter (all stems) and eases back to its render() level by 1.0 s (raised cosine
+# in dB from 0.45 s), so frame 0 reads on a phone before the slash at 0.5 s.  (lift dB, hold until, back at 0 dB
+# by) in seconds of video time; both times are capped at 0.25 / 0.5 x drop1 so a short intro never reaches groove A.
+STORY_INTRO_LIFT = (3.0, 0.45, 1.0)
+
+
+class StoryGridError(ValueError):
+    """render_story() anchors that cannot form the story grid.  music_techhouse and music_cinematic share
+    this policy (and this class name), so a cue sheet behaves the same with either style:
+      - non-finite timing, drop1 < 0                                   -> StoryGridError
+      - breakdown / drop2 / end_hit off the bar grid anchored on drop1 -> snapped to the nearest bar line
+        (ties go up) with warnings.warn
+      - after snapping: a section shorter than 1 bar, or an end hit leaving < 1 s of tail -> StoryGridError
+    Nothing is clamped or moved by more than the snap, so the music never silently drifts off the picture."""
+
+
+def story_anchor_bars(duration, drop1, breakdown, drop2, end_hit, who="music_techhouse"):
+    """Shared anchor policy (see StoryGridError).  Returns (requested dict, bar index of each anchor re drop1)."""
+    req = dict(duration=duration, drop1=drop1, breakdown=breakdown, drop2=drop2, end_hit=end_hit)
+    try:
+        req = {k: float(v) for k, v in req.items()}
+    except (TypeError, ValueError) as exc:
+        raise StoryGridError(f"{who}.render_story: timing must be numbers ({exc})") from None
+    if not all(math.isfinite(v) for v in req.values()):
+        raise StoryGridError(f"{who}.render_story: non-finite timing {req}")
+    d1 = req["drop1"]
+    if d1 < 0.0:
+        raise StoryGridError(f"{who}.render_story: drop1 must be >= 0 (got {d1:g} s)")
+    bars = {}
+    for name in ("breakdown", "drop2", "end_hit"):
+        nb = int(math.floor((req[name] - d1) / BAR + 0.5))
+        t = d1 + nb * BAR
+        if abs(t - req[name]) > 1e-6:
+            warnings.warn(f"{who}.render_story: {name} {req[name]:g} s snapped to the bar line "
+                          f"{t:g} s (bars are {BAR:g} s from drop1 = {d1:g} s)", stacklevel=4)
+        bars[name] = nb
+    nA, nB, n2 = bars["breakdown"], bars["drop2"] - bars["breakdown"], bars["end_hit"] - bars["drop2"]
+    if min(nA, nB, n2) < 1:
+        raise StoryGridError(f"{who}.render_story: groove A / breakdown / drop 2 must each be >= 1 bar "
+                             f"(got {nA} / {nB} / {n2} bars of {BAR:g} s)")
+    t_hit = d1 + bars["end_hit"] * BAR
+    if t_hit > req["duration"] - 1.0 + 1e-9:
+        raise StoryGridError(f"{who}.render_story: end_hit {t_hit:g} s must leave >= 1 s before duration "
+                             f"{req['duration']:g} s")
+    return req, bars
 
 
 def story_grid(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=26.0) -> dict:
     """beat_grid() of the story plus its section anchors.  breakdown / drop2 / end_hit are snapped to the
     nearest bar line of the grid anchored on drop1 (warnings.warn when one moves); every section must be at
-    least one bar and the hit must leave >= 1 s of tail (ValueError otherwise)."""
-    req = dict(duration=duration, drop1=drop1, breakdown=breakdown, drop2=drop2, end_hit=end_hit)
-    req = {k: float(v) for k, v in req.items()}
-    if not all(math.isfinite(v) for v in req.values()):
-        raise ValueError(f"render_story: non-finite timing {req}")
+    least one bar and the hit must leave >= 1 s of tail (StoryGridError, a ValueError, otherwise)."""
+    req, bars = story_anchor_bars(duration, drop1, breakdown, drop2, end_hit)
     d1 = req["drop1"]
-    if d1 < 0.0:
-        raise ValueError(f"render_story: drop1 must be >= 0 (got {d1})")
-    bars = {}
-    for name in ("breakdown", "drop2", "end_hit"):
-        nb = int(round((req[name] - d1) / BAR))
-        t = d1 + nb * BAR
-        if abs(t - req[name]) > 1e-6:
-            warnings.warn(f"music_techhouse.render_story: {name} {req[name]:g} s snapped to the bar line "
-                          f"{t:g} s (bars are {BAR:g} s from drop1 = {d1:g} s)", stacklevel=3)
-        bars[name] = nb
     nA, nB, n2 = bars["breakdown"], bars["drop2"] - bars["breakdown"], bars["end_hit"] - bars["drop2"]
-    if min(nA, nB, n2) < 1:
-        raise ValueError(f"render_story: groove A / breakdown / drop 2 must each be >= 1 bar "
-                         f"(got {nA} / {nB} / {n2} bars of {BAR:g} s)")
     t_hit = d1 + bars["end_hit"] * BAR
-    if t_hit > req["duration"] - 1.0 + 1e-9:
-        raise ValueError(f"render_story: end_hit {t_hit:g} s must leave >= 1 s before duration {req['duration']:g} s")
     g = beat_grid(req["duration"], d1, t_hit)
     kb, kd = 4 * nA, 4 * (nA + nB)
     assert g["hk"] == 4 * bars["end_hit"] and abs(g["drop"] - d1) < 1e-12
@@ -1966,9 +1998,17 @@ def _story_auto(g: dict) -> dict:
         end = _step_gain(tl, t_hit + 0.35, 0.0, 1.0, ramp=0.6)
         return _db2(BD["pad_dark_db"] * bd + D2["pad_db"] * d2 + STORY_LV["pad_end_db"] * end)
 
+    lift_db, lift_hold, lift_end = STORY_INTRO_LIFT
+    lift_hold, lift_end = min(lift_hold, 0.25 * drop), min(lift_end, 0.5 * drop)
+
+    def out_gain(t):                                                 # hook: +lift_db at frame 0, eased out
+        q = np.clip((t - lift_hold) / max(lift_end - lift_hold, 1e-3), 0.0, 1.0)
+        return _db2(lift_db * (0.5 + 0.5 * np.cos(np.pi * q)))
+
     ghost = [drop + k * BEAT for k in range(g["k0"], 0)] + [drop + k * BEAT for k in range(g["kbuild"], g["kd"])]
     return dict(gaps=[drop, t_d2, t_hit], ghost=ghost, pad_cutoff=pad_cutoff, arp_cutoff=arp_cutoff,
                 arp_gain=arp_gain, pad_gain=pad_gain, tail_fade=STORY_TAIL_FADE, smooth_dynamics=True,
+                out_gain=out_gain if lift_end > 0.05 else None,
                 final_pad_amp=lambda tt, q: (1.0 + 0.35 * np.exp(-tt / 0.25)) * (1.0 - STORY_END_HOLD[0] * q ** STORY_END_HOLD[1]))
 
 

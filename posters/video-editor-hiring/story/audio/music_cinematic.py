@@ -24,7 +24,9 @@ API
     render_demo() -> demo/music_cinematic_demo.wav + spectrogram/waveform PNGs + stem report
     render_story(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=26.0, seed=1) -> same stems + 'meta'
         (intro -> groove A -> breakdown -> drop 2 -> end hit + Fm(add9) tail; meta adds the section times,
-        'sections' and 'fx_transitions'). story_grid() / arrange_story() / check_story_score() are its parts.
+        'sections', 'section_boundaries' and 'fx_transitions'). story_grid() / arrange_story() /
+        check_story_score() are its parts; anchors off the bar grid snap with a warning, impossible ones raise
+        StoryGridError (story_anchor_bars(), the same policy as music_techhouse).
     render_story_demo() -> demo/music_cinematic_story30_demo.wav + spectrogram/waveform PNGs + section report
 
 Run:  python3 -I music_cinematic.py           (renders the demo)
@@ -1229,28 +1231,57 @@ STORY_AUTO = {
 }
 
 
+class StoryGridError(ValueError):
+    """render_story() anchors that cannot form the story grid.  music_cinematic and music_techhouse share
+    this policy (and this class name), so a cue sheet behaves the same with either style:
+      - non-finite timing, drop1 < 0                                   -> StoryGridError
+      - breakdown / drop2 / end_hit off the bar grid anchored on drop1 -> snapped to the nearest bar line
+        (ties go up) with warnings.warn
+      - after snapping: a section shorter than 1 bar, or an end hit leaving < 1 s of tail -> StoryGridError
+    Nothing is clamped or moved by more than the snap, so the music never silently drifts off the picture."""
+
+
+def story_anchor_bars(duration, drop1, breakdown, drop2, end_hit, who="music_cinematic"):
+    """Shared anchor policy (see StoryGridError).  Returns (requested dict, bar index of each anchor re drop1)."""
+    req = dict(duration=duration, drop1=drop1, breakdown=breakdown, drop2=drop2, end_hit=end_hit)
+    try:
+        req = {k: float(v) for k, v in req.items()}
+    except (TypeError, ValueError) as exc:
+        raise StoryGridError(f"{who}.render_story: timing must be numbers ({exc})") from None
+    if not all(math.isfinite(v) for v in req.values()):
+        raise StoryGridError(f"{who}.render_story: non-finite timing {req}")
+    d1 = req["drop1"]
+    if d1 < 0.0:
+        raise StoryGridError(f"{who}.render_story: drop1 must be >= 0 (got {d1:g} s)")
+    bars = {}
+    for name in ("breakdown", "drop2", "end_hit"):
+        nb = int(math.floor((req[name] - d1) / BAR + 0.5))
+        t = d1 + nb * BAR
+        if abs(t - req[name]) > 1e-6:
+            warnings.warn(f"{who}.render_story: {name} {req[name]:g} s snapped to the bar line "
+                          f"{t:g} s (bars are {BAR:g} s from drop1 = {d1:g} s)", stacklevel=4)
+        bars[name] = nb
+    nA, nB, n2 = bars["breakdown"], bars["drop2"] - bars["breakdown"], bars["end_hit"] - bars["drop2"]
+    if min(nA, nB, n2) < 1:
+        raise StoryGridError(f"{who}.render_story: groove A / breakdown / drop 2 must each be >= 1 bar "
+                             f"(got {nA} / {nB} / {n2} bars of {BAR:g} s)")
+    t_hit = d1 + bars["end_hit"] * BAR
+    if t_hit > req["duration"] - 1.0 + 1e-9:
+        raise StoryGridError(f"{who}.render_story: end_hit {t_hit:g} s must leave >= 1 s before duration "
+                             f"{req['duration']:g} s")
+    return req, bars
+
+
 def story_grid(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=26.0) -> dict:
     """Bar grid for render_story(). Beat k is at drop1 + k*BEAT. breakdown, drop2 and end_hit snap to the nearest
-    bar line after drop1 (warnings.warn if one moves), keeping >= 1 bar per section and >= 1 s of tail."""
-    D = float(duration)
-    req = dict(drop1=float(drop1), breakdown=float(breakdown), drop2=float(drop2), end_hit=float(end_hit))
-    if not all(math.isfinite(v) for v in (D, *req.values())):
-        raise ValueError(f"non-finite timing: duration={duration}, anchors={req}")
-    if D < 3 * BAR + 1.0:
-        raise ValueError(f"duration {D:g} s is too short for a story (needs >= {3 * BAR + 1.0:g} s)")
-    d1 = round(float(min(max(req["drop1"], 0.0), D - 3 * BAR - 1.0)), 9)
-    k_max = int(math.floor((D - 1.0 - d1) / BAR + 1e-9))            # last bar line leaving >= 1 s of tail
-    kb = max(1, int(math.floor((req["breakdown"] - d1) / BAR + 0.5)))
-    k2 = max(kb + 1, int(math.floor((req["drop2"] - d1) / BAR + 0.5)))
-    kh = max(k2 + 1, int(math.floor((req["end_hit"] - d1) / BAR + 0.5)))
-    kh = min(kh, k_max)
-    k2 = min(k2, kh - 1)
-    kb = min(kb, k2 - 1)
+    bar line after drop1 (warnings.warn if one moves); a section under 1 bar or an end hit leaving < 1 s of tail
+    raises StoryGridError (a ValueError), the same policy as music_techhouse."""
+    rq, nb = story_anchor_bars(duration, drop1, breakdown, drop2, end_hit)
+    D = rq.pop("duration")
+    req = rq
+    d1 = round(req["drop1"], 9)
+    kb, k2, kh = nb["breakdown"], nb["drop2"], nb["end_hit"]
     got = dict(drop1=d1, breakdown=round(d1 + kb * BAR, 9), drop2=round(d1 + k2 * BAR, 9), end_hit=round(d1 + kh * BAR, 9))
-    for k in STORY_ANCHORS:
-        if abs(got[k] - req[k]) > 1e-6:
-            warnings.warn(f"music_cinematic.render_story: {k} {req[k]:g} s moved to {got[k]:g} s (bar lines every "
-                          f"{BAR:g} s from drop1; >= 1 bar per section, >= 1 s tail)", stacklevel=3)
     bars = []
     for k in range(kh):
         sec, j0, j1 = (("grooveA", 0, kb) if k < kb else ("breakdown", kb, k2) if k < k2 else ("drop2", k2, kh))
@@ -1688,6 +1719,7 @@ def render_story(duration=30.0, drop1=2.0, breakdown=14.0, drop2=18.0, end_hit=2
         drop_time=round(float(d1), 9), end_hit_time_snapped=round(float(hit), 9),
         drop1=d1, breakdown=bd, drop2=d2, end_hit=hit, duration=D,
         section_times=dict(A, duration=D), requested_anchors=g["requested"],
+        section_boundaries=[0.0, d1, bd, d2, hit, D],                 # = music_techhouse
         sections=g["sections"], meter=g["meter"], scale=list(SCALE), progression=list(PROGRESSION),
         breakdown_chords=dict(dark=list(BREAKDOWN_DARK), build=list(BREAKDOWN_BUILD)), turnaround=list(TURNAROUND),
         final_chord=FINAL_CHORD,

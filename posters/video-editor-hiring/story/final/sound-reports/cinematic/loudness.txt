@@ -1,0 +1,254 @@
+mix.py report - story-cinematic.mp4  (music: cinematic, seed 1)
+cues ../final/cues.json
+video ../final/story-silent.mp4
+
+== ffmpeg ebur128, master WAV ==
+Summary:
+
+  Integrated loudness:
+    I:         -14.0 LUFS
+    Threshold: -24.3 LUFS
+
+  Loudness range:
+    LRA:         4.4 LU
+    Threshold: -34.0 LUFS
+    LRA low:   -16.6 LUFS
+    LRA high:  -12.2 LUFS
+
+  True peak:
+    Peak:       -1.5 dBFS
+
+== ffmpeg ebur128, master through the phone model (4th-order 150 Hz high-pass) ==
+Summary:
+
+  Integrated loudness:
+    I:         -16.4 LUFS
+    Threshold: -26.6 LUFS
+
+  Loudness range:
+    LRA:         5.1 LU
+    Threshold: -36.3 LUFS
+    LRA low:   -19.3 LUFS
+    LRA high:  -14.2 LUFS
+
+  True peak:
+    Peak:       -0.1 dBFS
+
+== ffmpeg ebur128, output MP4 (decoded AAC) ==
+Summary:
+
+  Integrated loudness:
+    I:         -14.1 LUFS
+    Threshold: -24.3 LUFS
+
+  Loudness range:
+    LRA:         4.4 LU
+    Threshold: -34.1 LUFS
+    LRA low:   -16.6 LUFS
+    LRA high:  -12.2 LUFS
+
+  True peak:
+    Peak:       -1.3 dBFS
+
+== ffmpeg astats, master WAV ==
+Channel: 1
+DC offset: 0.000000
+Peak level dB: -1.505402
+Flat factor: 0.000000
+Peak count: 2
+Channel: 2
+DC offset: 0.000000
+Peak level dB: -1.505424
+Flat factor: 0.000000
+Peak count: 2
+Overall
+DC offset: 0.000000
+Peak level dB: -1.505402
+RMS level dB: -15.758650
+Number of samples: 1440000
+
+== python checks ==
+8x true peak -1.48 dBTP, integrated (python BS.1770) -14.03 LUFS, |DC| 4.77e-12, samples >= -0.01 dBFS: 0
+frame 0 RMS -20.6 dBFS, momentary 0-400 ms -18.8 LUFS, last 10 ms -151.1 dBFS, fade-out thirds [-36.0, -45.2, -66.6] dBFS, last sample 0.0
+
+== anchors ==
+grid offset (least squares over the four anchors) 2.0000 s; bars [6, 2, 4]
+drop1     (note): cue 2.0000 music 2.0000 (+0.00 ms), downbeat True, kick onset +0.65 ms, hero slam +0.00 ms
+breakdown (note): cue 14.0000 music 14.0000 (+0.00 ms), downbeat True, kick onset +0.75 ms, hero slam - ms
+drop2     (note): cue 18.0000 music 18.0000 (+0.00 ms), downbeat True, kick onset +0.67 ms, hero slam +0.00 ms
+end_hit   (note): cue 26.0000 music 26.0000 (+0.00 ms), downbeat True, kick onset +0.60 ms, hero slam +0.00 ms
+
+== master chain ==
+music bus: stems -18.55 LUFS -> -20.0 LUFS (-1.45 dB); section lifts {'intro': -1.5, 'drop2': 1.0} (ramps 40 ms inside the breath); sidechain duck max hi 4.5 dB / lo 4.0 dB
+  fx stem -6 dB under riser@16.0 span [16.0, 18.0] (music riser 16.0-18.0, reverse_cymbal 17.0-18.0)
+  fx stem -6 dB under reverse_swell@25.5 span [25.5, 26.0] (music riser 24.0-26.0, reverse_cymbal 24.8-26.0)
+SFX bus: non-hero part gated shut 45 ms before each hit (2, 18, 26 s); glue threshold -11.8 dB, max GR 1.41 dB, room rt 0.55 s return -4.0 dB; transient stage ceiling -4.47 dBFS soft clip (make-up estimate +3.97 dB), bus true-peak reduction 4.48 dB, 5637 samples above the knee
+master: EQ (('highpass', 25.0, 0.0, 0.707), ('peak', 280.0, -1.0, 0.9), ('highshelf', 9000.0, 1.0, 0.7)); bus comp threshold -17.36 dB max GR 2.04 dB; make-up +5.34 dB; limiter ceiling -1.5 dBTP (first 2048 samples -2 dB), max GR 5.22 dB, time > 1 dB GR 2.54 s, > 3 dB 0.261 s
+master passes (limiter ceiling, lowest local ceiling -> 8x true peak of the WAV / of the decoded AAC): -1.5, -3.5 -> -1.48 / -1.063 (AAC overshoot at 17.232, 17.502 s); -1.5, -3.5 -> -1.48 / -0.282 (AAC overshoot at 17.245, 25.772, 26.013 s); -1.5, -3.5 -> -1.48 / -1.147 (AAC overshoot at 18.455 s); -1.5, -3.5 -> -1.481 / -1.334
+AAC rate: nominal 256k measured 270935 b/s -> nominal 239k, measured 253268 b/s
+
+== sections (master, BS.1770 gated over each window) ==
+section               window  full LUFS  HP150 LUFS
+intro            0.00- 2.00     -17.36      -19.08
+grooveA          2.00-14.00     -14.33      -16.77
+breakdown       14.00-18.00     -16.62      -17.97
+ bd.dark        14.00-16.00     -17.64      -20.64
+ bd.build       16.00-18.00     -15.57      -15.94
+drop2           18.00-26.00     -12.55      -15.04
+end             26.00-30.00     -16.11      -19.92
+ grooveA.full   10.00-14.00     -14.44      -16.77
+ drop2.noturn   18.00-24.00     -12.75      -15.16
+contrasts (full / HP150 LU): drop2_minus_grooveA +1.78 / +1.73; drop2noturn_minus_grooveAfull +1.69 / +1.61; intro_minus_grooveA -3.03 / -2.31; bd.dark_minus_grooveA -3.31 / -3.87
+
+== hero hits (master): RMS 0..30 ms after vs 40..5 ms before; HP150 momentary max and over the bed ==
+drop1    rise +19.4 dB (-29.5 -> -10.2 dBFS); HP150 M max -13.9 LUFS, +6.6 LU over the bed; limiter GR 1.66 dB
+drop2    rise +17.8 dB (-28.0 -> -10.3 dBFS); HP150 M max -11.9 LUFS, +2.2 LU over the bed; limiter GR 2.29 dB
+end_hit  rise +16.5 dB (-26.3 -> -9.8 dBFS); HP150 M max -11.7 LUFS, +2.1 LU over the bed; limiter GR 3.07 dB
+
+== SFX levels at master gain (max momentary of each SFX's own contribution; music bus = max momentary of the ducked music in the 0.4 s from 50 ms before the sync point) ==
+     t sfx             LUFS-M   HP150   music  sfx-mus  processing
+  0.50 slash            -18.6   -18.6   -20.3     +1.7  intro trim -5.0 dB
+  0.75 shimmer          -22.4   -22.4   -20.9     -1.5  shimmer trim -2.0 dB; intro trim -6.0 dB
+  1.00 pop              -22.7   -22.7   -20.5     -2.2  pop trim -2.0 dB; intro trim -6.0 dB
+  1.00 tick             -26.5   -26.5   -20.5     -6.0  intro trim -6.0 dB
+  1.50 tick             -26.5   -26.5   -18.8     -7.7  intro trim -6.0 dB
+  1.50 shimmer          -23.7   -23.7   -18.8     -5.0  shimmer trim -2.0 dB; intro trim -6.0 dB
+  1.75 scrub            -23.3   -23.3   -15.6     -7.7  scrub trim +5.0 dB; intro trim -6.0 dB
+  2.00 impact(big)       -9.7   -10.6   -12.3     +2.7  over_music_hit (music LP150 +1.1 dB re its kick level); hero slam (drop1) +2.5 dB
+  2.50 impact(big)      -11.6   -12.5   -14.0     +2.4  over_music_hit (music LP150 +1.1 dB re its kick level); big slam off the anchors +0.0 dB
+  5.00 shimmer          -17.3   -17.3   -16.6     -0.7  shimmer trim -2.0 dB
+  5.75 whoosh           -14.4   -14.6   -16.3     +1.9  
+  6.00 whoosh           -17.6   -17.8   -16.4     -1.2  (light) -3.0 dB
+  6.50 pop              -16.7   -16.7   -15.7     -1.0  pop trim -2.0 dB
+  7.00 pop              -16.2   -16.2   -15.8     -0.5  pop trim -2.0 dB; length comp -0.3 dB (to ROLE_LUFS_M)
+  7.50 pop              -15.9   -15.9   -15.2     -0.7  pop trim -2.0 dB; length comp -0.4 dB (to ROLE_LUFS_M)
+  8.00 impact(medium)   -12.4   -14.0   -16.1     +3.7  over_music_hit (music LP150 -3.5 dB re its kick level)
+  9.50 scrub            -16.9   -16.9   -15.4     -1.5  scrub trim +5.0 dB
+ 10.00 pop              -16.7   -16.7   -13.7     -3.0  pop trim -2.0 dB
+ 10.50 pop              -16.2   -16.2   -15.1     -1.1  pop trim -2.0 dB; length comp -0.3 dB (to ROLE_LUFS_M)
+ 11.00 pop              -15.9   -15.9   -15.1     -0.9  pop trim -2.0 dB; length comp -0.4 dB (to ROLE_LUFS_M)
+ 11.50 pop              -16.1   -16.1   -15.0     -1.1  pop trim -2.0 dB; length comp -1.2 dB (to ROLE_LUFS_M)
+ 12.00 tick             -20.5   -20.5   -14.9     -5.7  unmasked: music 1000 Hz octave -2.1 dB, cue +0.0 dB
+ 12.50 tick             -20.5   -20.5   -14.0     -6.5  
+ 13.00 tick             -20.5   -20.5   -15.3     -5.3  
+ 13.50 tick             -20.5   -20.5   -13.9     -6.6  unmasked: music 1000 Hz octave -3.9 dB, cue +0.0 dB
+ 13.75 downlifter       -17.2   -17.5   -17.2     -0.0  
+ 14.50 reject           -17.3   -19.2   -21.1     +3.7  reject trim -1.5 dB; breakdown trim -4.0 dB
+ 15.00 reject           -17.3   -19.2   -23.4     +6.1  reject trim -1.5 dB; breakdown trim -4.0 dB
+ 15.50 check            -19.6   -19.6   -23.3     +3.7  check trim -2.5 dB; breakdown trim -5.0 dB
+ 16.00 riser            -13.9   -13.9   -10.7     -3.3  length comp -1.3 dB (to ROLE_LUFS_M); music fx stem ducked -6 dB over 16.00-18.00; music fx stem ducked -6 dB over 16.00-18.00; music fx stem ducked -6 dB over 16.00-18.00; music fx stem ducked -6 dB over 16.00-18.00
+ 16.00 tick             -20.5   -20.5   -22.5     +2.0  
+ 16.50 tick             -20.5   -20.5   -21.1     +0.5  
+ 17.00 tick             -20.5   -20.5   -19.4     -1.1  unmasked: music 1000 Hz octave -1.2 dB, cue +0.0 dB
+ 17.00 whoosh           -13.9   -14.2   -19.0     +5.0  
+ 17.50 tick             -17.7   -17.7   -16.4     -1.4  unmasked: music 1000 Hz octave -6.0 dB, cue +3.0 dB
+ 17.70 whoosh           -18.1   -18.3   -10.4     -7.6  length comp -1.0 dB (to ROLE_LUFS_M); stacked on a hero slam -3.0 dB
+ 18.00 slash            -19.4   -19.4   -10.7     -8.8  stacked on a hero slam -3.0 dB
+ 18.00 impact(big)      -10.0   -10.9   -10.7     +0.7  over_music_hit (music LP150 +1.8 dB re its kick level); hero slam (drop2) +2.5 dB
+ 18.40 whoosh           -20.6   -20.9   -11.0     -9.6  
+ 18.50 pop              -16.7   -16.7   -11.3     -5.5  pop trim -2.0 dB
+ 18.90 whoosh           -20.5   -20.8   -12.7     -7.8  
+ 19.00 pop              -15.9   -15.9   -12.6     -3.3  pop pitch 3 (B5) is outside F minor -> 4 (C6); pop trim -2.0 dB; length comp -0.4 dB (to ROLE_LUFS_M)
+ 20.00 tick             -20.5   -20.5   -11.9     -8.6  unmasked: music 1000 Hz octave -4.9 dB, cue +0.0 dB
+ 20.50 tick             -18.1   -18.1   -12.0     -6.0  unmasked: music 1000 Hz octave -6.0 dB, cue +2.5 dB
+ 21.00 tick             -20.5   -20.5   -12.8     -7.7  unmasked: music 1000 Hz octave -5.7 dB, cue +0.0 dB
+ 22.00 shimmer          -16.1   -16.1   -14.2     -1.9  shimmer trim -2.0 dB
+ 22.00 tick             -20.5   -20.5   -14.2     -6.3  
+ 22.50 tick             -19.2   -19.2   -14.2     -5.0  unmasked: music 1000 Hz octave -6.0 dB, cue +1.3 dB
+ 23.00 tick             -20.5   -20.5   -13.2     -7.3  unmasked: music 1000 Hz octave -5.4 dB, cue +0.0 dB
+ 23.75 whoosh           -15.0   -15.2   -12.7     -2.2  unmasked: music 250 Hz octave -4.1 dB, cue +0.0 dB
+ 24.50 scrub            -16.9   -16.9   -13.0     -3.9  scrub trim +5.0 dB
+ 25.00 pop              -19.2   -19.2   -12.2     -7.0  pop trim -2.0 dB; last 1 s before the end hit -2.5 dB
+ 25.40 whoosh           -23.0   -23.3   -10.3    -12.7  last 1 s before the end hit -2.5 dB
+ 25.50 pop              -18.8   -18.8   -10.2     -8.6  pop trim -2.0 dB; length comp -0.8 dB (to ROLE_LUFS_M); last 1 s before the end hit -2.5 dB
+ 25.50 reverse_swell    -21.7   -21.7   -11.9     -9.8  last 1 s before the end hit -2.5 dB; music fx stem ducked -6 dB over 25.50-26.00; music fx stem ducked -6 dB over 25.50-26.00; music fx stem ducked -6 dB over 25.50-26.00; music fx stem ducked -6 dB over 25.50-26.00; unmasked: music 8000 Hz octave -3.3 dB, cue +0.0 dB
+ 26.00 impact(big)       -8.4    -9.3   -11.9     +3.5  over_music_hit (music LP150 +1.4 dB re its kick level); hero slam (end_hit) +2.5 dB; end hit +2.0 dB
+ 26.10 shimmer          -14.2   -14.2   -11.4     -2.8  shimmer trim -2.0 dB; in a hero hit's crash tail +3.0 dB
+
+loudest SFX, full band: impact@26 -8.4, impact@2 -9.7, impact@18 -10.0, impact@2.5 -11.6, impact@8 -12.4, riser@16 -13.9
+loudest SFX, HP150:     impact@26 -9.3, impact@2 -10.6, impact@18 -10.9, impact@2.5 -12.5, riser@16 -13.9, impact@8 -14.0
+
+== masking: each cue's own energy over the music in its dominant octave (masking.csv) ==
+  0.50 slash          dominant  8000 Hz  +28.8 dB, best 16000 Hz  +47.7 dB, broadband   +0.9 dB 
+  0.75 shimmer        dominant  1000 Hz   +8.4 dB, best  2000 Hz   +9.2 dB, broadband   -7.2 dB 
+  1.00 pop            dominant  1000 Hz  +16.0 dB, best  1000 Hz  +16.0 dB, broadband   -0.5 dB 
+  1.00 tick           dominant  1000 Hz   +5.5 dB, best  2000 Hz   +8.3 dB, broadband   -1.9 dB 
+  1.50 tick           dominant  1000 Hz   +6.2 dB, best  2000 Hz   +8.4 dB, broadband   -2.2 dB 
+  1.50 shimmer        dominant  2000 Hz  +13.4 dB, best  2000 Hz  +13.4 dB, broadband   -8.5 dB 
+  1.75 scrub          dominant  1000 Hz  +12.9 dB, best  2000 Hz  +17.4 dB, broadband   -3.9 dB 
+  2.50 impact         dominant   250 Hz  +13.0 dB, best   500 Hz  +14.0 dB, broadband   +3.9 dB 
+  5.00 shimmer        dominant  1000 Hz  +11.3 dB, best  1000 Hz  +11.3 dB, broadband   -6.1 dB 
+  5.75 whoosh         dominant  2000 Hz  +15.6 dB, best  2000 Hz  +15.6 dB, broadband   -2.6 dB 
+  6.00 whoosh         dominant  1000 Hz   +8.4 dB, best  2000 Hz  +16.0 dB, broadband   -4.0 dB 
+  6.50 pop            dominant  1000 Hz   +7.4 dB, best  1000 Hz   +7.4 dB, broadband   +1.7 dB 
+  7.00 pop            dominant  1000 Hz  +15.2 dB, best  1000 Hz  +15.2 dB, broadband   +2.6 dB 
+  7.50 pop            dominant  1000 Hz  +12.3 dB, best  1000 Hz  +12.3 dB, broadband   +1.7 dB 
+  8.00 impact         dominant   125 Hz  +11.3 dB, best   250 Hz  +20.3 dB, broadband   +6.0 dB 
+  9.50 scrub          dominant  1000 Hz  +12.6 dB, best  1000 Hz  +12.6 dB, broadband   -5.2 dB 
+ 10.00 pop            dominant  1000 Hz  +12.6 dB, best  1000 Hz  +12.6 dB, broadband   -1.1 dB 
+ 10.50 pop            dominant  1000 Hz  +13.6 dB, best  1000 Hz  +13.6 dB, broadband   +1.0 dB 
+ 11.00 pop            dominant  1000 Hz  +19.2 dB, best  1000 Hz  +19.2 dB, broadband   +0.9 dB 
+ 11.50 pop            dominant  1000 Hz   +8.9 dB, best  1000 Hz   +8.9 dB, broadband   +1.1 dB 
+ 12.00 tick           dominant  1000 Hz   +4.1 dB, best  2000 Hz   +6.4 dB, broadband   -1.8 dB 
+ 12.50 tick           dominant  1000 Hz   +4.3 dB, best  1000 Hz   +4.3 dB, broadband   -1.3 dB 
+ 13.00 tick           dominant  1000 Hz   +7.1 dB, best  1000 Hz   +7.1 dB, broadband   -1.5 dB 
+ 13.50 tick           dominant  1000 Hz   +3.4 dB, best  1000 Hz   +3.4 dB, broadband   -3.4 dB 
+ 13.75 downlifter     dominant   250 Hz   +4.9 dB, best  4000 Hz  +22.8 dB, broadband   +0.5 dB 
+ 14.50 reject         dominant    63 Hz  +10.9 dB, best  1000 Hz  +20.1 dB, broadband   +9.3 dB 
+ 15.00 reject         dominant    63 Hz  +15.8 dB, best  1000 Hz  +25.0 dB, broadband  +12.3 dB 
+ 15.50 check          dominant   500 Hz  +17.1 dB, best  1000 Hz  +21.7 dB, broadband   +0.5 dB 
+ 16.00 riser          dominant  4000 Hz   +8.7 dB, best  4000 Hz   +8.7 dB, broadband   +0.4 dB 
+ 16.00 tick           dominant  1000 Hz  +13.1 dB, best  2000 Hz  +21.5 dB, broadband   +7.0 dB 
+ 16.50 tick           dominant  1000 Hz  +17.9 dB, best  1000 Hz  +17.9 dB, broadband   +6.2 dB 
+ 17.00 tick           dominant  1000 Hz   +3.7 dB, best  2000 Hz  +16.3 dB, broadband   +3.9 dB 
+ 17.00 whoosh         dominant  1000 Hz  +11.0 dB, best  2000 Hz  +17.5 dB, broadband   +4.0 dB 
+ 17.50 tick           dominant  1000 Hz   +3.9 dB, best  1000 Hz   +3.9 dB, broadband   +5.6 dB 
+ 17.70 whoosh         dominant  2000 Hz   +9.1 dB, best  2000 Hz   +9.1 dB, broadband  -11.3 dB 
+ 18.00 slash          dominant  8000 Hz  +13.7 dB, best  8000 Hz  +13.7 dB, broadband   -9.1 dB 
+ 18.40 whoosh         dominant  1000 Hz   +5.3 dB, best  4000 Hz  +13.9 dB, broadband   -7.1 dB 
+ 18.50 pop            dominant  1000 Hz   +5.8 dB, best  1000 Hz   +5.8 dB, broadband   -3.8 dB 
+ 18.90 whoosh         dominant  1000 Hz   +6.6 dB, best  4000 Hz  +14.6 dB, broadband   -3.4 dB 
+ 19.00 pop            dominant  1000 Hz  +12.6 dB, best  1000 Hz  +12.6 dB, broadband   -0.7 dB 
+ 20.00 tick           dominant  1000 Hz   +4.2 dB, best  1000 Hz   +4.2 dB, broadband   -4.9 dB 
+ 20.50 tick           dominant  1000 Hz   +3.5 dB, best  1000 Hz   +3.5 dB, broadband   -1.5 dB 
+ 21.00 tick           dominant  1000 Hz   +4.7 dB, best  1000 Hz   +4.7 dB, broadband   -2.8 dB 
+ 22.00 shimmer        dominant  2000 Hz   +7.5 dB, best  2000 Hz   +7.5 dB, broadband   -6.9 dB 
+ 22.00 tick           dominant  1000 Hz   +7.5 dB, best  1000 Hz   +7.5 dB, broadband   -2.2 dB 
+ 22.50 tick           dominant  1000 Hz   +3.6 dB, best  1000 Hz   +3.6 dB, broadband   -0.1 dB 
+ 23.00 tick           dominant  1000 Hz   +4.5 dB, best  1000 Hz   +4.5 dB, broadband   -3.1 dB 
+ 23.75 whoosh         dominant   250 Hz   +3.9 dB, best   250 Hz   +3.9 dB, broadband   -6.1 dB 
+ 24.50 scrub          dominant  1000 Hz   +9.0 dB, best  1000 Hz   +9.0 dB, broadband   -6.9 dB 
+ 25.00 pop            dominant  1000 Hz   +9.1 dB, best  1000 Hz   +9.1 dB, broadband   -4.4 dB 
+ 25.40 whoosh         dominant  1000 Hz   +5.6 dB, best  4000 Hz  +10.9 dB, broadband   -7.4 dB 
+ 25.50 pop            dominant  1000 Hz   +4.2 dB, best  1000 Hz   +4.2 dB, broadband   -4.6 dB 
+ 25.50 reverse_swell  dominant  8000 Hz   +4.0 dB, best  8000 Hz   +4.0 dB, broadband  -14.4 dB 
+ 26.10 shimmer        dominant  2000 Hz  +11.0 dB, best  2000 Hz  +11.0 dB, broadband   -8.9 dB 
+
+== delivery gates (a failure blocks the MP4) ==
+PASS  integrated_loudness: master_wav=-14.0, mp4=-14.1, target=-14.0
+PASS  true_peak: master_wav_ebur128=-1.5, master_wav_8x=-1.48, mp4_ebur128=-1.3, mp4_decoded_8x=-1.33, aac_loop_limit=-1.15, master_passes=4
+PASS  lra: master_wav=4.4, mp4=4.4
+PASS  no_clipping_no_dc: samples_ge_0dBFS=0, sample_peak_dbfs=-1.51, dc=4.768050887422252e-12
+PASS  audible_from_frame0: frame0_rms_dbfs=-20.6, momentary_0_400ms_lufs=-18.8, first_sample=0.0
+PASS  fade_to_silence: last_sample=0.0, last_10ms_rms_dbfs=-151.1, fade_thirds_rms_dbfs=[-36.0, -45.2, -66.6]
+PASS  video_stream_bit_identical: md5_in=d7cd4dd70265ecbf6c5a53c1adbb585b, md5_out=d7cd4dd70265ecbf6c5a53c1adbb585b
+PASS  durations_equal: video_in=30.0, video_out=30.0, audio_out=30.0, container=30.0, wav_samples=1440000, expected_samples=1440000
+PASS  audio_format: codec=aac, profile=LC, sample_rate=48000, channels=2, bit_rate=253268, bit_rate_window=[243200, 256000], aac_nominal=239000
+PASS  faststart_moov_first: moov_offset=36, mdat_offset=34117
+PASS  mp4_audio_in_sync: lag_samples=0, decoded_samples=1440768, aac_residual_db=-25.5
+PASS  anchors_on_music_grid: grid_offset_s=2.0, detail={'drop1': 'cue 2.0000 music 2.0000 (+0.00 ms) downbeat=True kick +0.65 ms', 'breakdown': 'cue 14.0000 music 14.0000 (+0.00 ms) downbeat=True kick +0.75 ms', 'drop2': 'cue 18.0000 music 18.0000 (+0.00 ms) downbeat=True kick +0.67 ms', 'end_hit': 'cue 26.0000 music 26.0000 (+0.00 ms) downbeat=True kick +0.60 ms'}
+
+== mix QC checks ==
+PASS  sfx_within_1_frame: n=57, max_abs_error_ms=15.94
+PASS  hero_slam_on_every_hit: missing=[], slam_vs_music_ms={'drop1': 0.0, 'drop2': 0.0, 'end_hit': 0.0}
+PASS  hero_slams_loudest_sfx: hero_min_lufs_m=-10.0, hero_min_lufs_m_hp150=-10.9, loudest_other=impact@2.5 -11.6 LUFS-M, loudest_other_hp150=impact@2.5 -12.5 LUFS-M
+PASS  hero_hit_transients: min_rise_db=10.0, detail={'drop1': '+19.4 dB (-29.5 -> -10.2 dBFS), HP150 M max -13.9', 'drop2': '+17.8 dB (-28.0 -> -10.3 dBFS), HP150 M max -11.9', 'end_hit': '+16.5 dB (-26.3 -> -9.8 dBFS), HP150 M max -11.7'}
+PASS  drop2_over_grooveA: min_lu=1.0, full_hp150_lu=[1.78, 1.73], like_for_like_full_hp150_lu=[1.69, 1.61]
+PASS  phone_contour: intro_minus_grooveA_hp150=-2.31, dark_minus_grooveA_hp150=-3.87, limits=[-2.0, -2.0]
+PASS  cues_not_masked: min_db=3.0, n=54, worst=tick@13.500 +3.4 dB @ 1000 Hz, failing=[]
+
+master sha256 (float32 samples; the determinism key) 6a15e3333ac339972fc01cde79f3157ab226179275c979a37d6a0bb9a73c9f89
+
+== notes ==
+cue #2 riser at 1 (1.00-2.00) is replaced by the music's own transition into drop1 (riser 0.0-2.0, reverse_cymbal 1.1-2.0), kept at full level (MUSIC_OWNS_TRANSITIONS)
+cue #45 at 19: pop pitch 3 (B5) is outside F minor -> 4 (C6)

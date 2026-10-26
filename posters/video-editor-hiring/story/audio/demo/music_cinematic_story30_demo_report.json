@@ -800,6 +800,14 @@
    "drop2": 18.0,
    "end_hit": 26.0
   },
+  "section_boundaries": [
+   0.0,
+   2.0,
+   14.0,
+   18.0,
+   26.0,
+   30.0
+  ],
   "sections": [
    {
     "name": "intro",

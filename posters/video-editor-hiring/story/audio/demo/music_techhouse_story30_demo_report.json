@@ -34,18 +34,18 @@
     "end_hit": 26.0,
     "seed": 1
   },
-  "render_s": 21.6,
+  "render_s": 19.0,
   "section_loudness_stems_sum": {
     "sections": {
       "intro": {
         "t0": 0.0,
         "t1": 2.0,
-        "LUFS": -25.9,
-        "LUFS_HP150": -25.95,
+        "LUFS": -25.12,
+        "LUFS_HP150": -25.17,
         "maxM": -23.3,
         "maxM_HP150": -23.35,
-        "centroid_Hz": 1044.0,
-        "above2k_pct": 8.49
+        "centroid_Hz": 945.0,
+        "above2k_pct": 7.13
       },
       "groove_a": {
         "t0": 2.0,
@@ -110,14 +110,14 @@
     },
     "contrast_LU": {
       "LUFS": {
-        "groove_a_minus_intro": 5.67,
+        "groove_a_minus_intro": 4.89,
         "drop2_minus_groove_a": 1.48,
         "breakdown_minus_groove_a": -5.02,
         "breakdown_dark_minus_groove_a": -6.17,
         "build_minus_dark": 2.23
       },
       "LUFS_HP150": {
-        "groove_a_minus_intro": 3.41,
+        "groove_a_minus_intro": 2.63,
         "drop2_minus_groove_a": 2.12,
         "breakdown_minus_groove_a": -4.25,
         "breakdown_dark_minus_groove_a": -7.29,
@@ -130,87 +130,87 @@
       "intro": {
         "t0": 0.0,
         "t1": 2.0,
-        "LUFS": -19.43,
-        "LUFS_HP150": -19.48,
-        "maxM": -16.83,
-        "maxM_HP150": -16.88,
-        "centroid_Hz": 1044.0,
-        "above2k_pct": 8.49
+        "LUFS": -18.67,
+        "LUFS_HP150": -18.72,
+        "maxM": -16.85,
+        "maxM_HP150": -16.9,
+        "centroid_Hz": 945.0,
+        "above2k_pct": 7.13
       },
       "groove_a": {
         "t0": 2.0,
         "t1": 14.0,
-        "LUFS": -13.78,
-        "LUFS_HP150": -16.1,
-        "maxM": -12.05,
-        "maxM_HP150": -15.1,
+        "LUFS": -13.79,
+        "LUFS_HP150": -16.11,
+        "maxM": -12.07,
+        "maxM_HP150": -15.11,
         "centroid_Hz": 315.0,
         "above2k_pct": 2.09
       },
       "breakdown": {
         "t0": 14.0,
         "t1": 18.0,
-        "LUFS": -18.78,
-        "LUFS_HP150": -20.32,
-        "maxM": -14.27,
-        "maxM_HP150": -15.83,
+        "LUFS": -18.8,
+        "LUFS_HP150": -20.34,
+        "maxM": -14.29,
+        "maxM_HP150": -15.85,
         "centroid_Hz": 335.0,
         "above2k_pct": 1.93
       },
       "breakdown_dark": {
         "t0": 14.0,
         "t1": 16.0,
-        "LUFS": -19.94,
-        "LUFS_HP150": -23.36,
-        "maxM": -14.27,
-        "maxM_HP150": -18.42,
+        "LUFS": -19.95,
+        "LUFS_HP150": -23.38,
+        "maxM": -14.29,
+        "maxM_HP150": -18.44,
         "centroid_Hz": 135.0,
         "above2k_pct": 0.4
       },
       "breakdown_build": {
         "t0": 16.0,
         "t1": 18.0,
-        "LUFS": -17.7,
-        "LUFS_HP150": -18.4,
-        "maxM": -15.28,
-        "maxM_HP150": -15.83,
+        "LUFS": -17.72,
+        "LUFS_HP150": -18.42,
+        "maxM": -15.3,
+        "maxM_HP150": -15.85,
         "centroid_Hz": 661.0,
         "above2k_pct": 4.59
       },
       "drop2": {
         "t0": 18.0,
         "t1": 26.0,
-        "LUFS": -12.52,
-        "LUFS_HP150": -14.21,
-        "maxM": -11.02,
-        "maxM_HP150": -12.9,
+        "LUFS": -12.53,
+        "LUFS_HP150": -14.22,
+        "maxM": -11.03,
+        "maxM_HP150": -12.91,
         "centroid_Hz": 384.0,
         "above2k_pct": 2.52
       },
       "end": {
         "t0": 26.0,
         "t1": 30.0,
-        "LUFS": -15.87,
-        "LUFS_HP150": -17.77,
-        "maxM": -10.11,
-        "maxM_HP150": -14.19,
+        "LUFS": -15.88,
+        "LUFS_HP150": -17.78,
+        "maxM": -10.12,
+        "maxM_HP150": -14.2,
         "centroid_Hz": 265.0,
         "above2k_pct": 1.88
       }
     },
     "contrast_LU": {
       "LUFS": {
-        "groove_a_minus_intro": 5.65,
+        "groove_a_minus_intro": 4.88,
         "drop2_minus_groove_a": 1.26,
-        "breakdown_minus_groove_a": -5.0,
+        "breakdown_minus_groove_a": -5.01,
         "breakdown_dark_minus_groove_a": -6.16,
-        "build_minus_dark": 2.24
+        "build_minus_dark": 2.23
       },
       "LUFS_HP150": {
-        "groove_a_minus_intro": 3.38,
+        "groove_a_minus_intro": 2.61,
         "drop2_minus_groove_a": 1.89,
-        "breakdown_minus_groove_a": -4.22,
-        "breakdown_dark_minus_groove_a": -7.26,
+        "breakdown_minus_groove_a": -4.23,
+        "breakdown_dark_minus_groove_a": -7.27,
         "build_minus_dark": 4.96
       }
     }
@@ -258,7 +258,7 @@
     "27.00-28.00s_dBFS": -18.2,
     "28.00-29.00s_dBFS": -22.8,
     "29.00-29.50s_dBFS": -25.0,
-    "29.50-29.70s_dBFS": -28.7,
+    "29.50-29.70s_dBFS": -28.8,
     "29.70-29.85s_dBFS": -30.1,
     "29.85-29.95s_dBFS": -39.1,
     "29.95-29.99s_dBFS": -57.6,
@@ -291,7 +291,7 @@
     },
     "hf_spikes_gt_minus80dBFS": {
       "bass": 1302,
-      "music": 816
+      "music": 823
     }
   },
   "loudness_curve_1s": {
@@ -303,13 +303,13 @@
     "rows": [
       [
         0.0,
-        -27.4,
-        -27.5
+        -25.4,
+        -25.5
       ],
       [
         0.5,
-        -26.3,
-        -26.4
+        -25.7,
+        -25.8
       ],
       [
         1.0,
@@ -600,7 +600,7 @@
   },
   "out_of_key_energy_pct": {
     "intro": {
-      "music": 2.97
+      "music": 3.04
     },
     "groove_a": {
       "music": 2.36
@@ -870,7 +870,7 @@
         "Fmadd9"
       ]
     ],
-    "stem_scale_db": -11.661417972033647,
+    "stem_scale_db": -11.66141779810748,
     "sample_rate": 48000,
     "swing_s": 0.01,
     "n_events": 801,
@@ -890,11 +890,11 @@
       "rms_dBFS": -25.36,
       "lufs": -24.32,
       "dc": [
-        1.41e-10,
-        1.53e-10
+        -1.82e-10,
+        -1.98e-10
       ],
       "finite": true,
-      "first_audible_s": 0.0015,
+      "first_audible_s": 0.0013,
       "first_last_sample": [
         0.0,
         0.0
@@ -907,7 +907,7 @@
         "1000-2000": 0.35,
         "2000-4000": 0.2,
         "4000-6000": 0.18,
-        "6000-12000": 0.45,
+        "6000-12000": 0.46,
         "12000-20000": 0.31
       }
     },
@@ -917,8 +917,8 @@
       "rms_dBFS": -29.16,
       "lufs": -28.26,
       "dc": [
-        -3.5e-13,
-        -3.53e-13
+        -2.68e-13,
+        -2.67e-13
       ],
       "finite": true,
       "first_audible_s": 2.1355,
@@ -941,11 +941,11 @@
     "music": {
       "peak_dBFS": -7.01,
       "true_peak_dBTP": -7.0,
-      "rms_dBFS": -27.0,
-      "lufs": -23.93,
+      "rms_dBFS": -26.96,
+      "lufs": -23.9,
       "dc": [
-        -1.82e-10,
-        1.11e-10
+        2.35e-10,
+        -1.44e-10
       ],
       "finite": true,
       "first_audible_s": 0.0006,
@@ -956,10 +956,10 @@
       "bands_pct": {
         "20-60": 0.0,
         "60-120": 0.0,
-        "120-250": 4.81,
-        "250-1000": 70.07,
-        "1000-2000": 18.79,
-        "2000-4000": 5.57,
+        "120-250": 4.87,
+        "250-1000": 70.19,
+        "1000-2000": 18.67,
+        "2000-4000": 5.53,
         "4000-6000": 0.58,
         "6000-12000": 0.16,
         "12000-20000": 0.01
@@ -968,27 +968,27 @@
     "fx": {
       "peak_dBFS": -16.93,
       "true_peak_dBTP": -16.42,
-      "rms_dBFS": -39.58,
-      "lufs": -32.11,
+      "rms_dBFS": -39.57,
+      "lufs": -32.17,
       "dc": [
-        -1.03e-11,
-        1.07e-11
+        1.33e-11,
+        -1.39e-11
       ],
       "finite": true,
-      "first_audible_s": 0.0059,
+      "first_audible_s": 0.0042,
       "first_last_sample": [
         0.0,
         0.0
       ],
       "bands_pct": {
-        "20-60": 75.45,
+        "20-60": 75.43,
         "60-120": 8.75,
-        "120-250": 4.17,
-        "250-1000": 1.66,
+        "120-250": 4.18,
+        "250-1000": 1.67,
         "1000-2000": 0.59,
         "2000-4000": 2.11,
         "4000-6000": 2.56,
-        "6000-12000": 4.01,
+        "6000-12000": 4.0,
         "12000-20000": 0.7
       }
     }
@@ -1005,9 +1005,9 @@
     }
   },
   "unmastered_sum": {
-    "lufs": -20.4,
+    "lufs": -20.39,
     "true_peak_dBTP": -4.36,
-    "first100ms_rms_dBFS": -30.8
+    "first100ms_rms_dBFS": -27.8
   },
   "demo": {
     "ebur128": {
@@ -1017,10 +1017,10 @@
     },
     "python_lufs": -14.06,
     "true_peak_dBTP": -1.3,
-    "first100ms_rms_dBFS": -24.4,
+    "first100ms_rms_dBFS": -21.4,
     "dc": [
-      -9.46e-07,
-      -9.46e-07
+      -9.29e-07,
+      -9.3e-07
     ]
   }
 }

@@ -1,0 +1,58 @@
+cue_index,cue_t,type,params,sync_rule,array_start_t,array_end_t,target_t,breath_ms,expected_detect_t,detector,readme_anchor_t,detected_t,error_ms,within_1_frame,error_vs_cue_t_ms,bus_onset_t,bus_onset_error_ms,bus_onset_rise_db,gain_db,send,processing
+0,0.500,slash,dur=0.35,cut (anchor 0.065 s) at t,0.4350,0.7850,0.5000,0,0.5000,peak20,,0.5019,+1.90,PASS,+1.90,,,,-5.0,0.20,intro trim -5.0 dB
+1,0.750,shimmer,dur=0.7,"starts at t, lasts dur",0.7500,1.4500,0.7500,0,0.7500,start,,0.7611,+11.15,PASS,+11.15,,,,-16.5,0.10,shimmer trim -2.0 dB; intro trim -6.0 dB
+3,1.000,pop,pitch=0,onset at t,1.0000,1.3000,1.0000,0,1.0000,onset,,1.0004,+0.38,PASS,+0.38,1.0023,+2.25,17.0,-11.0,0.30,pop trim -2.0 dB; intro trim -6.0 dB
+4,1.000,tick,,onset at t,1.0000,1.0450,1.0000,0,1.0000,onset,,1.0002,+0.21,PASS,+0.21,1.0023,+2.25,17.0,-10.0,0.35,intro trim -6.0 dB
+5,1.500,tick,,onset at t,1.5000,1.5450,1.5000,0,1.5000,onset,,1.5002,+0.21,PASS,+0.21,1.5015,+1.50,52.2,-10.0,0.35,intro trim -6.0 dB
+6,1.500,shimmer,dur=0.4,"starts at t, lasts dur",1.5000,1.9000,1.5000,0,1.5000,start,,1.5087,+8.71,PASS,+8.71,,,,-16.5,0.10,shimmer trim -2.0 dB; intro trim -6.0 dB
+7,1.750,scrub,dur=0.25,"starts at t, lasts dur",1.7500,2.0000,1.7500,0,1.7500,start,,1.7502,+0.19,PASS,+0.19,,,,-7.0,0.25,scrub trim +5.0 dB; intro trim -6.0 dB
+9,2.000,impact,size=big,onset at t,2.0000,3.2354,2.0000,0,2.0000,onset,,2.0005,+0.54,PASS,+0.54,2.0020,+2.00,189.1,+2.5,0.12,over_music_hit (music LP150 +1.1 dB re its kick level); hero slam (drop1) +2.5 dB
+10,2.500,impact,size=big,onset at t,2.5000,3.7354,2.5000,0,2.5000,onset,,2.5006,+0.60,PASS,+0.60,2.5030,+3.00,22.5,+0.0,0.12,over_music_hit (music LP150 +1.1 dB re its kick level); big slam off the anchors +0.0 dB
+11,5.000,shimmer,dur=0.65,"starts at t, lasts dur",5.0000,5.6500,5.0000,0,5.0000,start,,5.0117,+11.73,PASS,+11.73,,,,-10.5,0.10,shimmer trim -2.0 dB
+12,5.750,whoosh,dur=0.5 direction=rl intensity=1.0,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",5.7500,6.2500,6.0281,0,6.0281,peak3,6.0417,6.0281,+0.04,PASS,+278.10,,,,-2.5,0.12,
+13,6.000,whoosh,dur=0.35 direction=lr intensity=0.7,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",6.0000,6.3500,6.1929,0,6.1929,peak3,6.1965,6.1929,+0.02,PASS,+192.94,,,,-5.5,0.12,(light) -3.0 dB
+14,6.500,pop,pitch=0,onset at t,6.5000,6.8000,6.5000,0,6.5000,onset,,6.5004,+0.38,PASS,+0.38,6.5025,+2.50,50.5,-5.0,0.30,pop trim -2.0 dB
+15,7.000,pop,pitch=2,onset at t,7.0000,7.3000,7.0000,0,7.0000,onset,,7.0005,+0.52,PASS,+0.52,7.0020,+2.00,57.7,-5.3,0.30,pop trim -2.0 dB; length comp -0.3 dB (to ROLE_LUFS_M)
+16,7.500,pop,pitch=4,onset at t,7.5000,7.8000,7.5000,0,7.5000,onset,,7.5005,+0.46,PASS,+0.46,7.5023,+2.25,62.8,-5.4,0.30,pop trim -2.0 dB; length comp -0.4 dB (to ROLE_LUFS_M)
+17,8.000,impact,size=medium,onset at t,8.0000,8.7352,8.0000,0,8.0000,onset,,8.0006,+0.65,PASS,+0.65,8.0023,+2.25,58.1,-0.5,0.12,over_music_hit (music LP150 -3.5 dB re its kick level)
+18,9.500,scrub,dur=0.5,"starts at t, lasts dur",9.5000,10.0000,9.5000,0,9.5000,start,,9.5016,+1.65,PASS,+1.65,,,,-1.0,0.25,scrub trim +5.0 dB
+19,10.000,pop,pitch=0,onset at t,10.0000,10.3000,10.0000,0,10.0000,onset,,10.0004,+0.38,PASS,+0.38,10.0028,+2.75,25.4,-5.0,0.30,pop trim -2.0 dB
+20,10.500,pop,pitch=2,onset at t,10.5000,10.8000,10.5000,0,10.5000,onset,,10.5005,+0.52,PASS,+0.52,10.5020,+2.00,57.8,-5.3,0.30,pop trim -2.0 dB; length comp -0.3 dB (to ROLE_LUFS_M)
+21,11.000,pop,pitch=4,onset at t,11.0000,11.3000,11.0000,0,11.0000,onset,,11.0005,+0.46,PASS,+0.46,11.0023,+2.25,62.8,-5.4,0.30,pop trim -2.0 dB; length comp -0.4 dB (to ROLE_LUFS_M)
+22,11.500,pop,pitch=7,onset at t,11.5000,11.8000,11.5000,0,11.5000,onset,,11.5004,+0.38,PASS,+0.38,11.5020,+2.00,61.9,-6.2,0.30,pop trim -2.0 dB; length comp -1.2 dB (to ROLE_LUFS_M)
+23,12.000,tick,,onset at t,12.0000,12.0450,12.0000,0,12.0000,onset,,12.0002,+0.21,PASS,+0.21,12.0015,+1.50,60.6,-4.0,0.35,"unmasked: music 1000 Hz octave -2.1 dB, cue +0.0 dB"
+24,12.500,tick,,onset at t,12.5000,12.5450,12.5000,0,12.5000,onset,,12.5002,+0.21,PASS,+0.21,12.5015,+1.50,66.6,-4.0,0.35,
+25,13.000,tick,,onset at t,13.0000,13.0450,13.0000,0,13.0000,onset,,13.0002,+0.21,PASS,+0.21,13.0015,+1.50,66.6,-4.0,0.35,
+26,13.500,tick,,onset at t,13.5000,13.5450,13.5000,0,13.5000,onset,,13.5002,+0.21,PASS,+0.21,13.5015,+1.50,66.6,-4.0,0.35,"unmasked: music 1000 Hz octave -3.9 dB, cue +0.0 dB"
+27,13.750,downlifter,dur=0.5,onset at t (falls over dur),13.7500,14.2500,13.7500,0,13.7500,onset,,13.7514,+1.42,PASS,+1.42,13.7532,+3.25,28.6,-7.0,0.15,
+29,14.500,reject,,onset at t,14.5000,15.0800,14.5000,0,14.5000,onset,,14.5003,+0.33,PASS,+0.33,14.5010,+1.00,67.2,-9.5,0.18,reject trim -1.5 dB; breakdown trim -4.0 dB
+30,15.000,reject,,onset at t,15.0000,15.5800,15.0000,0,15.0000,onset,,15.0003,+0.33,PASS,+0.33,15.0010,+1.00,41.4,-9.5,0.18,reject trim -1.5 dB; breakdown trim -4.0 dB
+31,15.500,check,,onset at t,15.5000,16.8000,15.5000,0,15.5000,onset,,15.5008,+0.81,PASS,+0.81,15.5028,+2.75,33.9,-16.0,0.20,check trim -2.5 dB; breakdown trim -5.0 dB
+32,16.000,riser,dur=2.0,"t = start, ENDS on the hit at t + dur; gated 45 ms before the hit (breath)",16.0000,18.0000,18.0000,45,17.9550,end,,17.9534,-1.65,PASS,+1953.35,,,,-7.3,0.00,length comp -1.3 dB (to ROLE_LUFS_M); music fx stem ducked -6 dB over 16.00-18.00; music fx stem ducked -6 dB over 16.00-18.00; music fx stem ducked -6 dB over 16.00-18.00; music fx stem ducked -6 dB over 16.00-18.00
+33,16.000,tick,,onset at t,16.0000,16.0450,16.0000,0,16.0000,onset,,16.0002,+0.19,PASS,+0.19,16.0015,+1.50,22.6,-4.0,0.35,
+34,16.500,tick,,onset at t,16.5000,16.5450,16.5000,0,16.5000,onset,,16.5002,+0.21,PASS,+0.21,16.5012,+1.25,32.3,-4.0,0.35,
+35,17.000,tick,,onset at t,17.0000,17.0450,17.0000,0,17.0000,onset,,17.0002,+0.21,PASS,+0.21,17.0012,+1.25,18.8,-4.0,0.35,"unmasked: music 1000 Hz octave -1.2 dB, cue +0.0 dB"
+36,17.000,whoosh,dur=0.35 direction=up intensity=1.0,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",17.0000,17.3500,17.2405,0,17.2405,peak3,17.2550,17.2404,-0.06,PASS,+240.40,,,,-2.5,0.12,
+37,17.500,tick,,onset at t,17.5000,17.5450,17.5000,0,17.5000,onset,,17.5001,+0.15,PASS,+0.15,17.5015,+1.50,16.9,-1.0,0.35,"unmasked: music 1000 Hz octave -6.0 dB, cue +3.0 dB"
+38,17.700,whoosh,dur=0.6 direction=lr intensity=1.0,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",17.7000,18.3000,18.0287,0,18.0287,peak3,18.0248,18.0446,+15.94,PASS,+344.63,,,,-6.5,0.12,length comp -1.0 dB (to ROLE_LUFS_M); stacked on a hero slam -3.0 dB
+40,18.000,slash,dur=0.35,cut (anchor 0.065 s) at t,17.9350,18.2850,18.0000,0,18.0000,peak20,,18.0119,+11.87,PASS,+11.87,,,,-3.0,0.20,stacked on a hero slam -3.0 dB
+41,18.000,impact,size=big,onset at t,18.0000,19.2354,18.0000,0,18.0000,onset,,18.0005,+0.52,PASS,+0.52,18.0020,+2.00,158.8,+2.5,0.12,over_music_hit (music LP150 +1.8 dB re its kick level); hero slam (drop2) +2.5 dB
+42,18.400,whoosh,dur=0.1 direction=rl intensity=1.0,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",18.4000,18.5000,18.4543,0,18.4543,peak3,18.4545,18.4543,+0.00,PASS,+54.29,,,,-2.5,0.12,
+43,18.500,pop,pitch=0,onset at t,18.5000,18.8000,18.5000,0,18.5000,onset,,18.5004,+0.37,PASS,+0.37,18.5030,+3.00,21.0,-5.0,0.30,pop trim -2.0 dB
+44,18.900,whoosh,dur=0.1 direction=rl intensity=1.0,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",18.9000,19.0000,18.9543,0,18.9543,peak3,18.9545,18.9543,+0.00,PASS,+54.29,,,,-2.5,0.12,
+45,19.000,pop,pitch=4,onset at t,19.0000,19.3000,19.0000,0,19.0000,onset,,19.0005,+0.46,PASS,+0.46,19.0023,+2.25,24.6,-5.4,0.30,pop pitch 3 (B5) is outside F minor -> 4 (C6); pop trim -2.0 dB; length comp -0.4 dB (to ROLE_LUFS_M)
+46,20.000,tick,,onset at t,20.0000,20.0450,20.0000,0,20.0000,onset,,20.0002,+0.21,PASS,+0.21,20.0015,+1.50,188.5,-4.0,0.35,"unmasked: music 1000 Hz octave -4.9 dB, cue +0.0 dB"
+47,20.500,tick,,onset at t,20.5000,20.5450,20.5000,0,20.5000,onset,,20.5002,+0.19,PASS,+0.19,20.5015,+1.50,68.9,-1.5,0.35,"unmasked: music 1000 Hz octave -6.0 dB, cue +2.5 dB"
+48,21.000,tick,,onset at t,21.0000,21.0450,21.0000,0,21.0000,onset,,21.0002,+0.21,PASS,+0.21,21.0015,+1.50,64.1,-4.0,0.35,"unmasked: music 1000 Hz octave -5.7 dB, cue +0.0 dB"
+49,22.000,shimmer,dur=0.6,"starts at t, lasts dur",22.0000,22.6000,22.0000,0,22.0000,start,,22.0092,+9.17,PASS,+9.17,,,,-10.5,0.10,shimmer trim -2.0 dB
+50,22.000,tick,,onset at t,22.0000,22.0450,22.0000,0,22.0000,onset,,22.0002,+0.21,PASS,+0.21,22.0015,+1.50,188.5,-4.0,0.35,
+51,22.500,tick,,onset at t,22.5000,22.5450,22.5000,0,22.5000,onset,,22.5002,+0.19,PASS,+0.19,22.5025,+2.50,25.5,-2.7,0.35,"unmasked: music 1000 Hz octave -6.0 dB, cue +1.3 dB"
+52,23.000,tick,,onset at t,23.0000,23.0450,23.0000,0,23.0000,onset,,23.0002,+0.21,PASS,+0.21,23.0015,+1.50,65.2,-4.0,0.35,"unmasked: music 1000 Hz octave -5.4 dB, cue +0.0 dB"
+53,23.750,whoosh,dur=0.5 direction=up intensity=1.0,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",23.7500,24.2500,24.0856,0,24.0856,peak3,24.1194,24.0981,+12.48,PASS,+348.10,,,,-2.5,0.12,"unmasked: music 250 Hz octave -4.1 dB, cue +0.0 dB"
+54,24.500,scrub,dur=0.5,"starts at t, lasts dur",24.5000,25.0000,24.5000,0,24.5000,start,,24.5016,+1.65,PASS,+1.65,,,,-1.0,0.25,scrub trim +5.0 dB
+55,25.000,pop,pitch=0,onset at t,25.0000,25.3000,25.0000,0,25.0000,onset,,25.0004,+0.37,PASS,+0.37,25.0027,+2.75,22.9,-7.5,0.30,pop trim -2.0 dB; last 1 s before the end hit -2.5 dB
+56,25.400,whoosh,dur=0.1 direction=rl intensity=1.0,"spans the motion window [t, t+dur]; envelope peak (-3 dB centre) mid-motion",25.4000,25.5000,25.4543,0,25.4543,peak3,25.4545,25.4543,+0.00,PASS,+54.29,,,,-5.0,0.12,last 1 s before the end hit -2.5 dB
+57,25.500,pop,pitch=5,onset at t,25.5000,25.8000,25.5000,0,25.5000,onset,,25.5004,+0.44,PASS,+0.44,25.5023,+2.25,24.0,-8.3,0.30,pop trim -2.0 dB; length comp -0.8 dB (to ROLE_LUFS_M); last 1 s before the end hit -2.5 dB
+58,25.500,reverse_swell,dur=0.5,"t = start, ENDS on the hit at t + dur; gated 45 ms before the hit (breath)",25.5000,26.0000,26.0000,45,25.9550,end,,25.9534,-1.65,PASS,+453.35,,,,-7.5,0.00,"last 1 s before the end hit -2.5 dB; music fx stem ducked -6 dB over 25.50-26.00; music fx stem ducked -6 dB over 25.50-26.00; music fx stem ducked -6 dB over 25.50-26.00; music fx stem ducked -6 dB over 25.50-26.00; unmasked: music 8000 Hz octave -3.3 dB, cue +0.0 dB"
+60,26.000,impact,size=big,onset at t,26.0000,27.2354,26.0000,0,26.0000,onset,,26.0005,+0.52,PASS,+0.52,26.0020,+2.00,175.4,+4.5,0.12,over_music_hit (music LP150 +1.4 dB re its kick level); hero slam (end_hit) +2.5 dB; end hit +2.0 dB
+61,26.100,shimmer,dur=0.5,"starts at t, lasts dur",26.1000,26.6000,26.1000,0,26.1000,start,,26.1086,+8.62,PASS,+8.62,,,,-7.5,0.10,shimmer trim -2.0 dB; in a hero hit's crash tail +3.0 dB
