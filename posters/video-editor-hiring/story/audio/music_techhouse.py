@@ -33,7 +33,8 @@ import tempfile
 import numpy as np
 import soundfile as sf
 from scipy import signal as sps
-from pedalboard import Chorus, Compressor, LadderFilter, Limiter, Reverb
+from scipy.ndimage import minimum_filter1d, uniform_filter1d
+from pedalboard import Chorus, Compressor, LadderFilter, Reverb
 
 # ----------------------------------------------------------------------------------------------
 # constants / contract
@@ -498,6 +499,19 @@ def _pingpong(x: np.ndarray, delay_s: float, fb: float, taps: int = 7) -> np.nda
     return wet
 
 
+def _peak_limit(x: np.ndarray, ceiling: float, win_ms: float = 5.0, true_peak: bool = False) -> np.ndarray:
+    """Look-ahead brick-wall limiter (no make-up gain).  gain = box-average of a min-filtered gain
+    curve whose window covers the averaging window, so |out| <= ceiling at every (4x) sample."""
+    a = np.max(np.abs(x), axis=1)
+    if true_peak:
+        up = np.abs(sps.resample_poly(x, 4, 1, axis=0)).max(axis=1)
+        a = np.maximum(a, up[: 4 * len(x)].reshape(len(x), 4).max(axis=1))
+    g = np.minimum(1.0, ceiling / np.maximum(a, 1e-12))
+    L = max(3, int(win_ms * 1e-3 * SR)) | 1
+    g = uniform_filter1d(minimum_filter1d(g, size=2 * L + 1), size=L)
+    return x * g[:, None]
+
+
 def _true_peak(x: np.ndarray) -> float:
     """4x-oversampled peak, linear."""
     y = sps.resample_poly(x, 4, 1, axis=0)
@@ -775,11 +789,12 @@ def _db2(g):
 
 # stem-internal levels (dB)
 LV = dict(kick=-7.0, clap=-14.5, clap_plate=-21.0, hat=-22.0, ohat=-23.0, snare=-17.0, crash=-23.0,
-          sub=-4.0, midbass=-6.0, pad=-20.0, arp=-18.5, lift=-19.0, stab=-15.0, delay=-25.0,
+          sub=-4.0, midbass=-3.0, pad=-15.0, arp=-18.5, lift=-19.0, stab=-15.0, delay=-25.0,
           riser=-22.0, riser_tone=-27.0, boom=-12.0, downlifter=-27.0, revcym=-19.0, impact=-21.0)
 
 
-def render(duration, drop_time, end_hit_time, seed=1):
+def render(duration, drop_time, end_hit_time, seed=1, _parts=None):
+    """See module docstring. `_parts` (optional dict) receives cropped sub-buses for analysis."""
     rng = np.random.default_rng(seed)
     N = int(round(duration * SR))
     n_tot = int(PRE * SR) + N + int(0.5 * SR)
@@ -838,6 +853,9 @@ def render(duration, drop_time, end_hit_time, seed=1):
     mid_x = _filt(mid_bus.x, "highpass", 110.0, 2)
     mid_x = _peq(mid_x, 900.0, 2.0, 0.8)                                # phone-speaker audibility
     B = sub_x + mid_x
+    b_rms = _db(np.sqrt(np.mean(B[int(PRE * SR):] ** 2)) + 1e-12)
+    B = _pb(Compressor(threshold_db=b_rms + 4.0, ratio=3.0, attack_ms=4.0, release_ms=80.0), B)
+    B = _peak_limit(B, _db2(b_rms + 8.0), win_ms=6.0)
     B *= _pump(kicks, n_tot, 0.85, rel=0.16)[:, None]
     B *= _gap_gate(n_tot, [drop, t_hit])[:, None]
 
@@ -885,12 +903,16 @@ def render(duration, drop_time, end_hit_time, seed=1):
     A = _filt(arp_bus.x, "highpass", 220.0, 2)
     a_rms = _db(np.sqrt(np.mean(A[int(PRE * SR):] ** 2)) + 1e-12)
     A = _pb(Compressor(threshold_db=a_rms + 5.0, ratio=4.0, attack_ms=1.5, release_ms=70.0), A)
+    A = _peak_limit(A, _db2(a_rms + 9.0), win_ms=5.0)
     A = _peq(A, 2800.0, -2.5, 1.2)
     A_d = _pingpong(A, 0.375, 0.42) * _db2(LV["delay"] - LV["arp"]) * 4.0
     A = A + A_d
     A = _pb(Reverb(room_size=0.5, damping=0.6, wet_level=0.13, dry_level=1.0, width=1.0), A)
     A *= _pump(kicks, n_tot, 0.30, rel=0.16)[:, None]
     M = P + A
+    if _parts is not None:
+        _parts.update(pad=P[int(PRE * SR):int(PRE * SR) + N].copy(), arp=A[int(PRE * SR):int(PRE * SR) + N].copy(),
+                      sub=sub_x[int(PRE * SR):int(PRE * SR) + N].copy(), midbass=mid_x[int(PRE * SR):int(PRE * SR) + N].copy())
     M *= _gap_gate(n_tot, [drop, t_hit])[:, None]
 
     # ------------------------------------------------ FX
@@ -1021,15 +1043,10 @@ def stem_report(stems: dict) -> dict:
 
 
 def master_preview(mix: np.ndarray, target_lufs=-14.0, ceiling_dbtp=-1.0) -> np.ndarray:
-    """Quick preview master: glue comp, gain to target, limiter, true-peak safety trim."""
+    """Quick preview master (NOT the final mixer): glue comp, gain to target, true-peak limiter."""
     x = _pb(Compressor(threshold_db=-20.0, ratio=2.0, attack_ms=15.0, release_ms=150.0), mix)
     x = x * _db2(target_lufs - lufs(x))
-    for _ in range(3):
-        y = _pb(Limiter(threshold_db=ceiling_dbtp - 1.0, release_ms=80.0), x)
-        tp = _db(_true_peak(y))
-        if tp <= ceiling_dbtp - 0.1:
-            break
-        x = x * _db2(ceiling_dbtp - 0.2 - tp)
+    y = _peak_limit(x, _db2(ceiling_dbtp - 0.3), win_ms=8.0, true_peak=True)
     tp = _true_peak(y)
     if _db(tp) > ceiling_dbtp - 0.1:
         y = y * _db2(ceiling_dbtp - 0.15) / tp

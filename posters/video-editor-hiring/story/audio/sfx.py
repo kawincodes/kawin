@@ -453,14 +453,18 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
 
     # filter trajectories
     if direction in ("lr", "rl"):
+        # doppler-like: opens on approach, closes as it leaves
         bright = prox
-    elif direction == "up":
-        bright = 0.15 + 0.85 * u ** 1.3 * (0.5 + 0.5 * prox)
+        fc_body = 250.0 * (1.0 + (12.0 + 6.0 * I) * bright ** 1.2)   # ~250 -> 4.7k
+        fc_swish = 320.0 * (1.0 + (3.0 + 1.0 * I) * bright ** 1.1)   # ~320 -> 1.6k
+        q_swish = 1.6
     else:
-        bright = 0.15 + 0.85 * (1 - u) ** 1.3 * (0.5 + 0.5 * prox)
-    bright = np.clip(bright, 0, 1)
-    fc_body = 250.0 * (1.0 + (12.0 + 6.0 * I) * bright ** 1.2)     # ~250 -> 4.7k
-    fc_swish = 320.0 * (1.0 + (3.0 + 1.0 * I) * bright ** 1.1)     # ~320 -> 1.6k
+        # continuous resonant sweep: 'up' 280 Hz -> ~3 kHz, 'down' the reverse
+        v = u if direction == "up" else 1.0 - u
+        span = 8.0 + 3.0 * I
+        fc_swish = 280.0 * span ** (v ** 1.1)
+        fc_body = 400.0 * (1.5 * span) ** v
+        q_swish = 2.6
 
     # pan / width
     if direction == "lr":
@@ -469,12 +473,12 @@ def whoosh(dur: float = 0.45, direction: str = "lr", intensity: float = 1.0) -> 
         pan = 0.85 - 1.7 / (1.0 + np.exp(-(u - up) / 0.085))
     else:
         pan = np.zeros(n)
-    width = 0.25 + 0.55 * prox
+    width = (0.12 + 0.30 * prox) if direction in ("lr", "rl") else (0.25 + 0.55 * prox)
 
     nz = _stereo_noise(n, rng, width)
     body = _filt(_svf(_pinkish(nz), fc_body, 0.75, "lp"), "highpass", 110.0, 2) * 0.8
-    swish = _svf(nz, fc_swish, 1.6, "bp") * 1.1
-    air = _filt(_stereo_noise(n, rng, 0.8), "highpass", 6500.0, 4)
+    swish = _svf(nz, fc_swish, q_swish, "bp") * 0.85
+    air = _filt(_filt(_stereo_noise(n, rng, 0.8), "highpass", 6500.0, 4), "lowpass", 14000.0, 2)
     air *= (prox ** 3)[:, None] * 0.16 * I
     low = _filt(_filt(_pinkish(rng.standard_normal(n)), "lowpass", 170.0, 4), "highpass", 40.0, 2)
     low = _center(low * prox ** 2 * 0.3 * I ** 1.5)
@@ -556,15 +560,15 @@ def slash(dur: float = 0.35) -> np.ndarray:
 # 3. impact
 # ----------------------------------------------------------------------------
 _IMPACT = {
-    "big": dict(f0=120.0, f1=38.0, glide=0.11, sub_tau=0.30, sub_amp=1.0, drive=1.6,
-                body="F2", body_tau=0.16, body_amp=0.8, punch_tau=0.040, punch=0.20,
+    "big": dict(f0=120.0, f1=38.0, glide=0.11, sub_tau=0.22, sub_amp=1.0, drive=1.6,
+                body="F2", body_tau=0.16, body_amp=0.8, punch_tau=0.045, punch=0.27,
                 crack_tau=0.028, crack_tail=0.15, crack=0.17, click=0.22,
                 rt=1.5, wet=0.38, length=1.8),
-    "medium": dict(f0=140.0, f1=48.0, glide=0.07, sub_tau=0.19, sub_amp=0.85, drive=1.5,
-                   body="C3", body_tau=0.11, body_amp=0.8, punch_tau=0.030, punch=0.20,
+    "medium": dict(f0=140.0, f1=48.0, glide=0.07, sub_tau=0.14, sub_amp=0.85, drive=1.5,
+                   body="C3", body_tau=0.11, body_amp=0.8, punch_tau=0.032, punch=0.24,
                    crack_tau=0.020, crack_tail=0.10, crack=0.16, click=0.20,
                    rt=0.9, wet=0.32, length=1.1),
-    "small": dict(f0=190.0, f1=70.0, glide=0.035, sub_tau=0.09, sub_amp=0.6, drive=1.3,
+    "small": dict(f0=190.0, f1=70.0, glide=0.035, sub_tau=0.07, sub_amp=0.6, drive=1.3,
                   body="F3", body_tau=0.06, body_amp=0.85, punch_tau=0.018, punch=0.18,
                   crack_tau=0.012, crack_tail=0.05, crack=0.15, click=0.18,
                   rt=0.5, wet=0.24, length=0.6),
@@ -576,7 +580,7 @@ def impact(size: str = "big") -> np.ndarray:
     F3 + octave), low-mid punch, transient click (~3-5 kHz), short noise
     crack, and a reverb tail on everything except the (dry, mono) sub.  The
     sub and body are soft-saturated so the hit still reads on phone speakers.
-    Hit is at t=0; natural length (big ~1.6 s, medium ~1 s, small ~0.5 s)."""
+    Hit is at t=0; natural length (big ~1.2 s, medium ~0.8 s, small ~0.4 s)."""
     if size not in _IMPACT:
         raise ValueError("size must be 'big', 'medium' or 'small'")
     c = _IMPACT[size]
@@ -593,7 +597,7 @@ def impact(size: str = "big") -> np.ndarray:
     fb = _note(c["body"], "impact")
     NOTES_USED["impact"].add(midi_name(note_midi(c["body"]) + 12))
     f_body = fb * (1.0 + 0.9 * np.exp(-t / 0.012))
-    body = _sine(f_body, n) + 0.35 * _sine(2.0 * f_body, n) * np.exp(-t / 0.04)
+    body = _sine(f_body, n) + 0.5 * _sine(2.0 * f_body, n) * np.exp(-t / 0.07)
     body = _sat(body * _decay(n, c["body_tau"], 0.001) * 0.85, 1.5) * c["body_amp"]
 
     # low-mid punch (noise 90-700 Hz)
@@ -807,10 +811,10 @@ def riser(dur: float = 1.5) -> np.ndarray:
     # noise layer
     nz = _stereo_noise(n, rng, 0.2 + 0.7 * u)
     fc = 220.0 * 45.0 ** (u ** 1.35)
-    noise = _svf(nz, fc, 0.9, "lp")
-    whistle = _svf(nz, 300.0 * 20.0 ** (u ** 1.2), 6.0, "bp") * 0.45
+    noise = _svf(_pinkish(nz), fc, 0.9, "lp")
+    whistle = _svf(nz, 300.0 * 20.0 ** (u ** 1.2), 6.0, "bp") * 0.35
     namp = u ** 2.2 * _ramp_in(n, 0.05)
-    noise = _filt((noise + whistle) * namp[:, None] * 0.9, "highpass", 100.0, 2)
+    noise = _svf((noise + whistle) * namp[:, None] * 0.9, 90.0 * 7.0 ** u, 0.7, "hp")
 
     # tonal layer: power fifth gliding up two octaves, ending on F5 + C6
     F3 = _note("F3", "riser")
@@ -924,7 +928,7 @@ def shimmer(dur: float = 1.2) -> np.ndarray:
         out += _pan(_sine(f * vib, n) * env * lvl, pan)
 
     # air glitter
-    air = _filt(_stereo_noise(n, rng, 0.9), "highpass", 8000.0, 4)
+    air = _filt(_filt(_stereo_noise(n, rng, 0.9), "highpass", 8000.0, 4), "lowpass", 13000.0, 2)
     spk = _filt(np.maximum(rng.standard_normal(n), 0) ** 3, "lowpass", 60.0, 2)
     spk /= spk.max() + 1e-9
     dshape = _ramp_in(n, att) * np.exp(-np.maximum(t - att, 0) / (0.3 * dur))
@@ -985,7 +989,7 @@ def reverse_swell(dur: float = 0.8) -> np.ndarray:
             metal[:, ch] += _bl_wave(337.0 * r * det, n, "square", max_h=41,
                                      phase0=rng.uniform(0, 6.28))
     metal = _filt(_filt(metal, "highpass", 4000.0, 4), "lowpass", 13000.0, 2) * 0.35
-    hiss = _filt(_stereo_noise(n, rng, 0.85), "highpass", 6500.0, 4) * 0.7
+    hiss = _filt(_filt(_stereo_noise(n, rng, 0.85), "highpass", 6000.0, 4), "lowpass", 12000.0, 2) * 0.8
     mid = _filt(_stereo_noise(n, rng, 0.7), "bandpass", [900.0, 2600.0], 2) * 0.30
     e_hi = np.exp(-t / (0.22 * dur))
     e_mid = np.exp(-t / (0.32 * dur))
@@ -1009,8 +1013,19 @@ def reverse_swell(dur: float = 0.8) -> np.ndarray:
 
 
 # ----------------------------------------------------------------------------
-# sync points
+# mixing hints + sync points
 # ----------------------------------------------------------------------------
+# Starting fader offsets (dB) for the SFX bus, derived from measured max
+# momentary loudness so each sound lands at a role-appropriate level
+# (big slam -14 LUFS-M ... scrub bed -27 LUFS-M) before music is added.
+# Never positive, so every sound keeps <= -3 dBTP.
+SUGGESTED_GAIN_DB = {
+    "tick": -4.0, "scrub": -6.0, "whoosh": -2.0, "slash": 0.0,
+    "impact_small": -1.5, "impact_medium": -1.5, "impact_big": 0.0,
+    "reject": -2.5, "check": -8.5, "pop": -3.0, "riser": -6.5,
+    "downlifter": -7.0, "shimmer": -8.5, "reverse_swell": -6.5,
+}
+
 def anchor(name: str, **kw) -> float:
     """Seconds into the returned array where the sound 'lands' (align this
     with the visual event).  e.g. start = event_time - anchor('whoosh', dur=.45)."""
@@ -1065,7 +1080,7 @@ _OCT = (63, 125, 250, 500, 1000, 2000, 4000, 8000, 16000)
 
 def _octave_levels(x: np.ndarray) -> list:
     mono = np.sum(np.asarray(x, float), axis=1)
-    spec = np.abs(np.fft.rfft(mono * np.hanning(len(mono)))) ** 2
+    spec = np.abs(np.fft.rfft(mono)) ** 2      # sounds are faded: no window needed
     fr = np.fft.rfftfreq(len(mono), 1 / SR)
     tot = spec.sum() + 1e-20
     out = []
@@ -1230,6 +1245,7 @@ def render_demo(out_dir: str = DEMO_DIR, gap: float = 0.4) -> str:
 __all__ = ["whoosh", "slash", "impact", "reject", "check", "pop", "tick", "scrub",
            "riser", "downlifter", "shimmer", "reverse_swell", "anchor",
            "render_demo", "verify_key", "true_peak", "lufs_momentary_max",
+           "SUGGESTED_GAIN_DB", "SIXTEENTH", "BEAT",
            "SR", "BPM", "KEY_NAME", "NOTES_USED"]
 
 if __name__ == "__main__":
