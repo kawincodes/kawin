@@ -319,6 +319,7 @@ STYLE_DEFAULTS = {
     "stroke-linejoin": "miter", "stroke-miterlimit": "4", "stroke-dasharray": "none",
     "stroke-dashoffset": "0", "clip-rule": "nonzero", "visibility": "visible", "color": "black",
     "paint-order": "normal", "vector-effect": "none",
+    "marker-start": "none", "marker-mid": "none", "marker-end": "none",
     # not inherited:
     "opacity": "1", "clip-path": "none", "mask": "none", "filter": "none", "display": "inline",
     "mix-blend-mode": "normal", "isolation": "auto",
@@ -327,13 +328,20 @@ NOT_INHERITED = {"opacity", "clip-path", "mask", "filter", "display", "mix-blend
                  "vector-effect", "isolation"}
 
 
-def _parse_decls(body):
+def _parse_decls(body, important=None):
+    """CSS declarations -> {prop: value}; '!important' ones are also put in ``important``.
+    The 'marker' shorthand expands to marker-start/-mid/-end."""
     out = {}
     for decl in (body or "").split(";"):
         if ":" in decl:
             k, v = decl.split(":", 1)
+            imp = re.search(r"!\s*important\s*$", v.strip()) is not None
             v = re.sub(r"!\s*important\s*$", "", v.strip()).strip()
-            out[k.strip().lower()] = v
+            k = k.strip().lower()
+            for kk in (("marker-start", "marker-mid", "marker-end") if k == "marker" else (k,)):
+                out[kk] = v
+                if imp and important is not None:
+                    important[kk] = v
     return out
 
 
@@ -341,14 +349,15 @@ class Styler:
     """Presentation attributes < <style> rules (simple selectors, by specificity) < style attr."""
 
     def __init__(self, root, warn):
-        self.rules = []   # (specificity, order, tag, classes, ids, decls)
+        self.rules = []   # (specificity, order, tag, classes, ids, decls, important decls)
         order = 0
         for st in root.iter():
             if lname(st) != "style":
                 continue
             text = re.sub(r"/\*.*?\*/", "", "".join(st.itertext()), flags=re.S)
             for m in re.finditer(r"([^{}@;]+)\{([^{}]*)\}", text):
-                decls = _parse_decls(m.group(2))
+                imp = {}
+                decls = _parse_decls(m.group(2), imp)
                 for sel in m.group(1).split(","):
                     sel = sel.strip()
                     mm = re.fullmatch(r"(\*|[A-Za-z][\w-]*)?((?:[.#][\w-]+)*)", sel)
@@ -359,7 +368,7 @@ class Styler:
                     classes = re.findall(r"\.([\w-]+)", mm.group(2))
                     ids = re.findall(r"#([\w-]+)", mm.group(2))
                     spec = (len(ids), len(classes), 1 if tag else 0)
-                    self.rules.append((spec, order, tag, set(classes), set(ids), decls))
+                    self.rules.append((spec, order, tag, set(classes), set(ids), decls, imp))
                     order += 1
         self.rules.sort(key=lambda r: (r[0], r[1]))
 
@@ -368,15 +377,21 @@ class Styler:
         for k in STYLE_DEFAULTS:
             if el.get(k) is not None:
                 d[k] = el.get(k).strip()
+        matched = []
         if self.rules:
             cls = set((el.get("class") or "").split())
             eid = el.get("id")
             t = lname(el)
-            for _, _, tag, classes, ids, decls in self.rules:
+            for _, _, tag, classes, ids, decls, imp in self.rules:
                 if (tag is None or tag == t) and classes <= cls and (not ids or ids == {eid}):
                     d.update({k: v for k, v in decls.items() if k in STYLE_DEFAULTS})
+                    matched.append(imp)
+        imp_attr = {}
         if el.get("style"):
-            d.update({k: v for k, v in _parse_decls(el.get("style")).items() if k in STYLE_DEFAULTS})
+            d.update({k: v for k, v in _parse_decls(el.get("style"), imp_attr).items() if k in STYLE_DEFAULTS})
+        # CSS cascade: '!important' rules beat style="" (by specificity), important style="" wins last
+        for imp in matched + [imp_attr]:
+            d.update({k: v for k, v in imp.items() if k in STYLE_DEFAULTS})
         return d
 
 
@@ -814,7 +829,8 @@ def fill_region(subs, rule="nonzero", step=FLAT_STEP, keep_open=False):
         if not s.segs:
             continue
         r = s.closed_copy().flatten(step)
-        if len(r) >= 3 and abs(_shoelace(r)) > 1e-9:
+        # a self-intersecting ring can enclose area with zero *net* signed area (bow-tie, figure 8)
+        if len(r) >= 3 and (abs(_shoelace(r)) > 1e-9 or not LinearRing(r).is_simple):
             rings.append(r)
             keep.append(s if keep_open else s.closed_copy())
     if not keep:
@@ -913,10 +929,11 @@ def _crop(rgba):
 
 
 def _append_style(el, decls):
+    # '!important' in style="" outranks any stylesheet rule, '!important' ones included (CSS cascade)
     st = el.get("style", "").strip()
     if st and not st.endswith(";"):
         st += ";"
-    el.set("style", st + ";".join(f"{k}:{v}" for k, v in decls.items()))
+    el.set("style", st + ";".join(f"{k}:{v} !important" for k, v in decls.items()))
 
 
 def isolated_svg(root, uid, target_style=None, root_ns=SVG_NS):
@@ -1053,7 +1070,8 @@ class _Builder:
             fx = {"xMin": 0.0, "xMid": 0.5, "xMax": 1.0}.get(align[:4], 0.5)
             fy = {"YMin": 0.0, "YMid": 0.5, "YMax": 1.0}.get(align[4:], 0.5)
             V = (s, 0.0, 0.0, s, -minx * s + fx * (wi - vbw * s), -miny * s + fy * (hi - vbh * s))
-        return mul(S, V), vbw, vbh
+        # SVG 2 transform on the outermost <svg>: rsvg applies it in viewport units, outside the viewBox fit
+        return mul(mul(S, parse_transform(r.get("transform"))), V), vbw, vbh
 
     # ------------------------------------------------------------------ style
     def style(self, el):
@@ -1289,6 +1307,9 @@ class _Builder:
             return pixel("filter")
         if st["mask"] not in ("none", ""):
             return pixel("mask")
+        if t in ("path", "line", "polyline", "polygon") and \
+                any(st[p] not in ("none", "") for p in ("marker-start", "marker-mid", "marker-end")):
+            return pixel("markers")               # rsvg paints markers on these four; a shape layer cannot
         fill = parse_paint(st["fill"], st["color"])
         stroke = parse_paint(st["stroke"], st["color"])
         for prop, val in (("fill", fill), ("stroke", stroke)):
@@ -1361,6 +1382,17 @@ class _Builder:
         if not region:
             self.warn(f"{name}: empty after fill-rule/clip - nothing painted, skipped")
             return None
+        # §PR knots are signed 8.24 fractions of the document size, so only [-128, 128) document sizes
+        # fit. Geometry reaching further (a huge backdrop, a far off-canvas object) is cut to a box one
+        # document size around the canvas (exact polygon outline, geometry='flattened').
+        if any(abs(v) > 100.0 * self.px for _, sp in region for p in sp.control_points() for v in p):
+            if stroke:
+                return pixel("geometry beyond the PSD vector range")
+            from shapely.geometry import box as _box
+            region = region_from_geom(region_geom(region).intersection(
+                _box(-self.px, -self.px, 2 * self.px, 2 * self.px)))
+            if not region:                        # nothing near the canvas: an empty layer keeps the tree
+                return pixel("geometry beyond the PSD vector range")
         n = LNode("shape", name, uid)
         stroke_info = None
         if stroke:
