@@ -59,8 +59,9 @@ Variant schema (what both generators take)
                | {type: 'blur', blur}]
     The spec form (facets of {name, d, fill: hex}) is the common case. `d` may be any SVG path
     data; it is normalised with svg_path_to_mlcz.
-    palette = {key: hex}. The swatch name is "K " + Key ("red" -> "K Red"). A fill colour that is
-    not in the palette gets its own global swatch "K RRGGBB" and a warning.
+    palette = {key: hex}. The swatch name is "K " + Key ("red" -> "K Red"). A fill or gradient-stop
+    colour that is not in the palette gets its own global swatch "K RRGGBB" and a warning, so every
+    colour in the Illustrator file is a global swatch. A background keeps its SVG name ("disc").
 
 INPUT: "layered SVG" (svg_to_variant)
 -------------------------------------
@@ -77,9 +78,11 @@ The bottom-most top-level leaf named disc / background / bg / badge / backdrop /
 the variant background. Not supported (warned): strokes, text, images, patterns, markers,
 spreadMethod other than pad, CSS <style> sheets.
 
-Verification: test_illustrator_jsx.py (fixture + trace, node --check, ES3 lint, acorn ES3 parse,
-recording mocks of the Illustrator / Photoshop DOM in jsx_mocks/, pixel comparison of the
-mock-recorded documents against librsvg renders of the input).
+Verification: test_illustrator_jsx.py (fixture + trace + any extra SVGs: node --check, ES3 lint,
+acorn ES3 parse, strict recording mocks of the Illustrator / Photoshop DOM in jsx_mocks/, geometry
+vs an independent cairosvg reference, pixel comparison of the mock-recorded documents against
+librsvg renders of the input). Both scripts also check themselves inside the app (path read-back,
+stacking order, Photoshop colour samplers) and report it in the summary alert / build log.
 """
 from __future__ import annotations
 
@@ -1470,6 +1473,7 @@ class _Model:
             prev = o
             c = parse_color(col) or ("#000000", 0.0)
             stops.append((o, c[0], float(a) * c[1]))
+            self.swatch_for(c[0], f"{where} (gradient stop)")
         if len(stops) < 2:
             if not stops:
                 return None
@@ -2012,7 +2016,6 @@ def _ps_node(n, model, s, W, H, counts):
 def _ps_samples(vm, s, W, H, model, margin_px=8.0, max_per_leaf=3):
     """Colour-check points: inside a facet, >= margin_px from every edge, where nothing painted
     later (including its effect spread) can change the colour. Expected = the facet's colour."""
-    from shapely.affinity import scale as sh_scale
     from shapely.geometry import Point
     from shapely.ops import polylabel, unary_union
 

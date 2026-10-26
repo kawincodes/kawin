@@ -5,10 +5,13 @@
 //   <k-logo variant="color" size="48" label="Home"></k-logo>
 //
 // variant: color | mono | mono-solid | white | badge | dimensional | tech (default color)
-// size:    height; a number is px, anything else is a CSS length (default 48). Width follows.
+// size:    height; a number is px, anything else is a CSS length such as 3rem, not a % (default 48).
+//          Width follows.
 // label:   accessible name; without it the logo is decorative (aria-hidden).
 // Mono variants paint with currentColor: set `color` on the element. The tech icon switches to its
-// simplified drawing at 64 px and below. Every instance gets its own gradient ids.
+// simplified drawing at 64 px and below - for a CSS length too, by its laid-out height (a
+// ResizeObserver re-checks it, e.g. when the root font size changes). Every instance gets its own
+// gradient ids.
 
 const ART = {
   'color': {
@@ -162,11 +165,28 @@ export class KLogoElement extends Base {
   }
 
   connectedCallback() {
+    // A CSS length (rem, em, vh ...) is only known after layout: watch the element so the tech
+    // icon still switches at TECH_SMALL_MAX. The first callback runs before the first paint.
+    if (!this._ro && typeof ResizeObserver !== 'undefined') this._ro = new ResizeObserver(() => this._render());
+    if (this._ro) this._ro.observe(this);
     this._render();
+  }
+
+  disconnectedCallback() {
+    if (this._ro) this._ro.disconnect();
   }
 
   attributeChangedCallback() {
     this._render();
+  }
+
+  /** Height in CSS px that a CSS length resolves to here; undefined until laid out. */
+  _laidOutHeight(size) {
+    const svg = this.shadowRoot.querySelector('svg');
+    if (!svg || !this.isConnected) return undefined;
+    svg.style.height = size;
+    const h = parseFloat(getComputedStyle(svg).height);
+    return h > 0 ? h : undefined;
   }
 
   _render() {
@@ -174,8 +194,11 @@ export class KLogoElement extends Base {
     const m = /^(\d*\.?\d+)(px)?$/.exec(size);
     const px = m ? Number(m[1]) : undefined;
     let key = this.getAttribute('variant') || 'color';
-    if (key === 'tech' && px !== undefined && px <= TECH_SMALL_MAX) key = 'tech-small';
     if (!Object.prototype.hasOwnProperty.call(ART, key)) key = 'color';
+    if (key === 'tech') {
+      const h = px !== undefined ? px : this._laidOutHeight(size);
+      if (h !== undefined && h <= TECH_SMALL_MAX) key = 'tech-small';
+    }
     const art = ART[key];
     if (this._key !== key) {                       // artwork changes rebuild the shadow tree
       this.shadowRoot.innerHTML = `<style>${CSS}</style>${markup(art, this._uid)}`;

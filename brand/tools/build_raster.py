@@ -17,6 +17,8 @@ Production decisions
                   1024 px we render through it at >= 1024 px and box-reduce with the same filter:
                   brand.render's own 8x supersampling at <= 128 px makes the 2-unit facet trap
                   thinner than one sample, which lets interior alpha dip to 252 at 16 px.
+                  Polygon paths are wound one way before rendering (wound): librsvg fills the
+                  notch-tip pixel of the concave crotch C solid when a ring runs backwards.
   * Trapping    - flat marks and badges use brand.trapped (what raster=True draws) with the trap
                   matched to the render: 1.5 rendered px, at most brand's 2 units. The fixed trap
                   is 8 px long at 4096 px and tints the outline's anti-aliased pixels next to J
@@ -88,11 +90,37 @@ FONT_DIR = "/usr/share/fonts/opentype/inter"
 
 
 # ------------------------------------------------------------------ rendering + writing
+_NUM = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _ring_area(r) -> float:
+    return 0.5 * sum(x0 * y1 - x1 * y0 for (x0, y0), (x1, y1) in zip(r, r[1:] + r[:1]))
+
+
+def wound(svg: str) -> str:
+    """The same document with every polygon path wound one way: outer rings positive, holes
+    negative (a path whose first ring runs backwards has all its rings reversed, which keeps the
+    shell / hole pairing shapely emits). librsvg 2.58 fills the notch-tip pixel of a concave
+    vertex solid when the ring runs the other way - the crotch C rendered alpha 255 where exact
+    coverage is 166 at 4096 px. Geometry, paint order and colours are untouched; paths with arcs
+    or curves are left as drawn."""
+    def fix(m):
+        d = m.group(1)
+        if not re.fullmatch(r"[MLZ\d.\s-]*", d):
+            return m.group(0)
+        rings = [list(zip(*[iter(map(float, _NUM.findall(s)))] * 2)) for s in re.findall(r"M[^Z]*Z", d)]
+        if not rings or _ring_area(rings[0]) >= 0:
+            return m.group(0)
+        return ' d="' + " ".join(poly_d(r[::-1]) for r in rings) + '"'
+    return re.sub(r' d="([^"]*)"', fix, svg)
+
+
 def px(svg: str, w: int, h: int = None) -> Image.Image:
-    """brand.render at >= 1024 px, box-reduced in premultiplied alpha to w x h (see docstring)."""
+    """brand.render at >= 1024 px, box-reduced in premultiplied alpha to w x h (see docstring).
+    Paths are wound one way first (see wound)."""
     h = h or w
     f = max(1, math.ceil(1024 / max(w, h)))
-    im = brand.render(svg, w * f, h * f)
+    im = brand.render(wound(svg), w * f, h * f)
     return im if f == 1 else im.convert("RGBa").reduce(f).convert("RGBA")
 
 
@@ -334,7 +362,8 @@ def _inner(svg: str) -> str:
 
 
 def mask_d(shape: str, x: float, y: float, s: float) -> str:
-    """Launcher / icon masks on an s-square at (x, y): circle | squircle | rounded | tile."""
+    """Launcher / icon masks on an s-square at (x, y): circle | squircle | rounded | play | tile.
+    play is Google Play's listing mask (corner radius 20 % of the icon)."""
     if shape == "circle":
         return brand._circle_d((x + s / 2, y + s / 2), s / 2)
     if shape == "squircle":                                     # superellipse, n = 4
@@ -344,7 +373,7 @@ def mask_d(shape: str, x: float, y: float, s: float) -> str:
             c, sn = math.cos(a), math.sin(a)
             pts.append((x + s / 2 + s / 2 * math.copysign(abs(c) ** 0.5, c), y + s / 2 + s / 2 * math.copysign(abs(sn) ** 0.5, sn)))
         return poly_d(pts)
-    r = {"rounded": 0.16, "tile": TILE_R}[shape]
+    r = {"rounded": 0.16, "play": 0.20, "tile": TILE_R}[shape]
     return brand._rrect_d(x, y, s, s, r * s)
 
 
@@ -670,12 +699,13 @@ def browser_mock(w, dark, fav):
     dr.rounded_rectangle(S(tx + 72, 43, tx + 292, 55), 6 * ss, fill=c["skel"])   # title
     dr.line(S(tx + tw - 40, 41, tx + tw - 26, 55), fill=c["skel"], width=3 * ss)  # close
     dr.line(S(tx + tw - 40, 55, tx + tw - 26, 41), fill=c["skel"], width=3 * ss)
+    pitch = 340                                                                  # inactive tabs + new-tab button fit in w
     for j in range(2):                                                           # inactive tabs
-        x = tx + tw + 20 + j * 380
+        x = tx + tw + 20 + j * pitch
         dr.ellipse(S(x + 22, 35, x + 50, 63), fill=c["skel"])
         dr.rounded_rectangle(S(x + 68, 43, x + 68 + 190 - j * 40, 55), 6 * ss, fill=c["skel"])
-        dr.line(S(x + 370, 30, x + 370, 68), fill=c["skel"], width=2 * ss)
-    x = tx + tw + 20 + 2 * 380
+        dr.line(S(x + pitch - 10, 30, x + pitch - 10, 68), fill=c["skel"], width=2 * ss)
+    x = tx + tw + 20 + 2 * pitch
     dr.line(S(x + 14, 49, x + 38, 49), fill=c["skel"], width=3 * ss)              # new tab
     dr.line(S(x + 26, 37, x + 26, 61), fill=c["skel"], width=3 * ss)
     for i in range(3):                                                           # back / forward / reload
@@ -855,7 +885,7 @@ def stage_overview(root):
     mk = fit(load(web, "icon-maskable-512x512.png"), 240)
     mk.alpha_composite(overlay((240, 240), lambda d, s: dashed_circle(d, (120, 120), 96, s, (255, 255, 255, 220))))
     items.append(("maskable 512, 40 % safe circle", mk))
-    items.append(("Play Store 512", masked(fit(load(root, "icons", "android", "play-store-512.png"), 192), "rounded")))
+    items.append(("Play Store 512", masked(fit(load(root, "icons", "android", "play-store-512.png"), 192), "play")))
     items.append(("legacy ic_launcher", load(root, "icons", "android", "res", "mipmap-xxxhdpi", "ic_launcher.png")))
     items.append(("legacy round", load(root, "icons", "android", "res", "mipmap-xxxhdpi", "ic_launcher_round.png")))
     for label, im in items:
@@ -909,12 +939,12 @@ def stage_overview(root):
     caption(cd, (300, 162), "whole badge", small)
     sheet.alpha_composite(rounded(c, 18), (cx0, top + 330))
     c = Image.new("RGBA", (cw, 300), (255, 255, 255, 255))                          # small sizes
-    x = 30
-    for n in (96, 64, 48, 32):
-        c.alpha_composite(masked(fit(av, n), "circle"), (x, 70 - n // 2 + 40))
+    x = 40
+    for n in (96, 64, 48, 32):                                                      # light row centred on y 82,
+        c.alpha_composite(masked(fit(av, n), "circle"), (x, 82 - n // 2))          # dark chips 154-270: 30 px margins
         dk = Image.new("RGBA", (n + 20, n + 20), (0, 0, 0, 255))
         dk.alpha_composite(masked(fit(av, n), "circle"), (10, 10))
-        c.alpha_composite(rounded(dk, 10), (x - 10, 180))
+        c.alpha_composite(rounded(dk, 10), (x - 10, 154))
         x += n + 34
     sheet.alpha_composite(rounded(c, 18), (cx0 + cw + 30, top + 330))
 
@@ -1151,6 +1181,15 @@ def verify(root=ROOT):
             tot, bad, lo, edge = _seams(a, cov)
             check(bad == 0, f"{name}_{n}.png: {tot} interior px, {bad} below 255 (min {lo}); "
                             f"edge px off coverage by > 8: {int((np.abs(a - cov) > 8).sum())}")
+    C = kmark.points(k)["C"]                                                       # sharp concave crotch
+    covs = {n: _coverage(k, n) for n in (2048, 4096)}
+    for name in ("K-Logo_Mark_Color", "K-Logo_Mark_Greyscale", "K-Logo_Mark_Dimensional"):
+        for n, cov in covs.items():
+            a = _alpha(Image.open(os.path.join(root, "logo", "png", f"{name}_{n}.png")))
+            i, j = int(C[0] * n / 1024), int(C[1] * n / 1024)
+            w = np.s_[j - 4:j + 5, i - 4:i + 5]
+            dev = int(np.abs(a[w] - cov[w]).max())
+            check(dev <= 8, f"{name}_{n}.png: crotch C (concave, one facet) 9 x 9 px max |alpha - coverage| {dev}")
     x0, y0, x1, y1 = kmark.bbox(k)
     for n in LOGO_SIZES:
         h = round(n * TIGHT_ASPECT)

@@ -27,6 +27,7 @@ sys.path.insert(0, HERE)
 
 from PIL import Image  # noqa: E402
 from shapely.geometry import LineString, Point, Polygon  # noqa: E402
+from shapely.geometry.polygon import orient  # noqa: E402
 from shapely.ops import unary_union  # noqa: E402
 
 import kmark  # noqa: E402
@@ -100,10 +101,14 @@ def _polys(g):
 
 
 def shape_d(g, min_area=0.0):
+    """SVG path data for a shapely (multi)polygon. Rings are wound like kmark's exact facets
+    (positive shoelace area, holes opposite): librsvg/cairo fills a sharp concave tip such as
+    the crotch C one pixel too solid when the outer ring runs the other way."""
     out = []
     for p in _polys(g):
         if p.area <= min_area:
             continue
+        p = orient(p, sign=1.0)
         out.append(poly_d([tuple(c) for c in p.exterior.coords][:-1]))
         for hole in p.interiors:
             out.append(poly_d([tuple(c) for c in hole.coords][:-1]))

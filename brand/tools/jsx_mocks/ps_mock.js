@@ -279,8 +279,9 @@ class LayerBase {
   move(rel, where) {
     needEnum(where, ElementPlacement, 'move placement');
     if (!rel || !['Document', 'LayerSet', 'ArtLayer'].includes(rel._cls)) fail('move: layer, group or document expected');
-    const me = this._self, R = rel._cls === 'Document' ? rel : rel;
-    for (let p = R; p && p._cls === 'LayerSet'; p = p._parent) if (p === me || p._self === me) fail('move: cannot move a group into itself');
+    const me = this._self, R = rel;
+    if (S(R) === me) fail('move: relative to itself');
+    for (let p = R._parent; p && p._cls === 'LayerSet'; p = p._parent) if (S(p) === me) fail('move: cannot move a group into itself');
     let dest, idx;
     if (where === ElementPlacement.PLACEATEND || where === ElementPlacement.PLACEATBEGINNING || where === ElementPlacement.INSIDE) {
       if (R._cls === 'ArtLayer') fail(`move(${where}): relative object must be a group or the document`);
@@ -288,7 +289,6 @@ class LayerBase {
       dest = R; idx = where === ElementPlacement.PLACEATEND ? -1 : 0;
     } else {
       if (R._cls === 'Document') fail(`move(${where}): relative object must be a layer`);
-      if (R === me || R._self === me) fail('move: relative to itself');
       dest = R._parent; idx = null;
     }
     detach(me);
@@ -583,8 +583,9 @@ const appProxy = strict(appObj, 'Application');
 function dumpLayer(L) {
   const o = { cls: L._cls, name: L.name, opacity: L._opacity, visible: L.visible };
   if (L._vmask) o.vmask = L._vmask.shape ? { shape: L._vmask.shape } : { components: L._vmask.components.map((c) => ({ op: c.op, closed: c.closed, points: c.points.map((q) => [q.a[0], q.a[1], q.l[0], q.l[1], q.r[0], q.r[1], q.kind === PointKind.SMOOTHPOINT ? 1 : 0]) })) };
+  if (L._styles) o.styles = L._styles;
   if (L._cls === 'LayerSet') o.layers = L._layers.map(dumpLayer);
-  else { o.fillOpacity = L._fillOpacity; o.kind = L._kind; o.fill = L._fill; if (L._styles) o.styles = L._styles; if (L._smart) o.smart = true; if (L._filters.length) o.filters = L._filters; }
+  else { o.fillOpacity = L._fillOpacity; o.kind = L._kind; o.fill = L._fill; if (L._smart) o.smart = true; if (L._filters.length) o.filters = L._filters; }
   return o;
 }
 function dumpDoc(d) {

@@ -6,7 +6,8 @@
 //   <KLogo variant="mono" size="2rem" style={{ color: 'var(--k-logo-mono)' }} />
 //
 // Brand rules built in: every corner stays sharp and no facet is recoloured or moved; the tech icon
-// switches to its simplified drawing at 64 px and below; gradient ids are unique per instance.
+// switches to its simplified drawing at 64 px and below when size is a pixel size (a number or
+// "48px": a CSS length cannot be resolved during render); gradient ids are unique per instance.
 import { useId } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 
@@ -15,7 +16,8 @@ export type KLogoVariant = 'color' | 'mono' | 'mono-solid' | 'white' | 'badge' |
 export interface KLogoProps {
   /** Artwork. Default 'color'. */
   variant?: KLogoVariant;
-  /** Height: a number is px, a string is any CSS length. Width follows the aspect ratio. Default 48. */
+  /** Height: a number is px, a string is any CSS length. Width follows the aspect ratio. Default 48.
+   *  Give small tech icons a pixel size: the switch to the simplified drawing needs one. */
   size?: number | string;
   /** Accessible name. Omit it for a decorative logo (the SVG is then aria-hidden). */
   title?: string;

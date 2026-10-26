@@ -11,6 +11,9 @@ in brand.py plus one re-run of this file.
 How the production SVGs are optimised. The design is never touched: no facet is recoloured,
 rotated, stretched, outlined or moved, and every corner stays sharp.
   * ids, data-names, groups, xlink and editor titles go; one role="img" + <title> remains.
+    Gradient ids are namespaced per file (k-tech-a, k-dimensional-a ...): inlined next to each
+    other or to SVGO-minified icons (ids a, b ...), one-letter ids would resolve to the wrong
+    gradient - or to one inside a display:none copy, which paints nothing.
   * Marks get a tight viewBox: the artwork is translated so the box starts at 0 0 and hugs the K.
   * Coordinates are quantised to 0.01 units, and to 0.1 or 1 unit where that moves the value no
     more than AXIS_TOL on either axis (so no vertex moves more than 0.043 units).
@@ -49,6 +52,7 @@ sys.path.insert(0, HERE)
 
 import brand  # noqa: E402
 import kmark  # noqa: E402
+from build import VARIANTS as MASTER_DOCS  # noqa: E402  (master name -> (builder, note), as build.py writes them)
 from okcolor import contrast  # noqa: E402
 
 AXIS_TOL = 0.03          # largest rounding error (per axis) accepted for 0.1 / 1 unit precision
@@ -671,15 +675,16 @@ def _grad_xml(g: Grad, gid):
     return f'<{tag} id="{gid}"{attrs} gradientUnits="userSpaceOnUse">{stops}</{tag}>'
 
 
-def _gid(i):
-    return chr(ord("a") + i)
+def _gid(i, prefix=""):
+    return prefix + chr(ord("a") + i)
 
 
-def svg_file(art: Art, title=TITLE):
-    defs = "".join(_grad_xml(g, _gid(i)) for i, g in enumerate(art.grads))
+def svg_file(art: Art, title=TITLE, prefix="k-"):
+    """Standalone document. prefix namespaces the gradient ids so files can be inlined together."""
+    defs = "".join(_grad_xml(g, _gid(i, prefix)) for i, g in enumerate(art.grads))
     body = ""
     for d, fill, op in art.paths:
-        f = f"url(#{_gid(fill)})" if isinstance(fill, int) else fill
+        f = f"url(#{_gid(fill, prefix)})" if isinstance(fill, int) else fill
         body += f'<path fill="{f}"' + (f' fill-opacity="{dec(op)}"' if op is not None else "") + f' d="{d}"/>'
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {num(art.w)} {num(art.h)}" role="img">'
             f"<title>{title}</title>" + (f"<defs>{defs}</defs>" if defs else "") + body + "</svg>\n")
@@ -712,7 +717,8 @@ TSX = r"""// KLogo.tsx - zero-dependency React component for the K logo (React 1
 //   <KLogo variant="mono" size="2rem" style={{ color: 'var(--k-logo-mono)' }} />
 //
 // Brand rules built in: every corner stays sharp and no facet is recoloured or moved; the tech icon
-// switches to its simplified drawing at @@SMALL@@ px and below; gradient ids are unique per instance.
+// switches to its simplified drawing at @@SMALL@@ px and below when size is a pixel size (a number or
+// "48px": a CSS length cannot be resolved during render); gradient ids are unique per instance.
 import { useId } from 'react';
 import type { CSSProperties, ReactElement } from 'react';
 
@@ -721,7 +727,8 @@ export type KLogoVariant = @@VARIANTS@@;
 export interface KLogoProps {
   /** Artwork. Default 'color'. */
   variant?: KLogoVariant;
-  /** Height: a number is px, a string is any CSS length. Width follows the aspect ratio. Default @@DEFAULT@@. */
+  /** Height: a number is px, a string is any CSS length. Width follows the aspect ratio. Default @@DEFAULT@@.
+   *  Give small tech icons a pixel size: the switch to the simplified drawing needs one. */
   size?: number | string;
   /** Accessible name. Omit it for a decorative logo (the SVG is then aria-hidden). */
   title?: string;
@@ -814,10 +821,13 @@ WC = r"""// k-logo.js - <k-logo> custom element for the K logo: no framework, sh
 //   <k-logo variant="color" size="48" label="Home"></k-logo>
 //
 // variant: @@VARIANT_LIST@@ (default color)
-// size:    height; a number is px, anything else is a CSS length (default @@DEFAULT@@). Width follows.
+// size:    height; a number is px, anything else is a CSS length such as 3rem, not a % (default @@DEFAULT@@).
+//          Width follows.
 // label:   accessible name; without it the logo is decorative (aria-hidden).
 // Mono variants paint with currentColor: set `color` on the element. The tech icon switches to its
-// simplified drawing at @@SMALL@@ px and below. Every instance gets its own gradient ids.
+// simplified drawing at @@SMALL@@ px and below - for a CSS length too, by its laid-out height (a
+// ResizeObserver re-checks it, e.g. when the root font size changes). Every instance gets its own
+// gradient ids.
 
 const ART = @@ART@@;
 
@@ -850,11 +860,28 @@ export class KLogoElement extends Base {
   }
 
   connectedCallback() {
+    // A CSS length (rem, em, vh ...) is only known after layout: watch the element so the tech
+    // icon still switches at TECH_SMALL_MAX. The first callback runs before the first paint.
+    if (!this._ro && typeof ResizeObserver !== 'undefined') this._ro = new ResizeObserver(() => this._render());
+    if (this._ro) this._ro.observe(this);
     this._render();
+  }
+
+  disconnectedCallback() {
+    if (this._ro) this._ro.disconnect();
   }
 
   attributeChangedCallback() {
     this._render();
+  }
+
+  /** Height in CSS px that a CSS length resolves to here; undefined until laid out. */
+  _laidOutHeight(size) {
+    const svg = this.shadowRoot.querySelector('svg');
+    if (!svg || !this.isConnected) return undefined;
+    svg.style.height = size;
+    const h = parseFloat(getComputedStyle(svg).height);
+    return h > 0 ? h : undefined;
   }
 
   _render() {
@@ -862,8 +889,11 @@ export class KLogoElement extends Base {
     const m = /^(\d*\.?\d+)(px)?$/.exec(size);
     const px = m ? Number(m[1]) : undefined;
     let key = this.getAttribute('variant') || 'color';
-    if (key === 'tech' && px !== undefined && px <= TECH_SMALL_MAX) key = 'tech-small';
     if (!Object.prototype.hasOwnProperty.call(ART, key)) key = 'color';
+    if (key === 'tech') {
+      const h = px !== undefined ? px : this._laidOutHeight(size);
+      if (h !== undefined && h <= TECH_SMALL_MAX) key = 'tech-small';
+    }
     const art = ART[key];
     if (this._key !== key) {                       // artwork changes rebuild the shadow tree
       this.shadowRoot.innerHTML = `<style>${CSS}</style>${markup(art, this._uid)}`;
@@ -1128,7 +1158,9 @@ def readme(arts, sizes, t):
 - Clear space: 1 stem width on every side = `{cs}` x the mark height.
 - Minimum height: {t['min-size']['mark'][0]} px for the colour mark, badge and `mono-solid`;
   {t['min-size']['mark-gapped'][0]} px for the gapped `mono` / `white`.
-- At {TECH_SMALL_MAX} px and below use the simplified tech icon (`k-logo-tech-small.svg`); both components switch automatically.
+- At {TECH_SMALL_MAX} px and below use the simplified tech icon (`k-logo-tech-small.svg`). `<k-logo>` switches
+  automatically at any size; `<KLogo>` switches when `size` is a number or `"48px"` (a CSS length is
+  unknown while React renders), so give small tech icons a pixel size.
 - No name or wordmark is defined yet: do not set text next to or inside the mark as if it were one.
   The files carry the neutral title "{TITLE}"; replace it with the product name when there is one.
 
@@ -1141,10 +1173,13 @@ def readme(arts, sizes, t):
 Edge shift is the largest distance (in 1024-grid units) between an edge here and the same edge in
 the brand document, measured by the build. `k-logo-mono*` paint with `currentColor`: inline them to
 take the text colour (as an `<img>` they render black), or use them as a CSS `mask-image` over a
-`background-color`. The files have no width/height: always set a height.
+`background-color`. The files have no width/height: always set a height. Gradient ids are
+namespaced per file (`k-tech-a` ...), so different files can be inlined on one page; for several
+inline copies of the same shaded file (one of them hidden, say), use `<img>` or a component, which
+keep every copy's ids apart.
 
 ```html
-<img src="svg/k-logo.svg" alt="" height="48">
+<img src="svg/k-logo.svg" alt="" height="48">   <!-- alt="": the product name is next to it; else name it -->
 <span style="color: var(--k-logo-mono)"><!-- paste svg/k-logo-mono.svg inline --></span>
 ```
 
@@ -1163,7 +1198,8 @@ import {{ KLogo }} from './react';
 
 Props: `variant` ({" | ".join(PUBLIC)}), `size` (height; number = px, string = CSS length;
 width follows the aspect ratio), `title` (accessible name; without it the SVG is `aria-hidden`),
-`className`, `style`. Gradient ids come from `useId`, so any number of logos can share a page.
+`className`, `style`. Gradient ids come from `useId`, so any number of logos can share a page
+(with several React roots on one page, give each root its own `identifierPrefix`, as for any `useId`).
 The only hook is `useId`, so on React 19 it also renders as a Server Component.
 
 ## Web component
@@ -1171,18 +1207,19 @@ The only hook is `useId`, so on React 19 it also renders as a Server Component.
 ```html
 <script type="module" src="web-component/k-logo.js"></script>
 <k-logo variant="color" size="48" label="Home"></k-logo>
-<k-logo variant="white" size="3rem" style="color: white"></k-logo>
+<k-logo variant="mono" size="3rem" style="color: var(--k-logo-mono)"></k-logo>
 ```
 
-Attributes: `variant`, `size` (number = px, else a CSS length), `label` (accessible name; without it
-the logo is decorative). Shadow DOM; ids are unique per element; attributes can change at runtime.
+Attributes: `variant`, `size` (number = px, else a CSS length such as `3rem`; not a percentage, which
+has no definite height to resolve against here), `label` (accessible name; without it the logo is decorative). `mono` / `mono-solid` take the element's `color`; `white` is always white.
+Shadow DOM; ids are unique per element; attributes can change at runtime.
 
 ## Tokens
 
 ```css
 @import "tokens/tokens.css";      /* --k-red ... --k-night, hex with an OKLCH upgrade */
 .hero {{ background: var(--k-surface); color: var(--k-text); }}   /* light + dark aliases */
-.logo {{ height: 48px; padding: calc(48px * var(--k-clear-space)); }}
+.logo {{ height: 48px; margin: calc(48px * var(--k-clear-space)); }}   /* margin: border-box padding would shrink the logo */
 ```
 
 - `tokens.json` - W3C Design Tokens (DTCG 2025.10): `brand.color.*` (OKLCH with hex fallback),
@@ -1219,10 +1256,11 @@ def build(root=ROOT):
     for v in VARIANTS:
         art = build_art(v, k)
         arts[v.key] = art
-        text = svg_file(art)
+        text = svg_file(art, prefix=f"k-{v.key}-")
         write(os.path.join("svg", f"{v.file}.svg"), text)
-        with open(os.path.join(root, "logo", "svg", f"{v.master}.svg"), "rb") as f:
-            master = f.read()
+        # the master as build.py writes it, regenerated from brand.py (not read from disk, so the
+        # numbers never go stale and run() works for any root)
+        master = MASTER_DOCS[v.master][0]().encode()
         sizes[v.key] = (len(master), _gz(master), len(text.encode()), _gz(text.encode()))
 
     for name, text in react_files(arts).items():

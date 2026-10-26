@@ -43,7 +43,8 @@ How the SVG maps to Photoshop
   gradient / pattern fill, filter, mask, <text>, <image>, <use>, nested <svg>, dashed or
   gradient stroke, a stroke combined with a clip-path / fill-opacity / anisotropic transform,
   a stroke on overlapping or edge-sharing subpaths (Photoshop would stroke only their combined
-  outline), a colour syntax not parsed here (hwb(), lab(), color() ...; hsl()/hsla() are parsed)
+  outline), a colour syntax not parsed here (hwb(), lab(), color() ...; hsl()/hsla() are parsed),
+  markers (marker-start/-mid/-end or the 'marker' shorthand on path/line/polyline/polygon)
         -> PIXEL layer: a copy of the SVG with only that element visible (defs kept, every
            ancestor transform and clip kept) rendered by rsvg and cropped to its bounds.
   <g> with filter or mask
@@ -59,12 +60,16 @@ How the SVG maps to Photoshop
   fill-opacity   -> shape fill opacity ('iOpa'); baked into pixels for pixel layers.
   mix-blend-mode -> PSD blend mode.     display:none / visibility:hidden -> hidden layer.
   CSS            -> presentation attributes < <style> rules (simple tag/.class/#id selectors,
-                    by specificity) < style="" ; fill/stroke/... inherit as in SVG.
+                    by specificity) < style="" < !important rules < !important style="";
+                    fill/stroke/... inherit as in SVG.
+  transform on the root <svg> (SVG 2) -> applied in viewport units, as rsvg does.
 
 Rare geometry that cannot be expressed with sequential path operations on the original
 Bezier subpaths (self-intersecting non-zero paths, multi-ring clip of a multi-ring shape) is
 written as an exactly computed polygon outline (flattened at 0.25 px, simplified within
-0.05 px); the report marks such layers with geometry='flattened'.
+0.05 px); the report marks such layers with geometry='flattened'.  So is a fill reaching
+more than 100 document sizes off the canvas (8.24 knots hold only +-128): it is cut to a box one
+document size around the canvas (a stroke there makes it a pixel layer instead).
 
 Spec references in comments are to "Adobe Photoshop File Formats Specification" (2016+):
   §FH  File Header Section            §IR  Image Resources Section / Image resource IDs
@@ -346,7 +351,8 @@ def _parse_decls(body, important=None):
 
 
 class Styler:
-    """Presentation attributes < <style> rules (simple selectors, by specificity) < style attr."""
+    """Presentation attributes < <style> rules (simple selectors, by specificity) < style attr
+    < !important rules (by specificity) < !important in the style attr."""
 
     def __init__(self, root, warn):
         self.rules = []   # (specificity, order, tag, classes, ids, decls, important decls)

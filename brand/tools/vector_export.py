@@ -1284,7 +1284,9 @@ class SvgDoc:
         gt = parse_transform(attr("gradientTransform"))
         spread = attr("spreadMethod", "pad")
         if units == "objectBoundingBox":
-            bb = self.local_bbox(node)
+            # librsvg sizes paint servers by the shape's own tight user-space extents, even under a
+            # rotated/skewed CTM (its bbox-of-bbox rule applies to clip/mask/filter regions only)
+            bb = path_bbox(node.path) if node.kind == "shape" else self.local_bbox(node)
             if bb is None or bb[2] <= bb[0] or bb[3] <= bb[1]:
                 return None
             M = mmul(node.ctm, mmul(self.bb_matrix(bb), gt))
@@ -1311,9 +1313,8 @@ class SvgDoc:
             fr = R(attr("fr"), dflt["fr"])
             if r <= 0:
                 return ("solid", stops[-1][1], stops[-1][2])
-            dd = math.hypot(fx - cx, fy - cy)
-            if dd > r:   # SVG 1.1 / librsvg: move the focus onto the circle
-                fx, fy = cx + (fx - cx) * r / dd, cy + (fy - cy) * r / dd
+            # a focus outside the circle is kept (SVG2 / librsvg 2.58: a cone, transparent outside it,
+            # which is exactly the PDF/PostScript two-circle radial shading); SVG 1.1 moved it inside
             coords = (fx, fy, max(0.0, fr), cx, cy, r)
         if minv(M) is None:
             return None
@@ -2191,8 +2192,10 @@ def _eps(body, page_w, page_h, title, creator, date, level, process_colors=None)
            "%%Pages: 1"]
     if process_colors:
         hdr.append("%%DocumentProcessColors: " + " ".join(process_colors))
+    # clip to the artboard, as the PDF page does: no marks outside the declared %%BoundingBox
+    art = f"0 0 m {_n(page_w)} 0 l {_n(page_w)} {_n(page_h)} l 0 {_n(page_h)} l h W"
     hdr += ["%%EndComments", "%%BeginProlog", _PS_PROLOG, "%%EndProlog",
-            "%%Page: 1 1", "save", "KVXdict begin", body, "end", "restore", "showpage",
+            "%%Page: 1 1", "save", "KVXdict begin", art, body, "end", "restore", "showpage",
             "%%Trailer", "%%EOF", ""]
     return "\n".join(hdr).encode("latin-1")
 
@@ -2317,7 +2320,7 @@ class _PsEmitter(_PdfEmitter):
         if n.vp_clip:
             clips = clips + [[(n.vp_clip, "nonzero")]]
         if n.name:
-            ops.append(f"% {'group' if n.kind == 'group' else 'shape'}: {n.name.encode('ascii', 'replace').decode()}")
+            ops.append(f"% {'group' if n.kind == 'group' else 'shape'}: {_ps_text(n.name)}")
         if clips:
             ops.append("q")
         pushed = 0
@@ -2366,8 +2369,10 @@ class _PsEmitter(_PdfEmitter):
     def _shfill(self, g, box_root, which="color", backdrop=(1.0, 1.0, 1.0)):
         self.level = 3
         bands = shading_bands(g, which, box_root, backdrop=backdrop)
+        import textwrap      # DSC: lines <= 255 chars; a shading dict holds no strings, any space can break
         return (" ".join(_n(v, 6) for v in mmul(self.B, g["matrix"])) + " cm\n"
-                + "\n".join(_ser(sh) + " shfill" for sh in bands))
+                + "\n".join(textwrap.fill(_ser(sh) + " shfill", 200, break_long_words=False, break_on_hyphens=False)
+                            for sh in bands))
 
     def _geo(self, n, which):
         """(region, exact, clip-operator sequence reproducing the paint's coverage) or None."""
@@ -2766,7 +2771,8 @@ def _grad_tint(g, col, a):
 
 
 def _ps_text(s):
-    s = s.encode("ascii", "replace").decode()
+    # control characters (a multi-line <title>, &#10; in an id) would end the DSC comment line
+    s = re.sub(r"[\x00-\x1f\x7f]+", " ", s.encode("ascii", "replace").decode())
     return s.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
 
